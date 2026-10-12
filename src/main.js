@@ -35,7 +35,7 @@ const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' }
 const RESULT_NAME = { perfect: 'идеально', block: 'блок', broken: 'защита сбита', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
 const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin']);
 const HINT_WALK = 'WASD — ходить по полу · ЛКМ удар · ПКМ рывок';
-const HINT_FIGHT = 'колесо вверх / зажать / вниз — защита · ЛКМ удар · ПКМ рывок · W S — уйти с линии';
+const HINT_FIGHT = 'колесо вверх / нажать / вниз — стойка · W/S + ЛКМ — верх / низ · ПКМ рывок';
 
 const canvas = document.getElementById('game');
 canvas.width = W;
@@ -92,6 +92,7 @@ function newGame() {
     prevPress: null,
     dirHistory: [],
     lastTiming: '',
+    stance: null,
     stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0 },
     debug: game.debug || false,
   });
@@ -380,20 +381,24 @@ function handlePress(code) {
   const fwdKeys = p.facing > 0 ? KEYS.right : KEYS.left;
   const backKeys = p.facing > 0 ? KEYS.left : KEYS.right;
 
-  if (is(code, 'high')) { recordGuard('high'); p.cancel(); }
-  if (is(code, 'low')) { recordGuard('low'); p.cancel(); }
-  if (is(code, 'mid')) { recordGuard('mid'); p.cancel(); }
+  // колесо и средняя кнопка ставят стойку, которая держится до смены, удара или рывка
+  if (is(code, 'high')) { recordGuard('high'); p.cancel(); if (code.startsWith('Wheel')) game.stance = 'high'; }
+  if (is(code, 'low')) { recordGuard('low'); p.cancel(); if (code.startsWith('Wheel')) game.stance = 'low'; }
+  if (is(code, 'mid')) { recordGuard('mid'); p.cancel(); if (code === 'Mouse1') game.stance = 'mid'; }
   if (backKeys.includes(code)) game.dirHistory.push({ d: 'back', t: game.time });
   if (fwdKeys.includes(code)) game.dirHistory.push({ d: 'fwd', t: game.time });
   if (game.dirHistory.length > 4) game.dirHistory.shift();
 
   if (is(code, 'attack')) {
-    const vert = held('high') ? 'up' : held('low') ? 'down' : null;
+    // W / S (или ↑ ↓) + удар — верхний / нижний удар
+    const vert = held('depthIn') || input.isDown('KeyQ') ? 'up' : held('depthOut') || input.isDown('ShiftLeft') ? 'down' : null;
+    game.stance = null;
     p.requestAttack(vert, spinRequested());
   }
   if (is(code, 'dash')) {
     const back = backKeys.some(input.isDown);
-    const dir = held('high') ? 'up' : held('low') ? 'down' : back && engaged ? 'back' : null;
+    const dir = held('depthIn') || input.isDown('KeyQ') ? 'up' : held('depthOut') || input.isDown('ShiftLeft') ? 'down' : back && engaged ? 'back' : null;
+    game.stance = null;
     p.requestDash(dir);
   }
 }
@@ -411,7 +416,7 @@ function controls() {
     fwd: p.facing > 0 ? R : L,
     back: engaged && (p.facing > 0 ? L : R) && !(p.facing > 0 ? R : L),
     dz,
-    guard: input.latest(map),
+    guard: input.latest(map) ?? game.stance ?? null,
     engaged,
     anyInput: L || R || dz !== 0,
   };
@@ -844,21 +849,20 @@ ui.box.addEventListener('pointerdown', e => {
   if (game.mode === 'title') { input.press('Enter'); return; }
   if (e.button === 0) input.press('Mouse0');
   else if (e.button === 2) input.press('Mouse2');
-  else if (e.button === 1) input.setHeld('Mouse1', true);
+  else if (e.button === 1) input.press('Mouse1');
 });
-window.addEventListener('pointerup', e => { if (e.button === 1) input.setHeld('Mouse1', false); });
 ui.box.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });  // без автопрокрутки
 ui.box.addEventListener('auxclick', e => e.preventDefault());
 ui.box.addEventListener('contextmenu', e => e.preventDefault());
-const wheelTimers = {};
+let wheelAt = { WheelUp: 0, WheelDown: 0 };
 ui.box.addEventListener('wheel', e => {
   e.preventDefault();
   if (game.mode !== 'play' || !e.deltaY) return;
-  // колесо вверх — верхняя защита, вниз — нижняя; одна прокрутка — одно нажатие
+  // колесо вверх — стойка сверху, вниз — снизу; серия щелчков одной прокрутки считается одним нажатием
   const code = e.deltaY < 0 ? 'WheelUp' : 'WheelDown';
-  if (!wheelTimers[code]) input.setHeld(code, true);
-  clearTimeout(wheelTimers[code]);
-  wheelTimers[code] = setTimeout(() => { wheelTimers[code] = null; input.setHeld(code, false); }, CONFIG.wheelGuard * 1000);
+  const now = performance.now();
+  if (now - wheelAt[code] > 250) input.press(code);
+  wheelAt[code] = now;
 }, { passive: false });
 
 newGame();
