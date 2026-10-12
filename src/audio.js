@@ -56,6 +56,7 @@ export const sfx = {
   deflected() { burst(0.08, 'bandpass', 2000, 0.35, 4); },
   stagger() { tone(330, 0.15, 'square', 0.07, 220); },
   heavy() { burst(0.3, 'lowpass', 400, 0.8); tone(90, 0.3, 'sine', 0.4, 45); },
+  whip() { tone(2400, 0.18, 'sine', 0.12, 700); burst(0.12, 'highpass', 4000, 0.25); },
   swish() { burst(0.1, 'bandpass', 900, 0.18, 0.8); },
   dash() { burst(0.09, 'lowpass', 600, 0.25); },
   ward() { tone(880, 0.25, 'sine', 0.15, 1320); burst(0.06, 'highpass', 2500, 0.2); },

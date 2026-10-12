@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.3.1';
+export const VERSION = 'v0.4';
 
 export const CONFIG = {
   width: 320,
@@ -14,6 +14,7 @@ export const CONFIG = {
   counterWindow: 1.3,   // сколько враг ошеломлён после идеально отбитой серии
   guardBreakTime: 0.7,  // сколько нельзя защищаться после сбитой защиты
   wheelGuard: 0.3,      // прокрутка колёсика держит среднюю защиту столько секунд
+  autoTurn: 0.7,        // враг оказался за спиной — рыцарь сам развернётся через столько секунд (стрелкой — сразу)
 
   // Урон
   counterMult: 2,       // во сколько раз больнее бьёшь ошеломлённого врага
@@ -59,7 +60,8 @@ export const WEAPON = {
 };
 
 // Удары врагов. guard — какой защитой отбивать; pose — поза замаха и удара;
-// breaks — сбивает защиту, если отбить обычным блоком (идеальное парирование спасает); mult — множитель урона.
+// breaks — сбивает защиту, если отбить обычным блоком (идеальное парирование спасает); mult — множитель урона;
+// bypass — огибает удержанный блок: спасает только идеальное парирование или уклонение; whip — свистящий звук захлёста.
 export const STRIKES = {
   high:      { guard: 'high', pose: 'high' },
   mid:       { guard: 'mid',  pose: 'mid' },
@@ -68,6 +70,8 @@ export const STRIKES = {
   whirl:     { guard: 'mid',  pose: 'whirl' },
   diagUp:    { guard: 'mid',  pose: 'diagUp',   breaks: true, mult: 2 },  // снизу вверх по диагонали — выглядит не как верх и не как низ
   diagDown:  { guard: 'mid',  pose: 'diagDown', breaks: true, mult: 2 },  // сверху вниз по диагонали
+  flick:     { guard: 'high', pose: 'flick', bypass: true, mult: 1.5, whip: true },   // захлёст через защиту спереди
+  flickBack: { guard: 'high', pose: 'flick', breaks: true, mult: 2, whip: true },    // захлёст в спину после прыжка через рыцаря
   heavyHigh: { guard: 'high', pose: 'high', breaks: true, mult: 1.5, heavy: true },
   heavyMid:  { guard: 'mid',  pose: 'mid',  breaks: true, mult: 1.5, heavy: true },
   heavyLow:  { guard: 'low',  pose: 'low',  breaks: true, mult: 1.5, heavy: true },
@@ -127,9 +131,9 @@ export const ENEMY_TYPES = {
     windup: 0.42, comboWindup: 0.22, gap: 0.05, recover: 0.7, wait: [0.4, 0.8],
     combos: [
       ['thrust', 'thrust', 'thrust'], ['low', 'high'], ['low', 'mid'], ['whirl', 'whirl'],
-      ['diagUp'], ['diagDown'], ['thrust', 'diagDown'], ['mid', 'diagUp'],
+      ['diagUp'], ['diagDown'], ['thrust', 'diagDown'], ['mid', 'diagUp'], ['flick'], ['thrust', 'flick'],
     ],
-    leapBackChance: 0.18, leapInChance: 0.25, leapDistance: 64,
+    leapBackChance: 0.15, leapInChance: 0.22, vaultChance: 0.15, leapDistance: 64, vaultWindup: 0.3,  // vault — прыжок через рыцаря с захлёстом в спину
     guardChance: 0.6, reaction: 0.08,
     robe: true,  // длинное бежевое одеяние до пят, вроде джедайского
     colors: { armor: '#c8b48a', armorDark: '#9c8762', tabard: '#ece2c8', robe: '#b9a47a', robeDark: '#8f7c58', belt: '#5a4632', helm: '#d9a87e', visor: '#14101e', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#4a3a2a', hair: '#14101e' },

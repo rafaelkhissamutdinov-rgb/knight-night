@@ -280,3 +280,28 @@ test('мини-босс врывается прыжком и сразу коле
   run(e, w, x => x.state === 'leapIn', 5);
   run(e, w, x => w.impacts.includes('thrust'), 5);
 });
+
+// ---------- v0.4: захлёсты ----------
+
+test('захлёст огибает удержанный блок, спасает только идеальное парирование', () => {
+  const held = resolveImpact({ height: 'high', time: 5, defense: def({ guard: 'high' }), lastPress: at('high', 4.5), bypass: true }, CONFIG);
+  assert.equal(held.result, 'hit');
+  const perfect = resolveImpact({ height: 'high', time: 5, defense: def({ guard: 'high' }), lastPress: at('high', 4.9), bypass: true }, CONFIG);
+  assert.equal(perfect.result, 'perfect');
+});
+
+test('удар в спину — защита не действует, урон вдвое; кувырок спасает', () => {
+  assert.deepEqual(impact('high', 5, { guard: 'high', backTurned: true }, at('high', 4.9)), { result: 'hit', mult: CONFIG.tradeMult });
+  assert.equal(impact('high', 5, { dodge: true, backTurned: true }).result, 'dodged');
+});
+
+test('Илиа перепрыгивает через рыцаря и хлещет в спину', () => {
+  const e = createEnemy('duelist', 140, () => 0.45);  // 0.45 → прыжок через рыцаря
+  const w = world(110);
+  w.heavySwing = () => {};
+  e.enter('idle');
+  e.waitFor = 0;
+  run(e, w, x => x.state === 'vault', 2);
+  run(e, w, x => w.impacts.includes('flickBack'), 3);
+  assert.ok(e.x < 110, 'приземлился по другую сторону от рыцаря');
+});

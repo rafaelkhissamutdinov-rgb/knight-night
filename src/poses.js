@@ -30,6 +30,11 @@ export const POSES = {
   strike_diagUp:   { hx: 11, hy: -4, angle: -45,  lean: 5, crouch: 0 },
   windup_diagDown: { hx: 2,  hy: -2, angle: -135, lean: 0, crouch: 0 },
   strike_diagDown: { hx: 11, hy: 8,  angle: 45,   lean: 5, crouch: 2 },
+  // захлёст: клинок заведён за плечо, как хлыст → хлёсткий удар сверху
+  windup_flick:  { hx: -2, hy: -8, angle: -200, lean: -2, crouch: 0 },
+  strike_flick:  { hx: 9,  hy: -6, angle: 60,   lean: 5,  crouch: 1 },
+  vault:         { hx: 4,  hy: -9, angle: -150, lean: 2,  crouch: 6 },  // в прыжке через рыцаря
+
   // подсечка после кувырка: низко, клинок идёт вдоль пола
   windup_sweep:  { hx: -6, hy: 13, angle: 178,  lean: 3,  crouch: 8 },
   strike_sweep:  { hx: 13, hy: 14, angle: 4,    lean: 5,  crouch: 8 },

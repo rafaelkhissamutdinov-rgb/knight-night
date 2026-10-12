@@ -102,7 +102,9 @@ const world = {
       sfx.swish();
       return 'miss';
     }
-    return applyImpact(s.guard, e.def.damage * (s.mult ?? 1), e.x, s.breaks);
+    // в спину бьют, если рыцарь не успел развернуться к врагу
+    const backTurned = Math.sign(e.x - p.x) !== p.facing && Math.abs(e.x - p.x) > 2;
+    return applyImpact(s.guard, e.def.damage * (s.mult ?? 1), e.x, s.breaks, s.bypass, backTurned);
   },
   heavySwing(e) {
     game.waves.push({ x: e.x, dir: e.facing, t: 0 });
@@ -143,7 +145,10 @@ const world = {
     game.stats.hit++;
     return true;
   },
-  cue(height) { if (CONFIG.audioCues) sfx.cue(height); },
+  cue(height, strike) {
+    if (strike?.whip) sfx.whip();
+    else if (CONFIG.audioCues) sfx.cue(height);
+  },
   staggered() {
     sfx.stagger();
     callout('Враг открыт!', 'counter');
@@ -151,10 +156,10 @@ const world = {
 };
 
 // Удар врага или стрела дошли до рыцаря.
-function applyImpact(height, damage, sourceX, breaks = false) {
+function applyImpact(height, damage, sourceX, breaks = false, bypass = false, backTurned = false) {
   const p = game.player;
   const { result, mult } = resolveImpact(
-    { height, time: game.time, defense: p.defense(), lastPress: game.lastPress, prevPress: game.prevPress, breaks },
+    { height, time: game.time, defense: { ...p.defense(), backTurned }, lastPress: game.lastPress, prevPress: game.prevPress, breaks, bypass },
     CONFIG,
   );
   const lp = game.lastPress;
@@ -205,7 +210,7 @@ function applyImpact(height, damage, sourceX, breaks = false) {
     game.hitstop = CONFIG.hitstop.hit;
     shake(mult > 1 ? 4 : 3);
     flash('#e8454f', 0.3);
-    callout(mult > 1 ? `Пропущен ×${mult}  −${dmg}` : `Пропущен  −${dmg}`, 'hit');
+    callout(backTurned ? `В спину! −${dmg}` : mult > 1 ? `Пропущен ×${mult}  −${dmg}` : `Пропущен  −${dmg}`, 'hit');
   }
   return result;
 }
@@ -397,7 +402,18 @@ function update(dt) {
 
   // куда смотрит рыцарь: в бою — на врага, иначе — куда идёт
   const free = p.state === 'ready';
-  if (cur && free) p.facing = Math.sign(cur.x - p.x) || p.facing;
+  if (cur && free) {
+    // враг за спиной: стрелка в его сторону разворачивает сразу, иначе — с задержкой
+    const want = Math.sign(cur.x - p.x) || p.facing;
+    if (want === p.facing) game.turnT = 0;
+    else {
+      game.turnT = (game.turnT ?? 0) + dt;
+      if (held(want > 0 ? 'right' : 'left') || game.turnT >= CONFIG.autoTurn) {
+        p.facing = want;
+        game.turnT = 0;
+      }
+    }
+  }
   else if (!cur && free) {
     if (held('left') && !held('right')) p.facing = -1;
     else if (held('right') && !held('left')) p.facing = 1;
@@ -606,7 +622,7 @@ function renderEnemy(e, cam) {
     });
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
       // удар, который сбивает защиту, бликует оранжевым
-      const c = e.strike?.breaks ? PAL.flame2 : PAL.spark;
+      const c = e.strike?.breaks || e.strike?.bypass ? PAL.flame2 : PAL.spark;
       rect(g, tip.tipX - 2, tip.tipY, 5, 1, c);
       rect(g, tip.tipX, tip.tipY - 2, 1, 5, c);
     }
@@ -691,7 +707,7 @@ function renderDebug(cam) {
     extra += ` · враг: ${e.state}`;
     if (e.kind === 'slime') extra += ` · бить: ${HEIGHT_NAME[e.zone] ?? 'любой'}`;
     else if (e.guardHeight) extra += ` · закрыт: ${HEIGHT_NAME[e.guardHeight]}`;
-    if (e.state === 'windup') extra += ` · удар: ${e.height} → защита ${HEIGHT_NAME[e.strike.guard]}${e.strike.breaks ? ', сбивает' : ''}`;
+    if (e.state === 'windup') extra += ` · удар: ${e.height} → защита ${HEIGHT_NAME[e.strike.guard]}${e.strike.breaks ? ', сбивает' : ''}${e.strike.bypass ? ', огибает блок — только идеально' : ''}`;
     if (e.def.shield) extra += ' · щит: верх и середина';
     rect(g, e.x - cam - 1, GROUND + 4, 2, 2, '#7bd88f');
   }

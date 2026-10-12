@@ -43,6 +43,7 @@ class Enemy {
   enter(state) {
     this.state = state;
     this.t = 0;
+    this.windupOverride = undefined;
     this.from = { ...this.pose };
     this.cued = false;
     this.done = false;
@@ -50,7 +51,7 @@ class Enemy {
 
   get solid() { return this.alive && this.airY < 6; }
   get canGuard() { return this.alive && (this.state === 'idle' || this.state === 'approach' || this.state === 'dormant'); }
-  get windupTime() { return this.idx === 0 ? this.def.windup : this.def.comboWindup; }
+  get windupTime() { return this.windupOverride ?? (this.idx === 0 ? this.def.windup : this.def.comboWindup); }
   get height() { return this.combo ? this.combo[this.idx] : null; }
   get strike() { return STRIKES[this.height] ?? STRIKES.mid; }
   get glint() { return this.state === 'windup' && this.t >= this.windupTime - CONFIG.perfectWindow; }
@@ -236,7 +237,7 @@ class Melee extends Enemy {
         this.pose = lerpPose(this.from, POSES['windup_' + s.pose], ease(Math.min(1, this.t / (T * 0.55))));
         if (!this.cued && this.t >= T * 0.55) {
           this.cued = true;
-          w.cue(s.guard);
+          w.cue(s.guard, s);
         }
         if (this.t >= T) {
           if (s.heavy) w.heavySwing(this);
@@ -532,7 +533,7 @@ class Duelist extends Melee {
       this.enter('yield');
       return;
     }
-    if (this.state === 'windup' || this.state === 'strike' || this.state === 'leapIn') return;
+    if (this.state === 'windup' || this.state === 'strike' || this.state === 'leapIn' || this.state === 'vault') return;
     this.combo = null;
     this.enter('hurt');
   }
@@ -550,6 +551,13 @@ class Duelist extends Melee {
     if (r < d.leapBackChance + d.leapInChance && dist > 24) {
       this.leapDir = this.facing;
       this.enter('leapIn');
+      return true;
+    }
+    if (r < d.leapBackChance + d.leapInChance + d.vaultChance && dist < 60) {
+      // прыжок через голову: приземлиться за спиной рыцаря
+      this.vaultFrom = this.x;
+      this.vaultTo = w.player.x + this.facing * 26;
+      this.enter('vault');
       return true;
     }
     return false;
@@ -579,6 +587,27 @@ class Duelist extends Melee {
             this.allPerfect = true;
             this.enter('windup');
           } else this.rest(0.5);
+        }
+        return;
+      }
+
+      case 'vault': {
+        this.t += dt;
+        this.flashT = Math.max(0, this.flashT - dt);
+        const T = 0.5;
+        const k = Math.min(1, this.t / T);
+        this.x = this.vaultFrom + (this.vaultTo - this.vaultFrom) * ease(k);
+        this.airY = Math.sin(Math.PI * k) * 36;
+        this.pose = approachPose(this.pose, POSES.vault, dt, 20);
+        if (this.t >= T) {
+          this.airY = 0;
+          this.faceTo(w);
+          // приземлился и сразу хлещет в спину
+          this.combo = ['flickBack'];
+          this.idx = 0;
+          this.allPerfect = true;
+          this.enter('windup');
+          this.windupOverride = this.def.vaultWindup;
         }
         return;
       }
