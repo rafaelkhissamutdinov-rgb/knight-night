@@ -85,14 +85,15 @@ export function drawFigure(g, o) {
     rect(g, shX - 9 * f - (f > 0 ? 0 : 7), shY - 1, 7, 1, colors.belt);
   }
 
-  // короткий плащ до середины бедра, застёгнут на две пуговицы, светлый воротник
+  // плащ до середины бедра на пуговицах, высокий ворот
   if (coat) {
     rect(g, hipX - 4, shY + 1, 8, hipY - shY + 4, colors.armor);
     rect(g, f > 0 ? hipX - 4 : hipX + 3, shY + 1, 1, hipY - shY + 4, colors.armorDark);
     rect(g, hipX - 4, hipY + 4, 8, 1, colors.armorDark);
     rect(g, hipX + f, shY + 5, 1, 1, colors.belt);
     rect(g, hipX + f, shY + 8, 1, 1, colors.belt);
-    rect(g, shX - 2, shY, 5, 2, colors.tabard);
+    rect(g, shX - 3, shY - 1, 7, 3, colors.tabard);
+    rect(g, shX - 3, shY + 1, 7, 1, colors.armorDark);
   }
 
   // корпус и табард (у скелета — тёмные просветы между рёбрами; пояс-кушак у тонкой фигуры)
@@ -116,13 +117,16 @@ export function drawFigure(g, o) {
   const headX = shX - 3 + f;
   const headY = shY - 9;
   if (bob) {
-    // каре до подбородка, чёлка разобрана по бокам и чуть падает на глаза
-    rect(g, headX - 1, headY - 1, 9, 9, colors.hair);
+    // длинные волосы ниже плеч, чёлка прядями падает на глаза
+    rect(g, f > 0 ? headX - 2 : headX + 5, headY + 1, 4, 12, colors.hair);
+    rect(g, headX - 1, headY - 1, 9, 8, colors.hair);
     rect(g, headX + (f > 0 ? 2 : 0), headY + 2, 5, 5, colors.helm);
-    rect(g, headX + (f > 0 ? 3 : 1), headY + 2, 3, 1, colors.hair);
-    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 3, 1, 1, colors.visor);
+    rect(g, headX + (f > 0 ? 2 : 0), headY + 2, 5, 1, colors.hair);
+    rect(g, headX + (f > 0 ? 4 : 2), headY + 3, 1, 1, colors.hair);
+    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 4, 1, 1, colors.visor);
     rect(g, f > 0 ? headX + 4 : headX + 2, headY + 6, 2, 1, colors.blush ?? colors.helm);
-    rect(g, f > 0 ? headX - 1 : headX + 4, headY + 7, 4, 1, colors.hair);
+    rect(g, f > 0 ? headX + 7 : headX - 1, headY + 2, 1, 7, colors.hair);
+    rect(g, headX + 1, headY - 1, 4, 1, colors.hairLight ?? colors.hair);
   } else if (wrap) {
     // платок с покрывалом: открыты только глаза, концы ткани спадают на плечи
     rect(g, headX, headY, 7, 7, colors.helm);

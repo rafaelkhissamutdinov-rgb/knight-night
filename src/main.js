@@ -60,7 +60,7 @@ const ui = {
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkFace: $('talk-face'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'),
-  shop: $('shop'), shopPortrait: $('shop-portrait'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
+  shop: $('shop'), shopPortrait: $('shop-portrait'), shopFace: $('shop-face'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
   shopText: $('shop-text'), shopMenu: $('shop-menu'),
   skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'), skillName: $('skill-name'), weapon: $('weapon'),
 };
@@ -1234,6 +1234,7 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 const FACES = {
   knight: { default: 'assets/portraits/knight.jpg', tired: 'assets/portraits/knight-tired.jpg', nohelm: 'assets/portraits/knight-nohelm.jpg' },
   ilia: { default: 'assets/portraits/ilia.jpg' },
+  lika: { default: 'assets/portraits/lika.jpg' },
 };
 for (const set of Object.values(FACES)) for (const src of Object.values(set)) new Image().src = src;  // загрузить заранее
 
@@ -1340,7 +1341,12 @@ function openShop(npc) {
   if (!data) return;
   game.shop = { npc, data, view: 'main', text: data.hello, shown: 0 };
   game.mode = 'shop';
-  drawLikaPortrait(shopCtx, npc.def.colors);
+  // нарисованный портрет, если есть; иначе — пиксельная заглушка
+  const face = FACES[npc.def.face]?.default;
+  ui.shopFace.hidden = !face;
+  ui.shopPortrait.hidden = !!face;
+  if (face) ui.shopFace.src = face;
+  else drawLikaPortrait(shopCtx, npc.def.colors);
   ui.shopName.textContent = npc.def.name;
   ui.shop.hidden = false;
   hint('');

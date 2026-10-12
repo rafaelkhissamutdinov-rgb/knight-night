@@ -149,6 +149,8 @@ kbd {
 .shop[hidden] { display: none; }
 .shop-left { display: grid; gap: 0.8cqw; align-content: start; justify-items: center; }
 .shop-portrait { width: 15cqw; height: 15cqw; image-rendering: pixelated; background: #1e1a2b; border: 0.3cqw solid var(--line); }
+.shop-portrait[hidden] { display: none; }
+img.shop-portrait { image-rendering: auto; object-fit: cover; }
 .shop-name { font-family: var(--pixel); font-size: 2.4cqw; color: var(--gold); }
 .shop-coins { font-family: var(--pixel); font-size: 1.8cqw; color: var(--muted); }
 .shop-text { margin: 0; font-size: 2.4cqw; line-height: 1.5; color: var(--fg); }
