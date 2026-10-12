@@ -1,0 +1,32 @@
+// Клавиатура: какие клавиши зажаты, в каком порядке нажаты, и очередь новых нажатий.
+const BLOCKED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
+
+export function createInput(target = window) {
+  const order = [];   // зажатые клавиши, последняя — самая свежая
+  const queue = [];   // новые нажатия с прошлого кадра
+
+  target.addEventListener('keydown', e => {
+    if (BLOCKED.has(e.code)) e.preventDefault();
+    if (e.repeat) return;
+    const i = order.indexOf(e.code);
+    if (i >= 0) order.splice(i, 1);
+    order.push(e.code);
+    queue.push(e.code);
+  });
+  target.addEventListener('keyup', e => {
+    const i = order.indexOf(e.code);
+    if (i >= 0) order.splice(i, 1);
+  });
+  target.addEventListener('blur', () => { order.length = 0; });
+
+  return {
+    isDown: code => order.includes(code),
+    // самая свежая зажатая клавиша из map → её значение
+    latest(map) {
+      for (let i = order.length - 1; i >= 0; i--) if (order[i] in map) return map[order[i]];
+      return null;
+    },
+    take: () => queue.splice(0),
+    press: code => queue.push(code),
+  };
+}

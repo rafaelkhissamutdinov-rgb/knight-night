@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Knight Night</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=Golos+Text:wght@400;500&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <div class="game" id="game-box" tabindex="0" aria-label="Игра Knight Night">
+      <canvas id="game" width="320" height="180"></canvas>
+      <div class="hud">
+        <div class="hearts" id="hearts" aria-label="Здоровье"></div>
+        <div class="foe" id="foe" hidden>
+          <span id="foe-name"></span>
+          <div class="bar"><i id="foe-bar"></i></div>
+        </div>
+      </div>
+      <div class="callout" id="callout" aria-live="polite"></div>
+      <div class="hint" id="hint" hidden></div>
+      <div class="debug" id="debug" hidden></div>
+      <div class="overlay" id="overlay">
+        <h1 id="overlay-title">Knight Night</h1>
+        <p id="overlay-text">Прототип механики парирования. Враг показывает удар замахом: сверху, по корпусу или снизу. Поставь нужную защиту в момент удара.</p>
+        <p class="press" id="overlay-press">Нажми любую клавишу</p>
+      </div>
+    </div>
+
+    <section class="help" aria-label="Управление">
+      <div><kbd>←</kbd> <kbd>→</kbd> идти</div>
+      <div><kbd>↑</kbd> верхняя защита</div>
+      <div><kbd>→</kbd> средняя защита</div>
+      <div><kbd>↓</kbd> нижняя защита</div>
+      <div><kbd>Z</kbd> удар / выпад</div>
+      <div><kbd>G</kbd> отладка таймингов</div>
+    </section>
+    <p class="rules">Держишь нужную защиту — блок. Нажал её прямо перед ударом — идеальное парирование. Отбил идеально всю серию — враг ошеломлён: жми <kbd>Z</kbd>, выпад наносит тройной урон. После обычной серии враг ненадолго открыт для простого удара.</p>
+  </main>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
