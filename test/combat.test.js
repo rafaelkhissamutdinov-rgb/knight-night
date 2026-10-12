@@ -106,7 +106,7 @@ test('заслон отскока работает один раз и гасне
 
 function world(px) {
   return {
-    player: { x: px },
+    player: { x: px, z: 22 },
     impacts: [],
     engage() {},
     cue() {},

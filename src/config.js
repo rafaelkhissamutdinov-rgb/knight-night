@@ -1,12 +1,19 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.4';
+export const VERSION = 'v0.5-глубина';
 
 export const CONFIG = {
   width: 320,
   height: 180,
   ground: 150,
+
+  // Глубина пола (вариант A): z = 0 — у стены, z = depth — у края экрана
+  floorTop: 118,        // где стена встречается с полом
+  depth: 44,
+  depthSpeed: 42,       // шаг вглубь медленнее, чем вбок
+  depthReach: 9,        // насколько можно разойтись по глубине, чтобы удар всё равно достал
+  tokenPause: 0.35,     // пауза между атаками разных врагов: бьёт один, остальные ждут
 
   // Защита
   perfectWindow: 0.16,  // нажал защиту не раньше чем за столько до удара → идеальное парирование
@@ -155,16 +162,15 @@ export const ENEMY_TYPES = {
   },
 };
 
-// Коридор прототипа: длина и враги по порядку.
+// Коридор прототипа: встречи с группами врагов. Пока группа жива, коридор закрыт с обеих сторон.
+// dx — смещение врага от центра встречи, z — глубина.
 export const LEVEL = {
-  length: 2750,
-  enemies: [
-    { type: 'slime', x: 340 },
-    { type: 'merc', x: 650 },
-    { type: 'skelShort', x: 960 },
-    { type: 'skelArcher', x: 1300 },
-    { type: 'skelShield', x: 1620 },
-    { type: 'skelLong', x: 1950 },
-    { type: 'duelist', x: 2400 },  // мини-босс: не умирает, а отступает
+  length: 2900,
+  encounters: [
+    { x: 380, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
+    { x: 860, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
+    { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
+    { x: 1900, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
+    { x: 2500, enemies: [{ type: 'duelist', dx: 80, z: 22 }] },
   ],
 };

@@ -3,12 +3,13 @@ import { PAL } from './palette.js';
 const TORCH_STEP = 160;
 
 // Коридор подземелья рисуется один раз во всю длину уровня.
-export function buildBackground(length, height, ground) {
+// floorTop — где стена встречается с полом; ниже — пол с глубиной (дальние ряды плиток уже).
+export function buildBackground(length, height, floorTop) {
   const c = document.createElement('canvas');
   c.width = length;
   c.height = height;
   const g = c.getContext('2d');
-  const wallBottom = ground - 24;
+  const wallBottom = floorTop;
   let seed = 7;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
@@ -33,21 +34,27 @@ export function buildBackground(length, height, ground) {
     g.fillStyle = PAL.wall;
     g.fillRect(x + 12, 0, 8, wallBottom);
   }
-  // дальняя часть пола
-  g.fillStyle = PAL.floorDark;
-  g.fillRect(0, wallBottom, length, ground - wallBottom);
+  // пол: ряды плиток, ближние выше и светлее — так читается глубина
+  g.fillStyle = PAL.mortar;
+  g.fillRect(0, wallBottom, length, height - wallBottom);
+  let y = wallBottom + 1;
+  for (let row = 0; y < height; row++) {
+    const h = 6 + row * 3;
+    const w = 24 + row * 6;
+    const off = row % 2 ? w / 2 : 0;
+    for (let x = -off; x < length; x += w) {
+      g.fillStyle = row < 2 ? PAL.floorDark : PAL.floor;
+      g.fillRect(Math.round(x), y, w - 1, h - 1);
+      g.fillStyle = row < 2 ? PAL.floor : PAL.floorLight;
+      g.fillRect(Math.round(x), y, w - 1, 1);
+    }
+    y += h;
+  }
   g.fillStyle = PAL.mortar;
   g.fillRect(0, wallBottom, length, 2);
-  // ближний пол плитками
-  for (let x = 0; x < length; x += 32) {
-    g.fillStyle = PAL.floor;
-    g.fillRect(x, ground, 31, height - ground);
-    g.fillStyle = PAL.floorLight;
-    g.fillRect(x, ground, 31, 1);
-  }
   for (let i = 0; i < length / 6; i++) {
     g.fillStyle = PAL.floorLight;
-    g.fillRect(Math.floor(rand() * length), ground + 3 + Math.floor(rand() * (height - ground - 4)), 1, 1);
+    g.fillRect(Math.floor(rand() * length), wallBottom + 4 + Math.floor(rand() * (height - wallBottom - 5)), 1, 1);
   }
   return c;
 }

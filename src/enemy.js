@@ -4,14 +4,15 @@ import { slimeZone } from './combat.js';
 
 // world — то, что враг знает о мире: world.player (x, …), world.engage(e), world.impact(e, strikeType) → результат,
 // world.spawnArrow(e, height), world.swallow(e) → получилось ли, world.cue(height), world.staggered(e),
-// world.heavySwing(e) — эффект тяжёлого взмаха, world.defeated(e) — мини-босс отступил.
+// world.heavySwing(e) — эффект тяжёлого взмаха, world.defeated(e) — мини-босс отступил,
+// world.requestToken(e) — можно ли сейчас атаковать (бьёт один враг, остальные ждут; нет функции — можно всегда).
 
-export function createEnemy(type, x, rng = Math.random) {
+export function createEnemy(type, x, rng = Math.random, z = 22) {
   const kind = ENEMY_TYPES[type].kind;
-  if (kind === 'slime') return new Slime(type, x, rng);
-  if (kind === 'archer') return new Archer(type, x, rng);
-  if (kind === 'duelist') return new Duelist(type, x, rng);
-  return new Melee(type, x, rng);
+  const Cls = kind === 'slime' ? Slime : kind === 'archer' ? Archer : kind === 'duelist' ? Duelist : Melee;
+  const e = new Cls(type, x, rng);
+  e.z = e.homeZ = z;
+  return e;
 }
 
 class Enemy {
@@ -21,6 +22,7 @@ class Enemy {
     this.kind = this.def.kind;
     this.x = x;
     this.homeX = x;
+    this.z = this.homeZ = 22;
     this.hp = this.def.hp;
     this.rng = rng;
     this.alive = true;
@@ -73,6 +75,15 @@ class Enemy {
     }
     return this.curSpeed;
   }
+
+  // сдвиг по глубине к нужной линии
+  steerZ(dt, targetZ, speed = 30) {
+    const d = targetZ - this.z;
+    this.z += Math.sign(d) * Math.min(Math.abs(d), speed * dt);
+  }
+
+  // моя очередь бить? (бьёт один враг, остальные ждут)
+  myTurn(w) { return w.requestToken ? w.requestToken(this) : true; }
 
   rest(scale = 1) {
     const [a, b] = this.def.wait;
@@ -199,36 +210,44 @@ class Melee extends Enemy {
     switch (this.state) {
       case 'dormant':
         this.pose = approachPose(this.pose, this.restPose(), dt, 20);
-        if (dist < d.aggro) {
+        if (dist < d.aggro || this.awake) {
           w.engage(this);
           this.enter('approach');
         }
         break;
 
-      case 'approach':
+      case 'approach': {
         this.pose = approachPose(this.pose, this.restPose(), dt, 20);
-        if (dist > d.reach - 4) this.walk(dt, this.speed, this.facing);
+        // ждущие держатся чуть дальше и на своей линии, атакующий выходит на линию рыцаря
+        const turn = this.myTurn(w);
+        const want = turn ? d.reach - 4 : d.reach + 18;
+        this.steerZ(dt, turn ? w.player.z : this.homeZ);
+        if (dist > want) this.walk(dt, this.speed, this.facing);
         else {
           this.step = 0;
           this.rest();
         }
         break;
+      }
 
-      case 'idle':
+      case 'idle': {
         this.pose = approachPose(this.pose, this.restPose(), dt, 25);
-        if (dist > d.reach + 10) {
+        const turn = this.myTurn(w);
+        this.steerZ(dt, turn ? w.player.z : this.homeZ);
+        if (dist > (turn ? d.reach + 10 : d.reach + 30)) {
           this.enter('approach');
           break;
         }
-        if (this.decide?.(w, dist)) break;
+        if (turn && this.decide?.(w, dist)) break;
         if (dist < CONFIG.bodyGap + 2) this.walk(dt, this.speed * 0.6, -this.facing);
-        if (this.t >= this.waitFor) {
+        if (this.t >= this.waitFor && turn && Math.abs(this.z - w.player.z) <= CONFIG.depthReach) {
           this.combo = this.pickCombo();
           this.idx = 0;
           this.allPerfect = true;
           this.enter('windup');
         }
         break;
+      }
 
       case 'windup': {
         const T = this.windupTime;
@@ -291,7 +310,7 @@ class Archer extends Enemy {
     switch (this.state) {
       case 'dormant':
         this.pose = approachPose(this.pose, POSES.aim_mid, dt, 20);
-        if (dist < d.aggro) {
+        if (dist < d.aggro || this.awake) {
           w.engage(this);
           this.rest();
         }
@@ -305,6 +324,7 @@ class Archer extends Enemy {
           break;
         }
         if (dist > d.maxDist) this.walk(dt, 30, this.facing);
+        this.steerZ(dt, w.player.z, 18);
         if (this.t >= this.waitFor) {
           const shots = this.rng() < d.volleyChance ? 2 : 1;
           this.combo = Array.from({ length: shots }, () => d.heights[Math.floor(this.rng() * d.heights.length)]);
@@ -408,7 +428,7 @@ class Slime extends Enemy {
 
     switch (this.state) {
       case 'dormant':
-        if (dist < d.aggro) {
+        if (dist < d.aggro || this.awake) {
           w.engage(this);
           this.enter('hop');
         }
@@ -420,8 +440,9 @@ class Slime extends Enemy {
         this.airY = ph < 0.4 ? Math.sin(Math.PI * ph / 0.4) * 6 : 0;
         this.squash = ph >= 0.4 ? 0.25 : -0.1;
         if (ph < 0.4 && dist > 30) this.x += this.facing * 34 * dt;
+        if (ph < 0.4) this.steerZ(dt, w.player.z, 24);
         shrink();
-        if (this.t > 0.6 && ph >= 0.42 && dist <= 52) {
+        if (this.t > 0.6 && ph >= 0.42 && dist <= 52 && this.myTurn(w)) {
           if (this.rng() < d.leapChance) this.enter('crouch');
           else {
             this.hopDir = -this.facing;
@@ -441,6 +462,8 @@ class Slime extends Enemy {
         if (this.t >= d.crouchTime) {
           this.leapFrom = this.x;
           this.leapTo = p.x - this.facing * 8;
+          this.leapFromZ = this.z;
+          this.leapToZ = p.z;
           this.enter('leap');
         }
         break;
@@ -448,6 +471,7 @@ class Slime extends Enemy {
       case 'leap': {
         const k = Math.min(1, this.t / d.leapTime);
         this.x = this.leapFrom + (this.leapTo - this.leapFrom) * k;
+        this.z = this.leapFromZ + (this.leapToZ - this.leapFromZ) * k;
         this.airY = Math.sin(Math.PI * k) * 30;
         this.squash = -0.3;
         if (this.t >= d.leapTime) {

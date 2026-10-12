@@ -9,25 +9,33 @@ import { POSES } from './poses.js';
 import { buildBackground, drawTorches } from './background.js';
 import { unlockAudio, sfx } from './audio.js';
 
-const W = CONFIG.width, H = CONFIG.height, GROUND = CONFIG.ground;
+const W = CONFIG.width, H = CONFIG.height;
 const STEP = 1 / 60;
 const ARROW_G = 300;
 
+// Вариант A: WASD / стрелки — ходьба по полу с глубиной, защита — на мыши.
 const KEYS = {
   left: ['ArrowLeft', 'KeyA'],
   right: ['ArrowRight', 'KeyD'],
-  up: ['ArrowUp', 'KeyW'],
-  down: ['ArrowDown', 'KeyS'],
-  attack: ['Mouse0', 'KeyJ', 'KeyZ'],
-  dash: ['Mouse2', 'KeyK', 'KeyX', 'Space', 'ShiftLeft'],
-  mid: ['Mouse1', 'Wheel', 'KeyE'],
+  depthIn: ['ArrowUp', 'KeyW'],     // к стене
+  depthOut: ['ArrowDown', 'KeyS'],  // к краю экрана
+  high: ['WheelUp', 'KeyQ'],
+  mid: ['Mouse1', 'KeyE'],
+  low: ['WheelDown', 'ShiftLeft'],
+  attack: ['Mouse0', 'KeyJ'],
+  dash: ['Mouse2', 'Space', 'KeyK'],
 };
-const CLASH_Y = { high: GROUND - 34, mid: GROUND - 22, low: GROUND - 9 };
+// где на экране земля под бойцом на глубине z, и высота удара над ней
+const groundY = z => CONFIG.floorTop + 6 + z;
+const HIT_UP = { high: 34, mid: 22, low: 9 };
+const clashY = (h, z) => groundY(z) - HIT_UP[h];
+const near = (a, b) => Math.abs(a.z - b.z) <= CONFIG.depthReach;
+const ATTACKING = new Set(['windup', 'strike', 'leapIn', 'vault', 'crouch', 'leap', 'retreat', 'inflate', 'suck']);
 const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' };
 const RESULT_NAME = { perfect: 'идеально', block: 'блок', broken: 'защита сбита', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
 const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin']);
-const HINT_WALK = '← → идти · ЛКМ удар · ПКМ рывок';
-const HINT_FIGHT = '↑ ↓ колёсико — защита · ЛКМ удар · ПКМ рывок';
+const HINT_WALK = 'WASD — ходить по полу · ЛКМ удар · ПКМ рывок';
+const HINT_FIGHT = 'колесо вверх / зажать / вниз — защита · ЛКМ удар · ПКМ рывок · W S — уйти с линии';
 
 const canvas = document.getElementById('game');
 canvas.width = W;
@@ -48,11 +56,17 @@ ui.version.textContent = VERSION;
 
 const input = createInput(window);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const background = buildBackground(LEVEL.length, H, GROUND);
+const background = buildBackground(LEVEL.length, H, CONFIG.floorTop);
 const held = group => KEYS[group].some(input.isDown);
 const is = (code, group) => KEYS[group].includes(code);
 
 const game = {};
+
+function spawnGroup(i) {
+  const enc = LEVEL.encounters[i];
+  return enc.enemies.map(d => Object.assign(createEnemy(d.type, enc.x + d.dx, Math.random, d.z), { group: i }));
+}
+function spawnAll() { return LEVEL.encounters.flatMap((_, i) => spawnGroup(i)); }
 
 function newGame() {
   Object.assign(game, {
@@ -66,7 +80,11 @@ function newGame() {
     particles: [],
     arrows: [],
     waves: [],
-    enemies: LEVEL.enemies.map(e => createEnemy(e.type, e.x)),
+    enemies: spawnAll(),
+    arena: null,
+    cleared: new Set(),
+    token: null,
+    tokenFreeAt: 0,
     current: null,
     checkpoint: 40,
     player: new Player(40),
@@ -85,18 +103,20 @@ function newGame() {
 
 const world = {
   get player() { return game.player; },
-  engage(e) {
-    if (game.current?.alive) return;
-    game.current = e;
-    game.checkpoint = Math.max(40, game.player.x - 30);
-    ui.foe.hidden = false;
-    renderFoe();
-    hint(HINT_FIGHT);
+  engage() {},
+  // бьёт один враг, остальные ждут своей очереди
+  requestToken(e) {
+    const t = game.token;
+    if (t && t.e === e) return true;
+    if (t && t.e.alive) return false;
+    if (game.time < game.tokenFreeAt) return false;
+    game.token = { e, since: game.time, attacked: false };
+    return true;
   },
   impact(e, type) {
     const p = game.player;
     const s = STRIKES[type] ?? STRIKES.mid;
-    if (Math.abs(p.x - e.x) > e.def.reach + 2) {
+    if (Math.abs(p.x - e.x) > e.def.reach + 2 || !near(p, e)) {
       game.lastTiming = `${HEIGHT_NAME[s.guard]}: мимо — рыцарь вне досягаемости`;
       callout('Мимо', 'muted');
       sfx.swish();
@@ -107,7 +127,7 @@ const world = {
     return applyImpact(s.guard, e.def.damage * (s.mult ?? 1), e.x, s.breaks, s.bypass, backTurned);
   },
   heavySwing(e) {
-    game.waves.push({ x: e.x, dir: e.facing, t: 0 });
+    game.waves.push({ x: e.x, z: e.z, dir: e.facing, t: 0 });
     sfx.heavy();
     shake(2);
   },
@@ -120,13 +140,14 @@ const world = {
     const x = e.x + e.facing * 8;
     if (height === 'arc') {
       // навесная: летит дугой и падает туда, где рыцарь стоял в момент выстрела
-      const T = e.def.arcTime, y0 = GROUND - 32, y1 = CLASH_Y.high;
+      const pz = game.player.z;
+      const T = e.def.arcTime, y0 = groundY(e.z) - 32, y1 = clashY('high', pz);
       const vx = (game.player.x - x) / T;
       const vy = (y1 - y0 - 0.5 * ARROW_G * T * T) / T;
-      game.arrows.push({ x, y: y0, vx, vy, arc: true, height: 'high', damage: e.def.damage, resolved: false, falling: false, life: 4 });
+      game.arrows.push({ x, y: y0, z: e.z, vz: (pz - e.z) / T, vx, vy, arc: true, height: 'high', damage: e.def.damage, resolved: false, falling: false, life: 4 });
       return;
     }
-    game.arrows.push({ x, y: CLASH_Y[height], vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3 });
+    game.arrows.push({ x, y: clashY(height, e.z), z: e.z, vz: 0, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3 });
   },
   swallow(slime) {
     const p = game.player;
@@ -167,7 +188,7 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
     ? `${HEIGHT_NAME[height]}: нажал ${HEIGHT_NAME[lp.height]} за ${Math.round((game.time - lp.time) * 1000)} мс до удара → ${RESULT_NAME[result]}`
     : `${HEIGHT_NAME[height]}: защиту не нажимал → ${RESULT_NAME[result]}`;
   const x = (p.x + sourceX) / 2;
-  const y = CLASH_Y[height];
+  const y = clashY(height, p.z);
 
   if (result === 'perfect') {
     game.stats.perfect++;
@@ -223,11 +244,11 @@ function playerStrike(atk) {
     if (!e.alive) continue;
     const dx = (e.x - p.x) * p.facing;
     const inReach = atk.height === 'any' ? Math.abs(dx) <= atk.reach : dx >= -6 && dx <= atk.reach;
-    if (!inReach) continue;
+    if (!inReach || !near(p, e)) continue;
     touched = true;
     const { out, dmg } = e.receiveAttack(atk);
     const x = e.x - p.facing * 6;
-    const y = e.kind === 'slime' ? GROUND - e.airY - 6 : CLASH_Y[atk.height === 'any' ? 'mid' : atk.height];
+    const y = e.kind === 'slime' ? groundY(e.z) - e.airY - 6 : clashY(atk.height === 'any' ? 'mid' : atk.height, e.z);
     if (out === 'counter') {
       game.stats.counter++;
       sparks(x, y, 22, [PAL.blood, PAL.spark, PAL.sparkHot], 150);
@@ -263,7 +284,7 @@ function handlePlayerEvents() {
       for (const e of game.enemies) if (e.alive && Math.abs(e.x - p.x) < 150) e.notifyAttack(ev.atk);
       if (SPECIAL.has(ev.atk.key)) callout(ev.atk.name, 'muted');
     } else if (ev.type === 'strike') {
-      if (ev.atk.height === 'low') dust(p.x + p.facing * 22, p.facing);
+      if (ev.atk.height === 'low') dust(p.x + p.facing * 22, groundY(p.z), p.facing);
       playerStrike(ev.atk);
     } else if (ev.type === 'dash' || ev.type === 'roll' || ev.type === 'backdash') {
       sfx.dash();
@@ -285,9 +306,13 @@ function die() {
 }
 
 function restartFight() {
-  const e = game.current;
-  if (e) game.enemies[game.enemies.indexOf(e)] = createEnemy(e.type, e.homeX);
+  const a = game.arena;
+  if (a) {
+    game.enemies = game.enemies.filter(e => e.group !== a.index).concat(spawnGroup(a.index));
+    game.arena = null;
+  }
   game.current = null;
+  game.token = null;
   game.arrows = [];
   game.player = new Player(game.checkpoint);
   game.player.sheathed = false;
@@ -355,20 +380,20 @@ function handlePress(code) {
   const fwdKeys = p.facing > 0 ? KEYS.right : KEYS.left;
   const backKeys = p.facing > 0 ? KEYS.left : KEYS.right;
 
-  if (is(code, 'up')) { recordGuard('high'); p.cancel(); }
-  if (is(code, 'down')) { recordGuard('low'); p.cancel(); }
+  if (is(code, 'high')) { recordGuard('high'); p.cancel(); }
+  if (is(code, 'low')) { recordGuard('low'); p.cancel(); }
   if (is(code, 'mid')) { recordGuard('mid'); p.cancel(); }
   if (backKeys.includes(code)) game.dirHistory.push({ d: 'back', t: game.time });
   if (fwdKeys.includes(code)) game.dirHistory.push({ d: 'fwd', t: game.time });
   if (game.dirHistory.length > 4) game.dirHistory.shift();
 
   if (is(code, 'attack')) {
-    const vert = held('up') ? 'up' : held('down') ? 'down' : null;
+    const vert = held('high') ? 'up' : held('low') ? 'down' : null;
     p.requestAttack(vert, spinRequested());
   }
   if (is(code, 'dash')) {
     const back = backKeys.some(input.isDown);
-    const dir = held('up') ? 'up' : held('down') ? 'down' : back && engaged ? 'back' : null;
+    const dir = held('high') ? 'up' : held('low') ? 'down' : back && engaged ? 'back' : null;
     p.requestDash(dir);
   }
 }
@@ -378,19 +403,75 @@ function controls() {
   const engaged = !!game.current?.alive;
   const L = held('left'), R = held('right');
   const map = {};
-  for (const c of KEYS.up) map[c] = 'high';
-  for (const c of KEYS.down) map[c] = 'low';
+  for (const c of KEYS.high) map[c] = 'high';
+  for (const c of KEYS.low) map[c] = 'low';
   for (const c of KEYS.mid) map[c] = 'mid';
+  const dz = (held('depthOut') ? 1 : 0) - (held('depthIn') ? 1 : 0);
   return {
     fwd: p.facing > 0 ? R : L,
     back: engaged && (p.facing > 0 ? L : R) && !(p.facing > 0 ? R : L),
+    dz,
     guard: input.latest(map),
     engaged,
-    anyInput: L || R || held('up') || held('down'),
+    anyInput: L || R || dz !== 0,
   };
 }
 
 // ---------- обновление ----------
+
+// Встреча начинается, когда рыцарь подходит; коридор закрыт, пока группа жива.
+function updateArena() {
+  const p = game.player;
+  if (!game.arena) {
+    const i = LEVEL.encounters.findIndex((enc, i) => !game.cleared.has(i) && p.x > enc.x - 140 && p.x < enc.x + 150);
+    if (i < 0) return;
+    game.arena = { index: i, x: LEVEL.encounters[i].x };
+    game.checkpoint = Math.max(40, LEVEL.encounters[i].x - 140);
+    for (const e of game.enemies) if (e.group === i) e.awake = true;
+    ui.foe.hidden = false;
+    hint(HINT_FIGHT);
+    return;
+  }
+  const alive = game.enemies.some(e => e.group === game.arena.index && (e.alive || e.state === 'yield'));
+  if (!alive) {
+    game.cleared.add(game.arena.index);
+    game.arena = null;
+    game.current = null;
+    game.token = null;
+    ui.foe.hidden = true;
+    hint(HINT_WALK);
+  }
+}
+
+// Очередь атак: враг держит право бить, пока атакует; закончил — пауза и право переходит.
+function updateToken() {
+  const t = game.token;
+  if (!t) return;
+  const e = t.e;
+  const attacking = ATTACKING.has(e.state);
+  if (attacking) t.attacked = true;
+  const stale = !t.attacked && game.time - t.since > 2.5;  // так и не ударил — пусть попробует другой
+  if (!e.alive || (t.attacked && !attacking) || stale) {
+    game.token = null;
+    game.tokenFreeAt = game.time + CONFIG.tokenPause;
+  }
+}
+
+// Цель рыцаря: тот, кто сейчас бьёт, иначе ближайший.
+function pickTarget() {
+  const p = game.player;
+  if (!game.arena) return;
+  const group = game.enemies.filter(e => e.group === game.arena.index && e.alive);
+  const holder = game.token?.e;
+  let best = holder?.alive && group.includes(holder) ? holder : null;
+  if (!best) for (const e of group) {
+    if (!best || Math.hypot(e.x - p.x, (e.z - p.z) * 2) < Math.hypot(best.x - p.x, (best.z - p.z) * 2)) best = e;
+  }
+  if (best !== game.current) {
+    game.current = best ?? game.enemies.find(e => e.group === game.arena.index && e.state === 'yield') ?? null;
+    renderFoe();
+  }
+}
 
 function update(dt) {
   for (const code of input.take()) handlePress(code);
@@ -398,6 +479,9 @@ function update(dt) {
 
   game.time += dt;
   const p = game.player;
+  updateArena();
+  updateToken();
+  pickTarget();
   const cur = game.current?.alive ? game.current : null;
 
   // куда смотрит рыцарь: в бою — на врага, иначе — куда идёт
@@ -428,28 +512,32 @@ function update(dt) {
   }
   updateArrows(dt);
 
-  // тела не проходят друг сквозь друга
-  for (const e of game.enemies) {
-    if (!e.solid || p.state === 'swallowed') continue;
+  // тела не проходят друг сквозь друга (если стоят на одной линии по глубине)
+  const solids = game.enemies.filter(e => e.solid);
+  for (const e of solids) {
+    if (p.state === 'swallowed' || Math.abs(e.z - p.z) >= 8) continue;
     const d = e.x - p.x;
     if (Math.abs(d) < CONFIG.bodyGap) p.x = e.x - (Math.sign(d) || p.facing) * CONFIG.bodyGap;
   }
-  p.x = Math.max(16, Math.min(LEVEL.length - 16, p.x));
+  for (const a of solids) for (const b of solids) {
+    if (a === b || Math.abs(a.z - b.z) >= 8) continue;
+    const d = b.x - a.x;
+    if (Math.abs(d) < CONFIG.bodyGap) {
+      const push = (CONFIG.bodyGap - Math.abs(d)) / 2 * (Math.sign(d) || 1);
+      a.x -= push;
+      b.x += push;
+    }
+  }
+  const lo = game.arena ? game.arena.x - 150 : 16, hi = game.arena ? game.arena.x + 150 : LEVEL.length - 16;
+  p.x = Math.max(lo, Math.min(hi, p.x));
+  if (game.arena) for (const e of game.enemies) {
+    if (e.group === game.arena.index && e.state !== 'flee' && e.state !== 'yield') e.x = Math.max(lo - 10, Math.min(hi + 10, e.x));
+  }
 
-  if (game.current && !game.current.alive && game.current.state !== 'yield' && game.current.t > 0.8) {
-    game.current = null;
-    ui.foe.hidden = true;
-    hint(HINT_WALK);
-  }
-  // враг, который уже проснулся, становится текущим, когда предыдущий пал
-  if (!game.current) {
-    const next = game.enemies.find(e => e.alive && e.state !== 'dormant' && Math.abs(e.x - p.x) < 260);
-    if (next) world.engage(next);
-  }
   if (p.hp <= 0 && p.state !== 'swallowed') die();
   else if (!game.enemies.some(e => e.alive) && p.x > LEVEL.length - 60) finish();
 
-  const target = cur ? (p.x + cur.x) / 2 - W / 2 : p.x - (p.facing > 0 ? 120 : 200);
+  const target = game.arena ? game.arena.x - W / 2 : p.x - (p.facing > 0 ? 120 : 200);
   const clamped = Math.max(0, Math.min(LEVEL.length - W, target));
   game.camX += (clamped - game.camX) * Math.min(1, dt * 5);
 }
@@ -460,20 +548,21 @@ function updateArrows(dt) {
     a.life -= dt;
     if (a.stuck) continue;
     a.x += a.vx * dt;
+    a.z += (a.vz ?? 0) * dt;
     if (a.falling || a.arc) {
       a.vy += ARROW_G * dt;
       a.y += a.vy * dt;
-      if (a.y >= GROUND - 1) {
+      if (a.y >= groundY(a.z) - 1) {
         // воткнулась в пол
-        a.y = GROUND - 1;
+        a.y = groundY(a.z) - 1;
         a.stuck = true;
         a.life = Math.min(a.life, 1);
         continue;
       }
       if (a.falling) continue;
     }
-    const near = Math.abs(a.x - p.x) <= (a.arc ? 6 : 4) && (!a.arc || a.y >= CLASH_Y.high - 6);
-    if (!a.resolved && near) {
+    const close = Math.abs(a.x - p.x) <= (a.arc ? 6 : 4) && Math.abs(a.z - p.z) <= CONFIG.depthReach - 3 && (!a.arc || a.y >= clashY('high', p.z) - 6);
+    if (!a.resolved && close) {
       a.resolved = true;
       const result = applyImpact(a.height, a.damage, a.x - Math.sign(a.vx) * 20);
       if (result === 'perfect' || result === 'block' || result === 'warded') {
@@ -522,10 +611,10 @@ function sparks(x, y, n, colors, speed) {
   }
 }
 
-function dust(x, dir) {
+function dust(x, y0, dir) {
   for (let i = 0; i < 8; i++) {
     game.particles.push({
-      x: x + (Math.random() - 0.5) * 10, y: GROUND - 1,
+      x: x + (Math.random() - 0.5) * 10, y: y0 - 1,
       vx: dir * (20 + Math.random() * 50), vy: -20 - Math.random() * 40,
       life: 0.25 + Math.random() * 0.2, color: i % 2 ? '#6b6377' : '#4f4868',
     });
@@ -582,8 +671,23 @@ function render() {
   g.drawImage(background, cam, 0, W, H, 0, 0, W, H);
   drawTorches(g, cam, game.time, W);
 
-  for (const e of game.enemies) renderEnemy(e, cam);
-  renderPlayer(cam);
+  // сначала тени, потом бойцы от дальних к ближним
+  const actors = [...game.enemies.filter(e => e.state !== 'gone'), game.player];
+  for (const a of actors) {
+    if (a === game.player && a.state === 'swallowed') continue;
+    g.globalAlpha = a.state === 'dead' ? 0.3 : 0.55;
+    const gy = groundY(a.z);
+    rect(g, a.x - cam - 7, gy - 1, 14, 2, '#0d0b14');
+    rect(g, a.x - cam - 5, gy - 2, 10, 1, '#0d0b14');
+    g.globalAlpha = 1;
+  }
+  actors.sort((a, b) => a.z - b.z);
+  for (const a of actors) a === game.player ? renderPlayer(cam) : renderEnemy(a, cam);
+  if (game.current?.alive) {
+    // отметка цели
+    const c = game.current;
+    rect(g, c.x - cam - 1, groundY(c.z) + 2, 3, 1, PAL.gold);
+  }
   for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck);
   for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
@@ -606,6 +710,7 @@ function renderEnemy(e, cam) {
   if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
   if (alpha <= 0) return;
   g.globalAlpha = alpha;
+  const GROUND = groundY(e.z);
   if (e.kind === 'slime') {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
     drawSlime(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
@@ -634,6 +739,7 @@ function renderPlayer(cam) {
   const p = game.player;
   if (p.state === 'swallowed') return;
   const px = p.x - cam;
+  const GROUND = groundY(p.z);
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   if (p.state === 'roll') {
     // кувырок: сгруппированный рыцарь делает полный оборот
@@ -683,6 +789,7 @@ function disc(x, cy, r) {
 function renderWave(w, cam) {
   const k = w.t / 0.35;
   const x = w.x - cam;
+  const GROUND = groundY(w.z);
   g.globalAlpha = 1 - k;
   for (let a = -1.4; a <= 0.9; a += 0.08) {
     const r = 30 + k * 10;
@@ -709,7 +816,7 @@ function renderDebug(cam) {
     else if (e.guardHeight) extra += ` · закрыт: ${HEIGHT_NAME[e.guardHeight]}`;
     if (e.state === 'windup') extra += ` · удар: ${e.height} → защита ${HEIGHT_NAME[e.strike.guard]}${e.strike.breaks ? ', сбивает' : ''}${e.strike.bypass ? ', огибает блок — только идеально' : ''}`;
     if (e.def.shield) extra += ' · щит: верх и середина';
-    rect(g, e.x - cam - 1, GROUND + 4, 2, 2, '#7bd88f');
+    rect(g, e.x - cam - 1, groundY(e.z) + 4, 2, 2, '#7bd88f');
   }
   ui.debug.textContent = (game.lastTiming || 'G — отладка') + '\n' + extra;
 }
@@ -743,14 +850,15 @@ window.addEventListener('pointerup', e => { if (e.button === 1) input.setHeld('M
 ui.box.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });  // без автопрокрутки
 ui.box.addEventListener('auxclick', e => e.preventDefault());
 ui.box.addEventListener('contextmenu', e => e.preventDefault());
-let wheelTimer = null;
+const wheelTimers = {};
 ui.box.addEventListener('wheel', e => {
   e.preventDefault();
-  if (game.mode !== 'play') return;
-  // одна прокрутка — одно нажатие защиты, пока она держится
-  if (!wheelTimer) input.setHeld('Wheel', true);
-  clearTimeout(wheelTimer);
-  wheelTimer = setTimeout(() => { wheelTimer = null; input.setHeld('Wheel', false); }, CONFIG.wheelGuard * 1000);
+  if (game.mode !== 'play' || !e.deltaY) return;
+  // колесо вверх — верхняя защита, вниз — нижняя; одна прокрутка — одно нажатие
+  const code = e.deltaY < 0 ? 'WheelUp' : 'WheelDown';
+  if (!wheelTimers[code]) input.setHeld(code, true);
+  clearTimeout(wheelTimers[code]);
+  wheelTimers[code] = setTimeout(() => { wheelTimers[code] = null; input.setHeld(code, false); }, CONFIG.wheelGuard * 1000);
 }, { passive: false });
 
 newGame();

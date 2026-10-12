@@ -22,6 +22,7 @@ export function attackWindup(key, sheathed) {
 export class Player {
   constructor(x) {
     this.x = x;
+    this.z = CONFIG.depth / 2;
     this.hp = CONFIG.playerHp;
     this.facing = 1;
     this.clock = 0;
@@ -156,7 +157,8 @@ export class Player {
     this.x -= this.facing * 3;
   }
 
-  // c: { fwd, back, guard, engaged, anyInput } — управление в этом кадре относительно взгляда рыцаря
+  // c: { fwd, back, dz, guard, engaged, anyInput } — управление в этом кадре относительно взгляда рыцаря;
+  // dz — шаг вглубь пола (-1 к стене, 1 к краю экрана)
   update(dt, c) {
     this.clock += dt;
     this.t += dt;
@@ -182,14 +184,14 @@ export class Player {
         this.guard = g;
         if (g || c.anyInput) this.idleT = 0;
         if (g) this.sheathed = false;
+        // в защите ходит медленнее
+        const slow = g ? 0.6 : 1;
         let v = 0;
-        if (g === 'high' || g === 'low') v = 0;
-        else if (c.back) v = -CONFIG.walkSpeed * CONFIG.backWalkFactor;
+        if (c.back) v = -CONFIG.walkSpeed * CONFIG.backWalkFactor;
         else if (c.fwd) v = CONFIG.walkSpeed;
-        if (v) {
-          forward(v * dt);
-          this.walking = true;
-        }
+        if (v) forward(v * slow * dt);
+        if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * CONFIG.depthSpeed * slow * dt));
+        this.walking = !!(v || c.dz);
         if (!c.engaged && !g && this.idleT > CONFIG.autoSheathe) this.sheathed = true;
         target = this.broken ? POSES.broken : this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : POSES.idle;
         break;
