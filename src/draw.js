@@ -36,20 +36,29 @@ export function drawFigure(g, o) {
     x, ground, facing: f, pose, colors, step = 0, plume = false, weaponLen = 17,
     bladeHidden = false, scabbard = false, shield = false, skull = false,
     bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false, robe = false,
-    offhandBack = false,
+    offhandBack = false, sit = false, wrap = false, curved = false, slim = false, hood = false, pack = false,
+    short = false, bob = false, coat = false,
   } = o;
   const gy = ground - airY;
   const hipX = x;
-  const hipY = gy - 13 + pose.crouch;
+  const hipY = gy - (short ? 10 : 13) + pose.crouch;  // short — невысокая фигура
   const shX = hipX + pose.lean * f;
-  const shY = hipY - 12;
+  const shY = hipY - (short ? 10 : 12);
 
-  // ноги
+  // ноги (сидя на полу — вытянуты вперёд, одна согнута)
   const s = Math.round(Math.sin(step) * 3);
-  thick(g, hipX - 2 * f, hipY, hipX - 2 * f - s * f, gy - 2, 3, colors.armorDark);
-  thick(g, hipX + 2 * f, hipY, hipX + 2 * f + s * f, gy - 2, 3, colors.armor);
-  rect(g, hipX - 3 * f - s * f - 1, gy - 2, 4, 2, colors.boots);
-  rect(g, hipX + 2 * f + s * f - 1, gy - 2, 4, 2, colors.boots);
+  if (sit) {
+    thick(g, hipX, hipY, hipX + 10 * f, gy - 2, 3, colors.armorDark);
+    rect(g, hipX + 10 * f - 1, gy - 4, 3, 3, colors.boots);
+    thick(g, hipX + f, hipY, hipX + 6 * f, hipY - 4, 3, colors.armor);
+    thick(g, hipX + 6 * f, hipY - 4, hipX + 9 * f, gy - 2, 3, colors.armor);
+    rect(g, hipX + 9 * f - 1, gy - 2, 4, 2, colors.boots);
+  } else {
+    thick(g, hipX - 2 * f, hipY, hipX - 2 * f - s * f, gy - 2, 3, colors.armorDark);
+    thick(g, hipX + 2 * f, hipY, hipX + 2 * f + s * f, gy - 2, 3, colors.armor);
+    rect(g, hipX - 3 * f - s * f - 1, gy - 2, 4, 2, colors.boots);
+    rect(g, hipX + 2 * f + s * f - 1, gy - 2, 4, 2, colors.boots);
+  }
 
   // длинное одеяние до пят: расширяется книзу, из-под него видны только носки сапог
   if (robe) {
@@ -70,10 +79,29 @@ export function drawFigure(g, o) {
     thick(g, elX, elY, hipX - f, hipY - 3, 2, colors.armorDark);
   }
 
-  // корпус и табард (у скелета — тёмные просветы между рёбрами)
-  thick(g, hipX, hipY - 3, shX, shY + 3, skull ? 6 : 8, colors.armor);
-  thick(g, hipX + f, hipY - 1, (hipX + shX) / 2 + f, shY + 5, skull ? 2 : 4, colors.tabard);
-  if (robe) rect(g, hipX - 4, hipY - 3, 8, 1, colors.belt);
+  // дорожный мешок за спиной
+  if (pack) {
+    rect(g, shX - 9 * f - (f > 0 ? 0 : 7), shY - 1, 7, 12, colors.pack);
+    rect(g, shX - 9 * f - (f > 0 ? 0 : 7), shY - 1, 7, 1, colors.belt);
+  }
+
+  // короткий плащ до середины бедра, застёгнут на две пуговицы, светлый воротник
+  if (coat) {
+    rect(g, hipX - 4, shY + 1, 8, hipY - shY + 4, colors.armor);
+    rect(g, f > 0 ? hipX - 4 : hipX + 3, shY + 1, 1, hipY - shY + 4, colors.armorDark);
+    rect(g, hipX - 4, hipY + 4, 8, 1, colors.armorDark);
+    rect(g, hipX + f, shY + 5, 1, 1, colors.belt);
+    rect(g, hipX + f, shY + 8, 1, 1, colors.belt);
+    rect(g, shX - 2, shY, 5, 2, colors.tabard);
+  }
+
+  // корпус и табард (у скелета — тёмные просветы между рёбрами; пояс-кушак у тонкой фигуры)
+  if (!coat) {
+    thick(g, hipX, hipY - 3, shX, shY + 3, skull || slim ? 6 : 8, colors.armor);
+    thick(g, hipX + f, hipY - 1, (hipX + shX) / 2 + f, shY + 5, skull ? 2 : slim ? 2 : 4, colors.tabard);
+  }
+  if (robe) rect(g, hipX - 4, hipY - 3, 8, slim ? 2 : 1, slim ? colors.tabard : colors.belt);
+  if (robe && slim) rect(g, hipX - 4, hipY - 1, 8, 1, colors.belt);
 
   // ножны на поясе
   if (scabbard) {
@@ -87,7 +115,32 @@ export function drawFigure(g, o) {
   // голова
   const headX = shX - 3 + f;
   const headY = shY - 9;
-  if (face) {
+  if (bob) {
+    // каре до подбородка, чёлка разобрана по бокам и чуть падает на глаза
+    rect(g, headX - 1, headY - 1, 9, 9, colors.hair);
+    rect(g, headX + (f > 0 ? 2 : 0), headY + 2, 5, 5, colors.helm);
+    rect(g, headX + (f > 0 ? 3 : 1), headY + 2, 3, 1, colors.hair);
+    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 3, 1, 1, colors.visor);
+    rect(g, f > 0 ? headX + 4 : headX + 2, headY + 6, 2, 1, colors.blush ?? colors.helm);
+    rect(g, f > 0 ? headX - 1 : headX + 4, headY + 7, 4, 1, colors.hair);
+  } else if (wrap) {
+    // платок с покрывалом: открыты только глаза, концы ткани спадают на плечи
+    rect(g, headX, headY, 7, 7, colors.helm);
+    rect(g, headX - 1, headY - 2, 9, 4, colors.wrap);
+    rect(g, headX, headY - 3, 7, 1, colors.wrapDark);
+    rect(g, f > 0 ? headX - 2 : headX + 6, headY + 1, 3, 10, colors.wrap);
+    rect(g, f > 0 ? headX - 2 : headX + 8, headY + 6, 1, 6, colors.wrapDark);
+    rect(g, f > 0 ? headX + 4 : headX + 1, headY + 2, 2, 1, colors.visor);
+    rect(g, headX, headY + 4, 7, 3, colors.wrapDark);
+    rect(g, f > 0 ? headX + 2 : headX + 1, headY + 5, 4, 1, colors.wrap);
+    rect(g, headX + 3, headY - 1, 1, 1, colors.belt);
+  } else if (hood) {
+    // глубокий капюшон: лицо в тени
+    rect(g, headX - 1, headY - 1, 9, 9, colors.hood);
+    rect(g, f > 0 ? headX + 3 : headX + 1, headY + 2, 4, 5, '#1a1410');
+    rect(g, f > 0 ? headX + 4 : headX + 2, headY + 3, 1, 1, colors.helm);
+    rect(g, f > 0 ? headX - 2 : headX + 7, headY + 3, 2, 8, colors.hoodDark);
+  } else if (face) {
     // лицо без шлема: длинные чёрные волосы ниже плеч, щетина, тонкие усы и бородка
     const back = f > 0 ? headX : headX + 5;
     rect(g, back, headY + 1, 2, 12, colors.hair);
@@ -143,7 +196,13 @@ export function drawFigure(g, o) {
     if (trail) for (const [i, p] of trail.entries()) {
       withAlpha(g, 0.15 + 0.12 * i, () => thick(g, handX, handY, p.tipX, p.tipY, 1, '#ffffff'));
     }
-    thick(g, handX + dx * 2, handY + dy * 2, tipX, tipY, 1, colors.blade);
+    if (curved) {
+      // изогнутый клинок: середина выгнута в сторону обуха
+      const px = -dy, py = dx, bend = 2.5;
+      const mx = handX + dx * (weaponLen * 0.55) + px * bend, my = handY + dy * (weaponLen * 0.55) + py * bend;
+      thick(g, handX + dx * 2, handY + dy * 2, mx, my, 1, colors.blade);
+      thick(g, mx, my, tipX + px * 0.5, tipY + py * 0.5, 1, colors.blade);
+    } else thick(g, handX + dx * 2, handY + dy * 2, tipX, tipY, 1, colors.blade);
     const gx = handX + dx * 2, gyy = handY + dy * 2;
     if (rapier) {
       // чашка гарды вокруг кисти
@@ -187,6 +246,83 @@ export function drawArrow(g, x, y, vx, vy, stuck = false) {
   rect(g, x, y, 1, 1, '#e6e1d0');
   rect(g, x - ux * 7 - uy, y - uy * 7 + ux, 1, 1, '#e8454f');
   rect(g, x - ux * 7 + uy, y - uy * 7 - ux, 1, 1, '#e8454f');
+}
+
+// Портрет Лики для лавки (48×48, заглушка до настоящего рисунка):
+// чёрное каре, чёлка разобрана по бокам и падает на глаза, короткий тёмный плащ со светлым воротником.
+export function drawLikaPortrait(g, c) {
+  const P = (x, y, w, h, col) => rect(g, x, y, w, h, col);
+  g.clearRect(0, 0, 48, 48);
+  // плечи и плащ
+  P(8, 40, 32, 8, c.armor);
+  P(6, 43, 36, 5, c.armor);
+  P(20, 38, 8, 4, c.helm);
+  P(18, 40, 5, 5, c.tabard);
+  P(25, 40, 5, 5, c.tabard);
+  P(23, 42, 2, 6, c.armorDark);
+  P(23, 45, 2, 1, c.belt);
+  // волосы сзади — каре до подбородка
+  P(11, 7, 26, 28, c.hair);
+  P(10, 12, 28, 21, c.hair);
+  // лицо
+  P(15, 12, 18, 21, c.helm);
+  P(16, 33, 16, 2, c.helm);
+  P(18, 35, 12, 1, c.helm);
+  // чёлка: прядями, по бокам длиннее, посередине видно лоб
+  P(12, 6, 24, 7, c.hair);
+  P(15, 12, 5, 8, c.hair);
+  P(20, 12, 3, 5, c.hair);
+  P(26, 12, 3, 4, c.hair);
+  P(29, 12, 4, 9, c.hair);
+  P(23, 12, 3, 2, c.hair);
+  P(13, 13, 3, 22, c.hair);
+  P(32, 13, 3, 22, c.hair);
+  P(18, 6, 8, 1, c.hairLight);
+  // глаза, румянец, губы
+  P(18, 22, 4, 3, c.visor);
+  P(27, 22, 4, 3, c.visor);
+  P(19, 22, 1, 1, '#ffffff');
+  P(28, 22, 1, 1, '#ffffff');
+  P(17, 27, 3, 1, c.blush);
+  P(29, 27, 3, 1, c.blush);
+  P(23, 30, 3, 1, c.blush);
+}
+
+// Рыцарь спереди или со спины (back) — при ходьбе вглубь и у дверей.
+// squash < 1 — сжат по ширине: кадр поворота. weapon — sword | rapier (висит у бедра).
+export function drawFigureFront(g, o) {
+  const { x, ground, colors, back = false, step = 0, plume = true, weapon = 'sword', squash = 1, airY = 0 } = o;
+  const gy = Math.round(ground - airY);
+  const R = (dx, y, w, h, c) => rect(g, x + Math.round(dx * squash), y, Math.max(1, Math.round(w * squash)), h, c);
+  const lift = Math.round(Math.max(0, Math.sin(step)) * 2), lift2 = Math.round(Math.max(0, -Math.sin(step)) * 2);
+  const hipY = gy - 13;
+  // ноги
+  R(-4, hipY, 3, 11 - lift, colors.armorDark);
+  R(1, hipY, 3, 11 - lift2, colors.armorDark);
+  R(-5, gy - 2 - lift, 4, 2, colors.boots);
+  R(1, gy - 2 - lift2, 4, 2, colors.boots);
+  // корпус
+  R(-5, hipY - 13, 10, 14, colors.armor);
+  if (!back) R(-1, hipY - 11, 3, 12, colors.tabard);
+  else R(-4, hipY - 12, 8, 2, colors.armorDark);
+  R(-5, hipY - 2, 10, 1, colors.armorDark);
+  // руки вдоль тела, качаются при ходьбе
+  const sw = Math.round(Math.sin(step) * 1.5);
+  R(-7, hipY - 12 + sw, 2, 10, colors.armorDark);
+  R(5, hipY - 12 - sw, 2, 10, colors.armorDark);
+  // оружие у левого бедра
+  if (weapon === 'rapier') {
+    R(back ? 6 : -8, hipY - 4, 1, 12, colors.blade);
+    R(back ? 5 : -9, hipY - 5, 3, 2, colors.hilt);
+  } else {
+    R(back ? 6 : -9, hipY - 3, 2, 12, colors.scabbard);
+    R(back ? 5 : -10, hipY - 5, 4, 1, colors.hilt);
+  }
+  // голова
+  R(-3, hipY - 21, 7, 8, colors.helm);
+  if (!back) R(-2, hipY - 18, 5, 1, colors.visor);
+  else R(-3, hipY - 15, 7, 1, colors.armorDark);
+  if (plume) R(-1, hipY - 23, 3, 2, colors.plume);
 }
 
 // Оружие на полу (выбитая рапира): клинок вдоль пола, чашка гарды, блик бежит по клинку.

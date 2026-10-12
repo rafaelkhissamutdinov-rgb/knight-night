@@ -1,15 +1,17 @@
-import { CONFIG, LEVEL, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
+import { CONFIG, ROOMS, START, NPC_TYPES, ITEMS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
-import { drawFigure, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
-import { POSES } from './poses.js';
-import { buildBackground, drawTorches } from './background.js';
+import { drawFigure, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
+import { POSES, approachPose } from './poses.js';
+import { buildRoom, drawTorches, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
+import { Tutorial } from './tutorial.js';
+import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
-import { DIALOGUES, SPEAKERS } from './story/dialogues.js';
+import { DIALOGUES, SPEAKERS, SHOPS } from './story/dialogues.js';
 import { ENEMY_TYPES } from './config.js';
 
 const W = CONFIG.width, H = CONFIG.height;
@@ -40,7 +42,6 @@ const HINT_WALK = 'WASD — ходить · курсор выше / ниже р�
 const HINT_FIGHT = 'курсор — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок';
 const hintFight = () => HINT_FIGHT;
 const hintWalk = () => HINT_WALK;
-const HINT_DUMMY = 'Чучело: нажми ПКМ прямо перед ударом — идеальное парирование. Курсор — на высоте значка над чучелом';
 
 const canvas = document.getElementById('game');
 canvas.width = W;
@@ -59,6 +60,8 @@ const ui = {
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'),
+  shop: $('shop'), shopPortrait: $('shop-portrait'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
+  shopText: $('shop-text'), shopMenu: $('shop-menu'),
   skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'), skillName: $('skill-name'), weapon: $('weapon'),
 };
 ui.reportBtn.addEventListener('pointerdown', e => e.stopPropagation());
@@ -68,19 +71,49 @@ ui.version.textContent = VERSION;
 
 const input = createInput(window);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const background = buildBackground(LEVEL.length, H, CONFIG.floorTop);
+// фон каждой комнаты рисуется один раз, при первом входе
+const backgrounds = {};
+const bgFor = id => (backgrounds[id] ??= buildRoom(ROOMS[id], H, CONFIG.floorTop));
+const room = () => ROOMS[game.room];
+const encKey = (roomId, i) => `${roomId}:${i}`;
+const ALL_ENCOUNTERS = Object.entries(ROOMS).flatMap(([id, r]) => (r.encounters ?? []).map((enc, i) => ({ key: encKey(id, i), enc })));
 const held = group => KEYS[group].some(input.isDown);
 const is = (code, group) => KEYS[group].includes(code);
 
 const game = {};
 
-function spawnGroup(i) {
-  const enc = LEVEL.encounters[i];
+function spawnGroup(roomId, i) {
+  const enc = ROOMS[roomId].encounters[i];
   return enc.enemies.map(d => Object.assign(createEnemy(d.type, enc.x + d.dx, Math.random, d.z), { group: i }));
 }
-function spawnAll() {
-  const dummy = LEVEL.dummy ? [createEnemy('dummy', LEVEL.dummy.x, Math.random, LEVEL.dummy.z)] : [];
-  return dummy.concat(LEVEL.encounters.flatMap((_, i) => spawnGroup(i)));
+// враги комнаты: непройденные встречи и наставница, если обучение ещё впереди
+function spawnRoom(roomId) {
+  const r = ROOMS[roomId];
+  const list = (r.encounters ?? []).flatMap((_, i) => game.cleared.has(encKey(roomId, i)) ? [] : spawnGroup(roomId, i));
+  if (r.trainer && !game.flags.trainer_gone) list.unshift(createEnemy('trainer', r.trainer.x, Math.random, r.trainer.z));
+  return list;
+}
+
+// Перейти в комнату: враги, персонажи, камера. at — { x, z, facing } прибытия.
+function loadRoom(id, at) {
+  game.room = id;
+  game.visited.push(id);
+  const r = ROOMS[id];
+  game.enemies = spawnRoom(id);
+  game.npcs = (r.npcs ?? []).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: -1 }));
+  game.arena = null;
+  game.current = null;
+  game.token = null;
+  game.arrows = [];
+  game.waves = [];
+  ui.foe.hidden = true;
+  const p = game.player;
+  p.x = at.x;
+  p.z = at.z ?? p.z;
+  if (at.facing) p.facing = at.facing;
+  game.checkpoint = p.x;
+  game.camX = Math.max(0, Math.min(r.length - W, p.x - W / 2));
+  game.motes = r.dark ? Array.from({ length: 28 }, () => ({ x: Math.random() * W, y: Math.random() * H, v: 2 + Math.random() * 5, s: Math.random() < 0.3 ? 2 : 1, ph: Math.random() * 6 })) : [];
 }
 
 function newGame() {
@@ -95,14 +128,16 @@ function newGame() {
     particles: [],
     arrows: [],
     waves: [],
-    enemies: spawnAll(),
+    enemies: [],
+    npcs: [],
+    room: START.room,
     arena: null,
     cleared: new Set(),
     token: null,
     tokenFreeAt: 0,
     current: null,
-    checkpoint: 40,
-    player: new Player(40),
+    checkpoint: START.x,
+    player: new Player(START.x),
     unlocked: game.unlocked ?? new Set(['sword']),  // открытое оружие сохраняется между забегами
     pickups: [],
     blockStreak: 0,
@@ -112,9 +147,24 @@ function newGame() {
     prevPress: null,
     lastTiming: '',
     aim: 'mid',
-    mouseY: null,
+    mouseY: game.mouseY ?? null,
     flags: {},
     talk: null,
+    afterTalk: null,
+    tutorial: null,
+    cutscene: null,
+    transition: null,
+    view: 'side',
+    viewPrev: 'side',
+    viewT: 1,
+    doorNear: null,
+    doorPush: 0,
+    lockedSaidAt: -9,
+    motes: [],
+    visited: [],
+    coins: 0,
+    shop: null,
+    impactFrom: null,
     stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0, broken: 0, weave: 0, riposte: 0, vault: 0, vaultHit: 0 },
     deaths: {},
     killers: {},
@@ -124,8 +174,33 @@ function newGame() {
     startedAt: performance.now(),
     debug: game.debug || false,
   });
+  game.player.z = START.z;
+  loadRoom(START.room, START);
   renderHearts();
   ui.foe.hidden = true;
+}
+
+// Сохранение: комната и место, пройденные встречи, оружие, флаги сюжета, лежащее оружие.
+function save() {
+  const p = game.player;
+  writeSave({
+    version: VERSION, room: game.room, x: Math.round(game.checkpoint), z: Math.round(p.z), hp: p.hp, weapon: p.weapon,
+    coins: game.coins, unlocked: [...game.unlocked], cleared: [...game.cleared], flags: game.flags, pickups: game.pickups,
+  });
+}
+
+function continueGame(data) {
+  newGame();
+  game.unlocked = new Set(data.unlocked ?? ['sword']);
+  game.cleared = new Set(data.cleared ?? []);
+  game.flags = data.flags ?? {};
+  game.pickups = data.pickups ?? [];
+  game.coins = data.coins ?? 0;
+  game.player = new Player(data.x, game.unlocked.has(data.weapon) ? data.weapon : 'sword');
+  game.player.sheathed = false;
+  game.player.hp = Math.max(1, Math.min(CONFIG.playerHp, data.hp ?? CONFIG.playerHp));
+  loadRoom(ROOMS[data.room] ? data.room : START.room, { x: data.x, z: data.z ?? 22 });
+  renderHearts();
 }
 
 // ---------- мир для врагов ----------
@@ -136,10 +211,11 @@ const world = {
   // сколько места у врага в сторону dir до края арены
   roomBehind(e, dir) {
     if (!game.arena) return 999;
-    return dir > 0 ? game.arena.x + 150 - e.x : e.x - (game.arena.x - 150);
+    const [lo, hi] = arenaBounds();
+    return dir > 0 ? hi - e.x : e.x - lo;
   },
   dropWeapon(e, kind) {
-    game.pickups.push({ kind, x: e.x - e.facing * 10, z: e.z, t: 0 });
+    game.pickups.push({ kind, room: game.room, x: e.x - e.facing * 10, z: e.z, t: 0 });
     callout('Рапира выбита!', 'counter');
   },
   // бьёт один враг, остальные ждут своей очереди
@@ -165,7 +241,10 @@ const world = {
     }
     // в спину бьют, если рыцарь не успел развернуться к врагу
     const backTurned = Math.sign(e.x - p.x) !== p.facing && Math.abs(e.x - p.x) > 2;
-    return applyImpact(s.guard, e.def.damage * (s.mult ?? 1), e.x, s.breaks, s.bypass, backTurned, e.def.name);
+    game.impactFrom = e;
+    const result = applyImpact(s.guard, e.def.damage * (s.mult ?? 1), e.x, s.breaks, s.bypass, backTurned, e.def.name);
+    game.impactFrom = null;
+    return result;
   },
   heavySwing(e) {
     game.waves.push({ x: e.x, z: e.z, dir: e.facing, t: 0 });
@@ -300,6 +379,7 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
       }
     }
   } else if (result === 'hit' || result === 'broken') game.blockStreak = 0;
+  if (game.impactFrom?.kind === 'trainer') tutorialEvent({ type: 'impact', result });
   return result;
 }
 
@@ -314,6 +394,7 @@ function playerStrike(atk) {
     if (!inReach || !near(p, e)) continue;
     touched = true;
     const { out, dmg } = e.receiveAttack(atk);
+    if (e.kind === 'trainer' && (out === 'hit' || out === 'counter')) tutorialEvent({ type: out, height: atk.height, key: atk.key });
     if (atk.key === 'vaultFlick' && (out === 'hit' || out === 'counter')) game.stats.vaultHit++;
     if (e.state === 'yield' && e.def.defeatDialogue && !e.spoke) {
       e.spoke = true;
@@ -377,7 +458,7 @@ function handlePlayerEvents() {
 
 function die() {
   game.mode = 'dead';
-  const a = game.arena ? game.arena.index : -1;
+  const a = game.arena ? game.arena.key : '-';
   game.deaths[a] = (game.deaths[a] ?? 0) + 1;
   if (game.lastHitBy) game.killers[game.lastHitBy] = (game.killers[game.lastHitBy] ?? 0) + 1;
   showOverlay('Ты пал', `Тебя одолел: ${game.lastHitBy || 'неизвестно кто'}.`, 'R — снова в бой');
@@ -387,14 +468,18 @@ function die() {
 function restartFight() {
   const a = game.arena;
   if (a) {
-    game.enemies = game.enemies.filter(e => e.group !== a.index).concat(spawnGroup(a.index));
+    game.enemies = game.enemies.filter(e => e.group !== a.index).concat(spawnGroup(game.room, a.index));
     game.arena = null;
   }
   game.current = null;
   game.token = null;
   game.arrows = [];
+  const z = game.player.z;
   game.player = new Player(game.checkpoint, game.player.weapon);
+  game.player.z = z;
   game.player.sheathed = false;
+  game.transition = null;
+  game.view = 'side';
   game.blockStreak = 0;
   game.charge = null;
   game.lastPress = game.prevPress = null;
@@ -410,14 +495,20 @@ function buildReport() {
   const s = game.stats;
   const mins = Math.floor((performance.now() - game.startedAt) / 60000);
   const secs = Math.floor((performance.now() - game.startedAt) / 1000) % 60;
-  const names = i => i < 0 ? 'коридор' : LEVEL.encounters[i].enemies.map(e => ENEMY_TYPES[e.type].shortName ?? ENEMY_TYPES[e.type].name).join(' + ');
-  const deaths = Object.entries(game.deaths).map(([i, n]) => Number(i) < 0 ? `  вне встреч — ${n}` : `  ${Number(i) + 1}. ${names(Number(i))} — ${n}`).join('\n') || '  ни одной';
+  const names = key => {
+    const i = ALL_ENCOUNTERS.findIndex(a => a.key === key);
+    if (i < 0) return null;
+    const [roomId] = key.split(':');
+    return `${i + 1}. ${ROOMS[roomId].name}: ${ALL_ENCOUNTERS[i].enc.enemies.map(e => ENEMY_TYPES[e.type].shortName ?? ENEMY_TYPES[e.type].name).join(' + ')}`;
+  };
+  const deaths = Object.entries(game.deaths).map(([k, n]) => `  ${names(k) ?? 'вне встреч'} — ${n}`).join('\n') || '  ни одной';
   const killers = Object.entries(game.killers).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`).join(', ') || '—';
   const total = s.perfect + s.block + s.broken + s.hit + s.dodged;
   const pct = total ? Math.round(s.perfect / total * 100) : 0;
   return [
     `Knight Night ${VERSION} — отчёт тестера`,
-    `Время: ${mins}:${String(secs).padStart(2, '0')} · пройдено встреч: ${game.cleared.size} из ${LEVEL.encounters.length}`,
+    `Время: ${mins}:${String(secs).padStart(2, '0')} · пройдено встреч: ${game.cleared.size} из ${ALL_ENCOUNTERS.length}`,
+    `Обучение: ${game.flags.tutorial_done ? 'пройдено' : game.flags.tutorial_skipped ? 'пропущено' : game.tutorial ? `остановился на шаге ${game.tutorial.i + 1}` : 'не начато'} · комнаты: ${[...new Set(game.visited ?? [])].map(id => ROOMS[id].name).join(', ')}`,
     `Смерти по встречам:`,
     deaths,
     `Кто убивал: ${killers}`,
@@ -453,15 +544,45 @@ function finish() {
     'R — пройти заново');
 }
 
+// ---------- начало игры ----------
+
+function showTitle() {
+  const data = loadSave();
+  showOverlay('Knight Night',
+    'Рыцарь отмечает порталы на карте мира. Очередной портал перенёс его в заброшенный замок.',
+    data ? `Клик или Enter — продолжить (${ROOMS[data.room]?.name ?? 'начало'}) · N — новая игра` : 'Нажми любую клавишу');
+}
+
+function startNew() {
+  clearSave();
+  newGame();
+  game.mode = 'play';
+  hideOverlay();
+  hint('');
+  game.cutscene = { t: 0 };
+}
+
+function startContinue(data) {
+  continueGame(data);
+  game.mode = 'play';
+  hideOverlay();
+  hint(hintWalk());
+  callout(ROOMS[game.room].name, 'muted');
+}
+
 // ---------- ввод ----------
 
 function recordGuard(height) {
+  // курсор встал на высоту и ПКМ нажата в том же кадре — это одно нажатие, а не два
+  const lp = game.lastPress;
+  if (lp && lp.time === game.time && lp.height === height) return;
   game.prevPress = game.lastPress;
   game.lastPress = { height, time: game.time };
 }
 
 
 function handlePress(code) {
+  if (game.mode === 'shop') { shopPress(code); return; }
   if (code === 'Escape' || code === 'KeyP') {
     if (game.mode === 'play') {
       game.mode = 'paused';
@@ -484,10 +605,9 @@ function handlePress(code) {
   }
   if (game.mode === 'title') {
     unlockAudio();
-    game.mode = 'play';
-    hideOverlay();
-    hint(hintWalk());
-    startTalk('intro');
+    const data = loadSave();
+    if (data && code !== 'KeyN') startContinue(data);
+    else startNew();
     return;
   }
   if (game.mode === 'talk') {
@@ -500,16 +620,26 @@ function handlePress(code) {
     return;
   }
   if (game.mode === 'end') {
-    if (code === 'KeyR' || code === 'Enter') {
-      newGame();
-      game.mode = 'play';
-      hideOverlay();
-      hint(hintWalk());
-    }
+    if (code === 'KeyR' || code === 'Enter') startNew();
     return;
   }
+  // сцена пробуждения: любое нажатие — пропустить; во время перехода между комнатами ввод ждёт
+  if (game.cutscene) {
+    if (code !== 'Wheel') game.cutscene.t = Math.max(game.cutscene.t, WAKE.end);
+    return;
+  }
+  if (game.transition) return;
 
   const p = game.player;
+  if (code === 'KeyE') {
+    const npc = nearNpc();
+    if (npc) {
+      npc.facing = Math.sign(p.x - npc.x) || -1;
+      if (npc.def.shop) openShop(npc);
+      else startTalk(npc.def.talk);
+      return;
+    }
+  }
   const engaged = !!game.current?.alive;
   const backKeys = p.facing > 0 ? KEYS.left : KEYS.right;
 
@@ -569,26 +699,33 @@ function updateAim() {
   }
 }
 
-// Встреча начинается, когда рыцарь подходит; коридор закрыт, пока группа жива.
+// Границы арены: ±150 от центра встречи, но не за стенами комнаты.
+function arenaBounds() {
+  const L = room().length;
+  return [Math.max(16, game.arena.x - 150), Math.min(L - 16, game.arena.x + 150)];
+}
+
+// Встреча начинается, когда рыцарь подходит; проход закрыт, пока группа жива.
 function updateArena() {
   const p = game.player;
+  const encs = room().encounters ?? [];
   if (!game.arena) {
-    const i = LEVEL.encounters.findIndex((enc, i) => !game.cleared.has(i) && p.x > enc.x - 140 && p.x < enc.x + 150);
+    if (game.tutorial) return;
+    const i = encs.findIndex((enc, i) => !game.cleared.has(encKey(game.room, i)) && p.x > enc.x - 140 && p.x < enc.x + 150);
     if (i < 0) return;
-    game.arena = { index: i, x: LEVEL.encounters[i].x };
-    game.checkpoint = Math.max(40, LEVEL.encounters[i].x - 140);
+    game.arena = { index: i, x: encs[i].x, key: encKey(game.room, i) };
+    game.checkpoint = Math.max(40, encs[i].x - 140);
     for (const e of game.enemies) if (e.group === i) e.awake = true;
     ui.foe.hidden = false;
     hint(hintFight());
-    const before = LEVEL.encounters[i].before;
+    const before = encs[i].before;
     if (before && !game.flags['seen_' + before]) startTalk(before);
     return;
   }
   const alive = game.enemies.some(e => e.group === game.arena.index && (e.alive || e.state === 'yield'));
   if (!alive) {
-    game.cleared.add(game.arena.index);
+    game.cleared.add(game.arena.key);
     // отдых после победы над группой
-    const p = game.player;
     const healed = Math.min(CONFIG.restHeal, CONFIG.playerHp - p.hp);
     if (healed > 0) {
       p.hp += healed;
@@ -600,6 +737,8 @@ function updateArena() {
     game.token = null;
     ui.foe.hidden = true;
     hint(hintWalk());
+    game.checkpoint = p.x;
+    save();
   }
 }
 
@@ -618,10 +757,17 @@ function updateToken() {
   }
 }
 
-// Цель рыцаря: тот, кто сейчас бьёт, иначе ближайший.
+// Цель рыцаря: тот, кто сейчас бьёт, иначе ближайший. На обучении — наставница.
 function pickTarget() {
   const p = game.player;
-  if (!game.arena) return;
+  if (game.tutorial) {
+    game.current = trainer();
+    return;
+  }
+  if (!game.arena) {
+    game.current = null;
+    return;
+  }
   const group = game.enemies.filter(e => e.group === game.arena.index && e.alive);
   const holder = game.token?.e;
   let best = holder?.alive && group.includes(holder) ? holder : null;
@@ -634,6 +780,215 @@ function pickTarget() {
   }
 }
 
+// ---------- обучение у наставницы ----------
+
+const trainer = () => game.enemies.find(e => e.kind === 'trainer' && e.state !== 'leave' && e.state !== 'gone');
+
+// подошёл к наставнице — разговор; дальше обучение или пропуск
+function updateTrainerMeet() {
+  const t = trainer();
+  if (!t || game.tutorial || game.flags.trainer_met) return;
+  if (Math.abs(t.x - game.player.x) > 100) return;
+  game.flags.trainer_met = true;
+  startTalk('trainer_meet', () => {
+    if (game.flags.tutorial_skipped) trainerLeave();
+    else startTutorial();
+  });
+}
+
+function startTutorial() {
+  const t = trainer();
+  if (!t) return;
+  game.tutorial = new Tutorial();
+  t.awake = true;
+  t.setPlan(game.tutorial.step.plan);
+  hint(game.tutorial.text);
+}
+
+function tutorialEvent(ev) {
+  const tut = game.tutorial;
+  if (!tut) return;
+  const before = tut.text;
+  if (tut.note(ev)) {
+    sfx.ward();
+    if (tut.done) {
+      game.tutorial = null;
+      game.flags.tutorial_done = true;
+      callout('Обучение пройдено', 'perfect');
+      trainer()?.setPlan(null);
+      hint('');
+      setTimeout(() => startTalk('trainer_done', trainerLeave), 600);
+      return;
+    }
+    callout('Получилось!', 'perfect');
+    trainer()?.setPlan(tut.step.plan);
+  }
+  if (tut.text !== before) hint(tut.text);
+}
+
+function trainerLeave() {
+  trainer()?.leave();
+  game.flags.trainer_gone = true;
+  game.current = null;
+  hint(hintWalk());
+  save();
+}
+
+// ---------- комнаты, двери, переходы ----------
+
+// дверь, у которой стоит рыцарь (у самой стены, напротив проёма)
+function doorAt(p) {
+  return (room().doors ?? []).find(d => Math.abs(d.x - p.x) < DOOR_W / 2 + 2 && p.z < 14) ?? null;
+}
+function nearNpc() {
+  const p = game.player;
+  return game.npcs.find(n => Math.abs(n.x - p.x) < 28 && Math.abs(n.z - p.z) < 12) ?? null;
+}
+
+// Вход в дверь: прижался к стене у двери и держит W.
+function updateDoors(dt) {
+  const p = game.player;
+  const d = p.ready && !game.arena && !game.tutorial ? doorAt(p) : null;
+  game.doorNear = d;
+  if (!d || !held('depthIn') || p.z > 1) { game.doorPush = 0; return; }
+  game.doorPush += dt;
+  if (game.doorPush < 0.12) return;
+  game.doorPush = 0;
+  if (d.locked) {
+    if (game.time - game.lockedSaidAt > 1.5) {
+      game.lockedSaidAt = game.time;
+      callout(d.locked, 'muted');
+      sfx.block();
+    }
+    return;
+  }
+  game.transition = { kind: 'door', door: d, phase: 'turn', t: 0, x0: p.x, z0: p.z };
+  sfx.door();
+}
+
+// Выход за край комнаты (там, где есть проход).
+function updateEdges() {
+  const p = game.player;
+  if (game.arena || game.tutorial || !p.ready) return;
+  const edges = room().edges ?? {};
+  const L = room().length;
+  if (edges.left && p.x <= 10 && held('left')) game.transition = { kind: 'edge', edge: edges.left, dir: -1, phase: 'out', t: 0 };
+  else if (edges.right && p.x >= L - 10 && held('right')) game.transition = { kind: 'edge', edge: edges.right, dir: 1, phase: 'out', t: 0 };
+}
+
+const DOOR_PHASES = { turn: 0.14, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.12 };
+const EDGE_PHASES = { out: 0.3, in: 0.3 };
+
+function updateTransition(dt) {
+  const tr = game.transition;
+  const p = game.player;
+  tr.t += dt;
+  if (tr.kind === 'edge') {
+    p.x += tr.dir * CONFIG.walkSpeed * dt;
+    p.facing = tr.dir;
+    p.step += dt * 12;
+    p.walking = true;
+    if (tr.phase === 'out' && tr.t >= EDGE_PHASES.out) {
+      loadRoom(tr.edge.to, { x: tr.edge.x - tr.dir * 18, z: p.z, facing: tr.dir });
+      tr.phase = 'in';
+      tr.t = 0;
+      callout(room().name, 'muted');
+    } else if (tr.phase === 'in' && tr.t >= EDGE_PHASES.in) {
+      game.transition = null;
+      p.walking = false;
+      save();
+    }
+    return;
+  }
+  // дверь: повернулся спиной → вошёл → темнота → вышел из двери в другой комнате лицом к нам → повернулся боком
+  const T = DOOR_PHASES[tr.phase];
+  const k = Math.min(1, tr.t / T);
+  if (tr.phase === 'walkIn') {
+    p.x = tr.x0 + (tr.door.x - tr.x0) * k;
+    p.z = tr.z0 + (-7 - tr.z0) * k;
+    p.step += dt * 10;
+  } else if (tr.phase === 'walkOut') {
+    p.z = -7 + 15 * k;
+    p.step += dt * 10;
+  }
+  if (tr.t < T) return;
+  tr.t = 0;
+  const next = { turn: 'walkIn', walkIn: 'fadeOut', fadeOut: 'fadeIn', fadeIn: 'walkOut', walkOut: 'turnOut', turnOut: null }[tr.phase];
+  if (tr.phase === 'fadeOut') {
+    const to = ROOMS[tr.door.to];
+    const out = to.doors.find(d => d.id === tr.door.toDoor);
+    loadRoom(tr.door.to, { x: out.x, z: -7 });
+    tr.door = out;
+    callout(to.name, 'muted');
+    sfx.door();
+  }
+  if (!next) {
+    game.transition = null;
+    p.z = 8;
+    p.step = 0;
+    game.view = 'side';
+    game.viewPrev = 'front';
+    game.viewT = 0;
+    save();
+    return;
+  }
+  tr.phase = next;
+}
+
+// Сцена пробуждения: руны портала загораются, вспышка, рыцарь сидит, трясёт головой, встаёт.
+const WAKE = { flash: 1.1, kneel: 3.0, stand: 3.7, end: 4.3 };
+const SIT = { hx: 6, hy: 9, angle: 25, lean: 2, crouch: 10 };
+
+function updateCutscene(dt) {
+  const c = game.cutscene;
+  const p = game.player;
+  const before = c.t;
+  c.t += dt;
+  if (before < WAKE.flash && c.t >= WAKE.flash) {
+    flash('#bff0ff', 0.9);
+    sfx.portal();
+    shake(2);
+    const r = room().portal;
+    sparks(r.x, groundY(r.z) - 10, 30, ['#5fd3ff', '#c8f4ff', '#ffffff'], 140);
+  }
+  p.sheathed = false;
+  if (c.t < WAKE.kneel) {
+    const shakeHead = c.t > 1.8 && c.t < 2.5 ? Math.sin(c.t * 22) * 1.5 : 0;
+    p.pose = { ...SIT, lean: SIT.lean + shakeHead };
+  } else if (c.t < WAKE.stand) {
+    p.pose = approachPose(p.pose, POSES.kneel, dt, 10);
+  } else {
+    p.pose = approachPose(p.pose, POSES.idle, dt, 10);
+  }
+  if (c.t >= WAKE.end) {
+    game.cutscene = null;
+    p.pose = { ...POSES.idle };
+    startTalk('wake', () => {
+      game.flags.portal_cell = true;  // портал отмечен на карте
+      callout('Портал отмечен', 'perfect');
+      hint(hintWalk());
+      save();
+    });
+  }
+}
+
+// Вне боя рыцарь поворачивается спиной, когда идёт к стене, и лицом, когда идёт к краю экрана.
+function updateView(dt, engaged) {
+  const p = game.player;
+  let want = 'side';
+  if (!engaged && p.state === 'ready' && !held('guard')) {
+    const L = held('left'), R = held('right');
+    if (!L && !R && held('depthIn')) want = 'back';
+    else if (!L && !R && held('depthOut')) want = 'front';
+  }
+  game.viewT += dt;
+  if (want !== game.view) {
+    game.viewPrev = game.view;
+    game.view = want;
+    game.viewT = 0;
+  }
+}
+
 function update(dt) {
   if (game.mode === 'play') updateAim();  // высота — до нажатий этого кадра
   for (const code of input.take()) handlePress(code);
@@ -641,11 +996,15 @@ function update(dt) {
 
   game.time += dt;
   const p = game.player;
+  updateMotes(dt);
+  if (game.cutscene) { updateCutscene(dt); return; }
+  if (game.transition) { updateTransition(dt); updateCamera(dt); return; }
   updateArena();
-  if (!game.arena) {
-    // у чучела — подсказка про идеальное парирование
-    const dummy = game.enemies.find(e => e.def.practice);
-    hint(dummy && Math.abs(dummy.x - p.x) < 90 ? HINT_DUMMY : hintWalk());
+  updateTrainerMeet();
+  if (!game.arena && !game.tutorial && game.mode === 'play') {
+    const npc = nearNpc();
+    const d = game.doorNear;
+    hint(npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -669,11 +1028,13 @@ function update(dt) {
     if (held('left') && !held('right')) p.facing = -1;
     else if (held('right') && !held('left')) p.facing = 1;
   }
+  updateView(dt, !!cur);
 
   updateCharge();
   p.update(dt, controls());
   handlePlayerEvents();
   updatePickups(dt);
+  for (const n of game.npcs) if (Math.abs(n.x - p.x) < 80) n.facing = Math.sign(p.x - n.x) || n.facing;
 
   for (const e of game.enemies) {
     if ((e.state === 'dead' && e.t > 2) || e.state === 'gone') continue;
@@ -682,7 +1043,7 @@ function update(dt) {
   updateArrows(dt);
 
   // тела не проходят друг сквозь друга (если стоят на одной линии по глубине)
-  const solids = game.enemies.filter(e => e.solid && !e.def.practice);  // сквозь чучело можно пройти
+  const solids = game.enemies.filter(e => e.solid && e.type !== 'dummy');  // сквозь чучело можно пройти
   for (const e of solids) {
     if (p.state === 'swallowed' || p.airY > 4 || Math.abs(e.z - p.z) >= 8) continue;  // в прыжке — над врагом
     const d = e.x - p.x;
@@ -697,18 +1058,47 @@ function update(dt) {
       b.x += push;
     }
   }
-  const lo = game.arena ? game.arena.x - 150 : 16, hi = game.arena ? game.arena.x + 150 : LEVEL.length - 16;
+  const L = room().length;
+  let lo = 8, hi = L - 8;
+  if (game.arena) [lo, hi] = arenaBounds();
+  else if (game.tutorial) {
+    // на обучении от наставницы далеко не уйти
+    const t = trainer();
+    if (t) [lo, hi] = [Math.max(16, t.homeX - 170), Math.min(L - 16, t.homeX + 170)];
+  } else {
+    // где нет прохода, стена
+    const edges = room().edges ?? {};
+    if (!edges.left) lo = 16;
+    if (!edges.right) hi = L - 16;
+  }
   p.x = Math.max(lo, Math.min(hi, p.x));
   if (game.arena) for (const e of game.enemies) {
     if (e.group === game.arena.index && e.state !== 'flee' && e.state !== 'yield') e.x = Math.max(lo - 10, Math.min(hi + 10, e.x));
   }
+  updateDoors(dt);
+  updateEdges();
 
   if (p.hp <= 0 && p.state !== 'swallowed') die();
-  else if (!game.enemies.some(e => e.alive && !e.def.practice) && p.x > LEVEL.length - 60) finish();
+  else if (room().finish && (room().encounters ?? []).every((_, i) => game.cleared.has(encKey(game.room, i))) && p.x > L - 60) finish();
 
+  updateCamera(dt);
+}
+
+function updateCamera(dt) {
+  const p = game.player;
+  const L = room().length;
   const target = game.arena ? game.arena.x - W / 2 : p.x - (p.facing > 0 ? 120 : 200);
-  const clamped = Math.max(0, Math.min(LEVEL.length - W, target));
+  const clamped = Math.max(0, Math.min(L - W, target));
   game.camX += (clamped - game.camX) * Math.min(1, dt * 5);
+}
+
+// пылинки в тёмной комнате медленно плывут
+function updateMotes(dt) {
+  for (const m of game.motes) {
+    m.y -= m.v * dt * 0.4;
+    m.x += Math.sin(game.time * 0.7 + m.ph) * dt * 3;
+    if (m.y < -2) { m.y = H + 2; m.x = Math.random() * W; }
+  }
 }
 
 // Зажатая ЛКМ вверху с рапирой: отпустил быстро — захлёст, держал дольше chargeTime — прыжок через врага.
@@ -737,6 +1127,7 @@ function updateCharge() {
 function updatePickups(dt) {
   const p = game.player;
   for (const it of game.pickups) {
+    if ((it.room ?? 'hall') !== game.room) continue;
     it.t += dt;
     if (it.taken || it.t < 0.6) continue;
     if (Math.abs(it.x - p.x) < 10 && Math.abs(it.z - p.z) < 8) {
@@ -745,6 +1136,7 @@ function updatePickups(dt) {
       p.setWeapon(it.kind);
       game.blockStreak = 0;
       callout('Рапира! Q — сменить оружие', 'perfect');
+      setTimeout(save, 0);
       sfx.perfect();
     }
   }
@@ -803,6 +1195,11 @@ function updateFx(dt) {
 
 function step(dt) {
   updateFx(dt);
+  if (game.mode === 'shop') {
+    for (const code of input.take()) handlePress(code);
+    tickShop(dt);
+    return;
+  }
   if (game.mode === 'talk') {
     for (const code of input.take()) handlePress(code);
     tickTalk(dt);
@@ -818,11 +1215,15 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 const PORTRAITS = {
   knight: { colors: KNIGHT_COLORS, plume: true },
   ilia: { colors: ENEMY_TYPES.duelist.colors, face: true, rapier: true, robe: true },
+  trainer: { colors: ENEMY_TYPES.trainer.colors, wrap: true, robe: true, slim: true },
+  lika: { ...NPC_TYPES.lika },
 };
 
-function startTalk(id) {
-  if (!CONFIG.dialogues || !DIALOGUES[id]) return;
+// after — что сделать, когда разговор закончится (или сразу, если диалоги выключены)
+function startTalk(id, after = null) {
+  if (!CONFIG.dialogues || !DIALOGUES[id]) { after?.(); return; }
   game.flags['seen_' + id] = true;
+  game.afterTalk = after;
   game.talk = new DialogueRunner(DIALOGUES, game.flags);
   game.talk.start(id);
   game.talkShown = 0;
@@ -837,6 +1238,9 @@ function showLine() {
     ui.talk.hidden = true;
     game.talk = null;
     game.mode = game.resumeMode === 'title' ? 'play' : (game.resumeMode ?? 'play');
+    const after = game.afterTalk;
+    game.afterTalk = null;
+    after?.();
     return;
   }
   const who = SPEAKERS[line.who] ?? SPEAKERS.narrator;
@@ -894,6 +1298,113 @@ function chooseTalk(i) {
   showLine();
 }
 
+// ---------- лавка ----------
+// Как в Undertale: продавец, его реплика и меню «Купить / Поговорить / Уйти».
+
+const shopCtx = ui.shopPortrait.getContext('2d');
+shopCtx.imageSmoothingEnabled = false;
+
+function openShop(npc) {
+  const data = SHOPS[npc.def.shop];
+  if (!data) return;
+  game.shop = { npc, data, view: 'main', text: data.hello, shown: 0 };
+  game.mode = 'shop';
+  drawLikaPortrait(shopCtx, npc.def.colors);
+  ui.shopName.textContent = npc.def.name;
+  ui.shop.hidden = false;
+  hint('');
+  renderShop();
+}
+
+function closeShop() {
+  game.shop.text = game.shop.data.bye;
+  ui.shop.hidden = true;
+  callout(game.shop.data.bye.replace('[черновик] ', ''), 'muted');
+  game.shop = null;
+  game.mode = 'play';
+}
+
+function shopSay(text) {
+  game.shop.text = text;
+  game.shop.shown = 0;
+}
+
+function shopView(view) {
+  game.shop.view = view;
+  shopSay(game.shop.data.menu);
+  renderShop();
+}
+
+function shopOptions() {
+  const sh = game.shop, d = sh.data;
+  const back = { label: 'Назад', go: () => shopView('main') };
+  if (sh.view === 'buy') return [
+    ...d.items.map(it => {
+      const item = ITEMS[it.id];
+      return { label: item.name, right: `${item.price} мон.`, muted: it.soon || item.price > game.coins, hover: it.text, go: () => buyItem(it) };
+    }),
+    back,
+  ];
+  if (sh.view === 'talk') return [...d.talk.map(t => ({ label: t.topic, go: () => shopSay(t.lines.join(' ')) })), back];
+  return [
+    { label: 'Купить', go: () => shopView('buy') },
+    { label: 'Поговорить', go: () => shopView('talk') },
+    { label: 'Уйти', go: closeShop },
+  ];
+}
+
+function buyItem(it) {
+  const d = game.shop.data, item = ITEMS[it.id];
+  if (it.soon) return shopSay(d.soon);
+  if (item.price > game.coins) return shopSay(d.poor);
+  game.coins -= item.price;
+  const p = game.player;
+  const heal = Math.min(item.effect?.heal ?? 0, CONFIG.playerHp - p.hp);
+  if (heal > 0) { p.hp += heal; renderHearts(); }
+  sfx.perfect();
+  shopSay(d.bought + (heal > 0 ? `  (+${heal} ♥)` : ''));
+  renderShop();
+  save();
+}
+
+function renderShop() {
+  ui.shopCoins.textContent = `Монеты: ${game.coins}`;
+  ui.shopMenu.innerHTML = '';
+  shopOptions().forEach((o, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = o.muted ? 'muted' : '';
+    b.innerHTML = `<span>${i + 1}. ${o.label}</span>${o.right ? `<span>${o.right}</span>` : ''}`;
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); o.go(); });
+    if (o.hover) b.addEventListener('pointerenter', () => shopSay(o.hover));
+    ui.shopMenu.appendChild(b);
+  });
+}
+
+function shopPress(code) {
+  if (code === 'Escape' || code === 'Backspace') {
+    if (game.shop.view === 'main') closeShop();
+    else shopView('main');
+    return;
+  }
+  const m = /^Digit([1-9])$/.exec(code);
+  if (!m) return;
+  const o = shopOptions()[Number(m[1]) - 1];
+  if (!o) return;
+  if (o.hover && game.shop.text !== o.hover) shopSay(o.hover);  // с клавиатуры: сначала описание, потом покупка
+  else o.go();
+}
+
+// реплика печатается по буквам
+function tickShop(dt) {
+  const sh = game.shop;
+  if (!sh) return;
+  if (sh.shown < sh.text.length) {
+    sh.shown = Math.min(sh.text.length, sh.shown + dt * 50);
+    ui.shopText.textContent = sh.text.slice(0, Math.floor(sh.shown));
+  } else if (ui.shopText.textContent !== sh.text) ui.shopText.textContent = sh.text;
+}
+
 // ---------- эффекты ----------
 
 function sparks(x, y, n, colors, speed) {
@@ -929,6 +1440,7 @@ function callout(text, kind) {
 }
 
 function hint(text) {
+  if (!text) { ui.hint.hidden = true; ui.hint.textContent = ''; return; }
   if (ui.hint.textContent === text && !ui.hint.hidden) return;
   ui.hint.textContent = text;
   ui.hint.hidden = false;
@@ -969,24 +1481,49 @@ function render() {
   g.fillStyle = PAL.bg;
   g.fillRect(-4, -4, W + 8, H + 8);
 
+  const r = room();
   const cam = Math.round(game.camX);
-  g.drawImage(background, cam, 0, W, H, 0, 0, W, H);
-  drawTorches(g, cam, game.time, W);
+  g.drawImage(bgFor(game.room), cam, 0, W, H, 0, 0, W, H);
+  drawTorches(g, cam, r.torches ?? [], game.time);
+  const tr = game.transition;
+  if (tr?.kind === 'door') {
+    // проём открывается, пока рыцарь входит и выходит
+    const k = { turn: Math.min(1, tr.t / DOOR_PHASES.turn), walkIn: 1, fadeOut: 1, fadeIn: 1, walkOut: 1, turnOut: 1 - Math.min(1, tr.t / DOOR_PHASES.turnOut) }[tr.phase];
+    drawDoorOpen(g, tr.door, CONFIG.floorTop, cam, k);
+  }
+  if (game.doorNear && !tr && Math.floor(game.time * 3) % 2 === 0) {
+    // стрелка над дверью: можно войти
+    const d = game.doorNear;
+    heightIcon('high', d.x - cam, CONFIG.floorTop - 46, d.locked ? '#9f97b0' : PAL.gold);
+  }
+  if (r.portal) {
+    const c = game.cutscene;
+    const lit = c ? Math.min(1, c.t / WAKE.flash) : 1;
+    const glow = c ? (c.t < WAKE.flash ? lit * 0.6 : 1.2 - Math.min(0.6, (c.t - WAKE.flash) * 0.3)) : 0.55;
+    drawPortal(g, r.portal.x - cam, groundY(r.portal.z), game.time, lit, glow);
+  }
 
-  // сначала тени, потом бойцы от дальних к ближним
-  const actors = [...game.enemies.filter(e => e.state !== 'gone'), game.player];
+  // сначала тени, потом бойцы, персонажи и вещи от дальних к ближним
+  const hidePlayer = game.mode === 'title' || (game.cutscene && game.cutscene.t < WAKE.flash);
+  const actors = [...game.enemies.filter(e => e.state !== 'gone'), ...game.npcs, ...(hidePlayer ? [] : [game.player])];
   for (const a of actors) {
     if (a === game.player && a.state === 'swallowed') continue;
     g.globalAlpha = a.state === 'dead' ? 0.3 : 0.55;
-    const gy = groundY(a.z);
+    const gy = groundY(Math.max(0, a.z));
     rect(g, a.x - cam - 7, gy - 1, 14, 2, '#0d0b14');
     rect(g, a.x - cam - 5, gy - 2, 10, 1, '#0d0b14');
     g.globalAlpha = 1;
   }
-  for (const it of game.pickups) drawPickup(g, it.x - cam, groundY(it.z), it.t);
-  actors.sort((a, b) => a.z - b.z);
-  for (const a of actors) a === game.player ? renderPlayer(cam) : renderEnemy(a, cam);
-  if (game.current?.alive) {
+  for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) drawPickup(g, it.x - cam, groundY(it.z), it.t);
+  const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
+  things.sort((a, b) => a.z - b.z);
+  for (const a of things) {
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z));
+    else if (a === game.player) renderPlayer(cam);
+    else if (a.npc) renderNpc(a, cam);
+    else renderEnemy(a, cam);
+  }
+  if (game.current?.alive && !game.tutorial) {
     // отметка цели
     const c = game.current;
     rect(g, c.x - cam - 1, groundY(c.z) + 2, 3, 1, PAL.gold);
@@ -995,10 +1532,52 @@ function render() {
   for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
 
+  // передний план: распахнутая дверь решётки
+  if (r.gate === 'right') drawGatePanel(g, r.length - 26 - cam, CONFIG.floorTop, H, -1);
+  if (r.gate === 'left') drawGatePanel(g, 26 - cam, CONFIG.floorTop, H, 1);
+
+  if (r.dark) {
+    // темнота: свет от портала, от выхода и немного вокруг рыцаря
+    const p = game.player;
+    const c = game.cutscene;
+    const portalLight = c && c.t < WAKE.flash ? 30 + 40 * (c.t / WAKE.flash) : 95;
+    const lights = [
+      { x: r.portal.x - cam, y: groundY(r.portal.z) - 6, r: portalLight },
+      { x: r.length - cam + 10, y: 110, r: 90, a: 0.8 },
+    ];
+    if (!hidePlayer) lights.push({ x: p.x - cam, y: groundY(p.z) - 16, r: 42, a: 0.7 });
+    drawDarkness(g, W, H, lights);
+    // тёмные пылинки плывут перед камерой
+    for (const m of game.motes) {
+      g.globalAlpha = 0.55;
+      rect(g, m.x, m.y, m.s, m.s, m.s > 1 ? '#05040a' : '#2a2538');
+    }
+    g.globalAlpha = 1;
+  }
+  if (r.cobwebs) {
+    drawCobweb(g, -cam, 0, 1, 1, 34);
+    drawCobweb(g, r.length - cam, 0, -1, 1, 26);
+    // свисающая цепь на переднем плане — тёмный силуэт
+    for (let y = 0; y < 52; y += 3) rect(g, 286 - cam + (y % 6 ? 0 : 1), y, 2, 2, '#07060c');
+    rect(g, -cam, H - 6, 60, 6, '#07060c');
+    rect(g, 8 - cam, H - 9, 26, 3, '#07060c');
+  }
+
   g.setTransform(1, 0, 0, 1, 0, 0);
   if (game.flash > 0) {
     g.globalAlpha = game.flash;
     g.fillStyle = game.flashColor;
+    g.fillRect(0, 0, W, H);
+    g.globalAlpha = 1;
+  }
+  // затемнение при переходе между комнатами; в начале сцены пробуждения — почти полная тьма
+  let fade = 0;
+  if (tr?.kind === 'door') fade = tr.phase === 'fadeOut' ? tr.t / DOOR_PHASES.fadeOut : tr.phase === 'fadeIn' ? 1 - tr.t / DOOR_PHASES.fadeIn : 0;
+  if (tr?.kind === 'edge') fade = tr.phase === 'out' ? tr.t / EDGE_PHASES.out : 1 - tr.t / EDGE_PHASES.in;
+  if (game.cutscene && game.cutscene.t < WAKE.flash) fade = Math.max(fade, 0.55);
+  if (fade > 0) {
+    g.globalAlpha = Math.min(1, fade);
+    g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
     g.globalAlpha = 1;
   }
@@ -1042,6 +1621,7 @@ function renderEnemy(e, cam) {
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
+      wrap: e.def.wrap, curved: e.def.curved, slim: e.def.slim,
     });
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
@@ -1072,6 +1652,31 @@ function renderPlayer(cam) {
     g.restore();
     return;
   }
+  // вид спереди или со спины: у дверей и когда идёт вглубь; сжатый кадр — середина поворота
+  const tr = game.transition;
+  let view = game.view, squash = 1, alpha = 1;
+  if (tr?.kind === 'door') {
+    const k = Math.min(1, tr.t / DOOR_PHASES[tr.phase]);
+    view = { turn: 'back', walkIn: 'back', fadeOut: 'back', fadeIn: 'front', walkOut: 'front', turnOut: 'front' }[tr.phase];
+    if ((tr.phase === 'turn' && k < 0.5) || tr.phase === 'turnOut') squash = 0.5;
+    alpha = tr.phase === 'walkIn' ? 1 - Math.max(0, (k - 0.5) * 2) : tr.phase === 'fadeOut' || tr.phase === 'fadeIn' ? 0 : tr.phase === 'walkOut' ? Math.min(1, k * 2) : 1;
+  } else if (view !== 'side') {
+    if (game.viewT < 0.08) squash = 0.5;
+  } else if (game.viewT < 0.07 && game.viewPrev !== 'side' && !tr) {
+    view = game.viewPrev;
+    squash = 0.5;
+  }
+  if (view !== 'side') {
+    if (alpha <= 0) return;
+    g.globalAlpha = alpha;
+    drawFigureFront(g, { x: Math.round(px), ground: GROUND, colors, back: view === 'back', step: p.step, weapon: p.weapon, squash });
+    g.globalAlpha = 1;
+    return;
+  }
+  if (game.cutscene && game.cutscene.t < WAKE.kneel) {
+    drawFigure(g, { x: px, ground: GROUND, facing: p.facing, pose: p.pose, colors, plume: true, sit: true, weaponLen: 17, scabbard: true });
+    return;
+  }
   const spinning = p.state === 'attack' && p.atk.key === 'spin' && p.phase === 'active';
   const weaving = p.state === 'attack' && p.atk.weave && p.phase === 'active';
   const k = spinning ? (p.t - p.atk.windup) / p.atk.active : 0;
@@ -1098,13 +1703,25 @@ function renderPlayer(cam) {
   } else p.trail = [];
 
   // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
-  heightIcon(game.aim, px - p.facing * 13, GROUND - 26, held('guard') ? '#8fd3ff' : '#9f97b0');
+  if (!game.cutscene && !tr) heightIcon(game.aim, px - p.facing * 13, GROUND - 26, held('guard') ? '#8fd3ff' : '#9f97b0');
   if (p.state === 'backdash' && p.wardActive) {
     // мерцающий заслон перед рыцарем
     g.globalAlpha = 0.5 + 0.3 * Math.sin(p.t * 40);
     for (let a = -1.1; a <= 1.1; a += 0.14) rect(g, px + p.facing * (6 + Math.cos(a) * 9), GROUND - 22 + Math.sin(a) * 14, 1, 1, '#8fd3ff');
     g.globalAlpha = 1;
   }
+}
+
+// неигровой персонаж: стоит, дышит, поворачивается к рыцарю
+function renderNpc(n, cam) {
+  const x = n.x - cam;
+  if (x < -40 || x > W + 40) return;
+  const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
+  drawFigure(g, {
+    x, ground: groundY(n.z), facing: n.facing, pose: { ...POSES.idle, hy: 8, angle: 80, crouch: breathe },
+    colors: n.def.colors, robe: n.def.robe, hood: n.def.hood, pack: n.def.pack, bladeHidden: true,
+    short: n.def.short, bob: n.def.bob, coat: n.def.coat,
+  });
 }
 
 // значок высоты удара над головой врага во время замаха: крупный, с тёмной обводкой.
@@ -1226,6 +1843,7 @@ ui.box.addEventListener('wheel', e => {
 }, { passive: false });
 
 newGame();
+showTitle();
 ui.debug.hidden = true;
 requestAnimationFrame(frame);
 

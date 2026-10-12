@@ -63,5 +63,8 @@ export const sfx = {
   gulp() { tone(220, 0.35, 'square', 0.12, 70); burst(0.3, 'lowpass', 300, 0.5); },
   spit() { burst(0.15, 'lowpass', 800, 0.5); tone(160, 0.15, 'square', 0.1, 320); },
   bow() { tone(300, 0.08, 'triangle', 0.08, 600); },
+  door() { tone(180, 0.5, 'sawtooth', 0.05, 120); burst(0.35, 'bandpass', 500, 0.3, 2); },
+  portal() { tone(440, 1.2, 'sine', 0.18, 1760); tone(660, 0.9, 'triangle', 0.08, 1320); burst(0.4, 'highpass', 3000, 0.2); },
+  step() { burst(0.04, 'lowpass', 300, 0.12); },
   cue(height) { tone({ high: 990, mid: 660, low: 440 }[height], 0.06, 'triangle', 0.07); },
 };

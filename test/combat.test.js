@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONFIG, WEAPON, RAPIER } from '../src/config.js';
+import { CONFIG, WEAPON, RAPIER, ENEMY_TYPES } from '../src/config.js';
 import { resolveImpact, slimeZone } from '../src/combat.js';
 import { createEnemy } from '../src/enemy.js';
 import { chooseAttack, attackWindup, Player } from '../src/player.js';
@@ -498,4 +498,84 @@ test('лучник, прижатый к краю, не прыгает в сте�
   }
   assert.equal(hopped, false);
   assert.notEqual(a.z, z0);
+});
+
+// ---------- v0.13: обучение, наставница, комнаты ----------
+
+test('обучение: шаг засчитывается, только когда выполнено всё', async () => {
+  const { Tutorial, TUTORIAL } = await import('../src/tutorial.js');
+  const t = new Tutorial();
+  assert.equal(t.step.id, 'strike');
+  assert.equal(t.note({ type: 'hit', height: 'high', key: 'overhead' }), false);
+  assert.equal(t.note({ type: 'hit', height: 'high', key: 'overhead' }), false, 'повтор той же высоты не помогает');
+  assert.equal(t.note({ type: 'hit', height: 'mid', key: 'side' }), false);
+  assert.equal(t.note({ type: 'impact', result: 'block' }), false, 'чужое событие не считается');
+  assert.equal(t.note({ type: 'hit', height: 'low', key: 'low' }), true);
+  assert.equal(t.step.id, 'block');
+  for (let i = 0; i < 2; i++) t.note({ type: 'impact', result: 'block' });
+  assert.match(t.text, /отбито 2\/3/);
+  t.note({ type: 'impact', result: 'perfect' });
+  assert.equal(t.step.id, 'perfect');
+  // дойти до конца
+  const events = {
+    perfect: [{ type: 'impact', result: 'perfect' }, { type: 'impact', result: 'perfect' }],
+    counter: [{ type: 'counter', height: 'mid', key: 'side' }],
+    dodge: [{ type: 'impact', result: 'warded' }],
+    moves: ['dashCut', 'leap', 'rollCut'].map(key => ({ type: 'hit', height: 'mid', key })),
+    spin: [{ type: 'hit', height: 'any', key: 'spin' }],
+  };
+  while (!t.done) for (const ev of events[t.step.id]) t.note(ev);
+  assert.equal(t.i, TUTORIAL.length);
+});
+
+test('наставница бьёт только по плану шага и не наносит урона', () => {
+  const e = createEnemy('trainer', 100, () => 0.5);
+  const w = world(80);
+  w.heavySwing = () => {};
+  e.awake = true;
+  for (let t = 0; t < 3; t += 1 / 60) {
+    e.update(1 / 60, w);
+    assert.notEqual(e.state, 'windup', 'без плана не бьёт');
+  }
+  e.setPlan({ combos: [['heavyMid']], windup: 0.5, wait: [0.2, 0.2] });
+  run(e, w, x => x.state === 'windup', 5);
+  assert.equal(e.windupTime, 0.5);
+  run(e, w, x => x.state === 'strike', 2);
+  assert.equal(e.def.damage, 0);
+  e.leave();
+  assert.equal(e.alive, false);
+  run(e, w, x => x.state === 'gone', 10);
+  assert.ok(e.x > 300, 'ушла вперёд');
+});
+
+test('комнаты: двери ведут друг к другу, края и встречи на месте', async () => {
+  const { ROOMS, START } = await import('../src/config.js');
+  assert.ok(ROOMS[START.room]);
+  for (const [id, r] of Object.entries(ROOMS)) {
+    for (const d of r.doors ?? []) {
+      if (d.locked) continue;
+      const back = ROOMS[d.to]?.doors?.find(x => x.id === d.toDoor);
+      assert.ok(back, `${id}:${d.id} → ${d.to}:${d.toDoor}`);
+      assert.equal(back.to, id, `обратная дверь ${d.to}:${back.id} ведёт в ${id}`);
+      assert.ok(d.x > 16 && d.x < r.length - 16);
+    }
+    for (const [side, edge] of Object.entries(r.edges ?? {})) {
+      const to = ROOMS[edge.to];
+      assert.ok(to, `${id} ${side}`);
+      assert.ok(to.edges?.[side === 'left' ? 'right' : 'left']?.to === id, `край ${id} ${side} — обратный проход`);
+    }
+    for (const enc of r.encounters ?? []) for (const en of enc.enemies) assert.ok(ENEMY_TYPES[en.type], en.type);
+  }
+});
+
+test('наставница: шаг сменился посреди серии — удар не ломается', () => {
+  const e = createEnemy('trainer', 100, () => 0.5);
+  const w = world(80);
+  w.heavySwing = () => {};
+  e.awake = true;
+  e.setPlan({ combos: [['mid', 'high']], windup: 0.4, comboWindup: 0.4, wait: [0.1, 0.1] });
+  w.answer = () => { e.setPlan(null); return 'perfect'; };  // как будто этот удар закрыл шаг обучения
+  for (let t = 0; t < 4; t += 1 / 60) e.update(1 / 60, w);
+  assert.equal(w.impacts.length, 1, 'серия оборвалась после первого удара');
+  assert.notEqual(e.state, 'windup');
 });
