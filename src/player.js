@@ -239,10 +239,12 @@ export class Player {
         // в защите ходит медленнее
         const slow = g ? 0.6 : 1;
         let v = 0;
-        if (c.back) v = -CONFIG.walkSpeed * CONFIG.backWalkFactor;
-        else if (c.fwd) v = CONFIG.walkSpeed;
+        const walk = c.engaged ? CONFIG.walkSpeed : CONFIG.exploreSpeed;
+        this.stepRate = walk / 64;  // ноги быстрее, когда идёт быстрее
+        if (c.back) v = -walk * CONFIG.backWalkFactor;
+        else if (c.fwd) v = walk;
         if (v) forward(v * slow * dt);
-        if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * CONFIG.depthSpeed * slow * dt));
+        if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * (c.engaged ? CONFIG.depthSpeed : CONFIG.exploreDepthSpeed) * slow * dt));
         this.walking = !!(v || c.dz);
         if (this.weapon === 'sword' && !c.engaged && !g && this.idleT > CONFIG.autoSheathe) this.sheathed = true;
         const rest = this.weapon === 'rapier' ? POSES.fence : POSES.idle;
@@ -327,6 +329,6 @@ export class Player {
     }
 
     if (target) this.pose = approachPose(this.pose, target, dt, this.state === 'attack' ? 55 : 40);
-    this.step = this.walking ? this.step + dt * 12 : 0;
+    this.step = this.walking ? this.step + dt * 12 * (this.stepRate ?? 1) : 0;
   }
 }

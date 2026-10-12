@@ -69,17 +69,19 @@ class Enemy {
   // скорость шага: у кого-то задана диапазоном — тогда каждый раз своя
   get speed() {
     const s = this.def.speed;
-    if (!Array.isArray(s)) return s;
+    const k = CONFIG.enemyMove ?? 1;
+    if (!Array.isArray(s)) return s * k;
     if (this.state !== this.speedFor) {
       this.speedFor = this.state;
       this.curSpeed = s[0] + this.rng() * (s[1] - s[0]);
     }
-    return this.curSpeed;
+    return this.curSpeed * k;
   }
 
   // сдвиг по глубине к нужной линии
   steerZ(dt, targetZ, speed = 30) {
     if (this.def.practice) return;  // чучело стоит на месте
+    speed *= CONFIG.enemyMove ?? 1;
     const d = targetZ - this.z;
     this.z += Math.sign(d) * Math.min(Math.abs(d), speed * dt);
   }
@@ -453,7 +455,7 @@ class Slime extends Enemy {
         const ph = this.t % P;
         this.airY = ph < 0.4 ? Math.sin(Math.PI * ph / 0.4) * 6 : 0;
         this.squash = ph >= 0.4 ? 0.25 : -0.1;
-        if (ph < 0.4 && dist > 30) this.x += this.facing * 34 * dt;
+        if (ph < 0.4 && dist > 30) this.x += this.facing * 34 * (CONFIG.enemyMove ?? 1) * dt;
         if (ph < 0.4) this.steerZ(dt, w.player.z, 24);
         shrink();
         if (this.t > 0.6 && ph >= 0.42 && dist <= 52 && this.myTurn(w)) {

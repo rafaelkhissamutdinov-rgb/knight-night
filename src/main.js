@@ -901,7 +901,7 @@ function updateTransition(dt) {
   const p = game.player;
   tr.t += dt;
   if (tr.kind === 'edge') {
-    p.x += tr.dir * CONFIG.walkSpeed * dt;
+    p.x += tr.dir * CONFIG.exploreSpeed * dt;
     p.facing = tr.dir;
     p.step += dt * 12;
     p.walking = true;
