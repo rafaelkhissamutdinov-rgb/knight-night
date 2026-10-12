@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose } from './poses.js';
-import { buildRoom, drawTorches, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
+import { buildRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx } from './audio.js';
@@ -73,7 +73,14 @@ const input = createInput(window);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // фон каждой комнаты рисуется один раз, при первом входе
 const backgrounds = {};
-const bgFor = id => (backgrounds[id] ??= buildRoom(ROOMS[id], H, CONFIG.floorTop));
+const bgImages = {};
+for (const [id, r] of Object.entries(ROOMS)) if (r.image) (bgImages[id] = new Image()).src = r.image;  // загрузить заранее
+// фон-картинка, если есть и загрузилась; иначе — нарисованный кодом
+function bgFor(id) {
+  const img = bgImages[id];
+  if (img?.complete && img.naturalWidth) return img;
+  return (backgrounds[id] ??= buildRoom(ROOMS[id], H, CONFIG.floorTop));
+}
 const room = () => ROOMS[game.room];
 const encKey = (roomId, i) => `${roomId}:${i}`;
 const ALL_ENCOUNTERS = Object.entries(ROOMS).flatMap(([id, r]) => (r.encounters ?? []).map((enc, i) => ({ key: encKey(id, i), enc })));
@@ -1522,8 +1529,9 @@ function render() {
   const cam = Math.round(game.camX);
   g.drawImage(bgFor(game.room), cam, 0, W, H, 0, 0, W, H);
   drawTorches(g, cam, r.torches ?? [], game.time);
+  if (r.flames) drawFlames(g, cam, r.flames, game.time);
   const tr = game.transition;
-  if (tr?.kind === 'door') {
+  if (tr?.kind === 'door' && !r.image) {
     // проём открывается, пока рыцарь входит и выходит
     const k = { turn: Math.min(1, tr.t / DOOR_PHASES.turn), walkIn: 1, fadeOut: 1, fadeIn: 1, walkOut: 1, turnOut: 1 - Math.min(1, tr.t / DOOR_PHASES.turnOut) }[tr.phase];
     drawDoorOpen(g, tr.door, CONFIG.floorTop, cam, k);

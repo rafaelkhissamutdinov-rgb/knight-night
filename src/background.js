@@ -169,6 +169,28 @@ export function drawTorches(g, camX, xs, time) {
   }
 }
 
+// Мерцание огня поверх нарисованных факелов: тёплый ореол и яркая точка пламени.
+export function drawFlames(g, camX, flames, time) {
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  for (const [x, y] of flames) {
+    const sx = Math.round(x - camX);
+    if (sx < -40 || sx > 360) continue;
+    const f = 0.75 + 0.25 * Math.sin(time * 9 + x) * Math.sin(time * 13 + y);
+    const gr = g.createRadialGradient(sx, y, 1, sx, y, 26);
+    gr.addColorStop(0, `rgba(255,150,60,${0.22 * f})`);
+    gr.addColorStop(1, 'rgba(255,150,60,0)');
+    g.fillStyle = gr;
+    g.fillRect(sx - 26, y - 26, 52, 52);
+  }
+  g.restore();
+  for (const [x, y] of flames) {
+    const sx = Math.round(x - camX);
+    const flick = Math.floor(time * 10 + x) % 3;
+    rect(g, sx - 1 + (flick === 2 ? 1 : 0), y - 3 - flick, 1, 2, PAL.flame0);
+  }
+}
+
 // Знак портала на полу: два кольца, руны и звезда. lit — сколько рун горит (0…1), glow — яркость.
 export function drawPortal(g, cx, cy, time, lit = 1, glow = 0.5) {
   const rx = 26, ry = 7;
