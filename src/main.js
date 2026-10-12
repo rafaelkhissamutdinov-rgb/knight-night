@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose } from './poses.js';
-import { buildRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx } from './audio.js';
@@ -74,11 +74,12 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // фон каждой комнаты рисуется один раз, при первом входе
 const backgrounds = {};
 const bgImages = {};
+const imageRooms = {};
 for (const [id, r] of Object.entries(ROOMS)) if (r.image) (bgImages[id] = new Image()).src = r.image;  // загрузить заранее
 // фон-картинка, если есть и загрузилась; иначе — нарисованный кодом
 function bgFor(id) {
   const img = bgImages[id];
-  if (img?.complete && img.naturalWidth) return img;
+  if (img?.complete && img.naturalWidth) return (imageRooms[id] ??= buildImageRoom(ROOMS[id], img, H, CONFIG.floorTop));
   return (backgrounds[id] ??= buildRoom(ROOMS[id], H, CONFIG.floorTop));
 }
 const room = () => ROOMS[game.room];
@@ -170,6 +171,7 @@ function newGame() {
     motes: [],
     visited: [],
     coins: 0,
+    bag: [],
     shop: null,
     impactFrom: null,
     stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0, broken: 0, weave: 0, riposte: 0, vault: 0, vaultHit: 0 },
@@ -192,7 +194,7 @@ function save() {
   const p = game.player;
   writeSave({
     version: VERSION, room: game.room, x: Math.round(game.checkpoint), z: Math.round(p.z), hp: p.hp, weapon: p.weapon,
-    coins: game.coins, unlocked: [...game.unlocked], cleared: [...game.cleared], flags: game.flags, pickups: game.pickups,
+    coins: game.coins, bag: game.bag, unlocked: [...game.unlocked], cleared: [...game.cleared], flags: game.flags, pickups: game.pickups,
   });
 }
 
@@ -203,6 +205,7 @@ function continueGame(data) {
   game.flags = data.flags ?? {};
   game.pickups = data.pickups ?? [];
   game.coins = data.coins ?? 0;
+  game.bag = data.bag ?? [];
   game.player = new Player(data.x, game.unlocked.has(data.weapon) ? data.weapon : 'sword');
   game.player.sheathed = false;
   game.player.hp = Math.max(1, Math.min(CONFIG.playerHp, data.hp ?? CONFIG.playerHp));
@@ -643,7 +646,10 @@ function handlePress(code) {
     if (chest) {
       game.flags[chestFlag(chest)] = true;
       game.coins += chest.coins ?? 0;
-      callout(`Сундук: +${chest.coins} монет`, 'perfect');
+      if (chest.item) {
+        game.bag.push(chest.item);
+        callout(`Сундук: ${ITEMS[chest.item].name}${chest.coins ? ` и ${chest.coins} монет` : ''}`, 'perfect');
+      } else callout(`Сундук: +${chest.coins} монет`, 'perfect');
       sfx.perfect();
       sparks(chest.x, groundY(chest.z) - 10, 14, [PAL.gold, PAL.spark], 80);
       save();
@@ -857,6 +863,7 @@ function trainerLeave() {
 function doorAt(p) {
   return (room().doors ?? []).find(d => Math.abs(d.x - p.x) < DOOR_W / 2 + 2 && p.z < 14) ?? null;
 }
+const hasItem = id => game.bag.includes(id);
 const chestFlag = pr => `chest_${game.room}_${pr.id}`;
 // сундук у стены рядом с рыцарем (ещё не открытый)
 function nearChest() {
@@ -878,7 +885,12 @@ function updateDoors(dt) {
   game.doorPush += dt;
   if (game.doorPush < 0.12) return;
   game.doorPush = 0;
-  if (d.locked) {
+  const opensWithKey = d.key && hasItem(d.key);
+  if (opensWithKey && !game.flags['opened_' + d.id]) {
+    game.flags['opened_' + d.id] = true;
+    callout('Ключ подошёл', 'perfect');
+  }
+  if (d.locked && !opensWithKey) {
     if (game.time - game.lockedSaidAt > 1.5) {
       game.lockedSaidAt = game.time;
       callout(d.locked, 'muted');
@@ -916,7 +928,7 @@ function updateTransition(dt) {
       loadRoom(tr.edge.to, { x: tr.edge.x - tr.dir * 18, z: p.z, facing: tr.dir });
       tr.phase = 'in';
       tr.t = 0;
-      callout(room().name, 'muted');
+      callout(tr.edge.name && tr.dir > 0 ? `${tr.edge.name} → ${room().name}` : room().name, 'muted');
     } else if (tr.phase === 'in' && tr.t >= EDGE_PHASES.in) {
       game.transition = null;
       p.walking = false;
@@ -1542,7 +1554,7 @@ function render() {
   drawTorches(g, cam, r.torches ?? [], game.time);
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   const tr = game.transition;
-  if (tr?.kind === 'door' && !r.image) {
+  if (tr?.kind === 'door' && (!r.image || r.tile)) {
     // проём открывается, пока рыцарь входит и выходит
     const k = { turn: Math.min(1, tr.t / DOOR_PHASES.turn), walkIn: 1, fadeOut: 1, fadeIn: 1, walkOut: 1, turnOut: 1 - Math.min(1, tr.t / DOOR_PHASES.turnOut) }[tr.phase];
     drawDoorOpen(g, tr.door, CONFIG.floorTop, cam, k);

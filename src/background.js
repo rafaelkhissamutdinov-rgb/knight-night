@@ -74,11 +74,18 @@ export function buildRoom(room, height, floorTop) {
   }
   for (const d of doors) drawDoor(g, d, floorTop);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
+  if (room.stairs) drawStairs(g, room.stairs === 'right' ? length - 70 : length / 2 - 40, floorTop);
+  if (room.magic) {
+    // вершина башни: стены в лиловом отсвете, на стене знаки
+    g.fillStyle = 'rgba(120,60,170,0.18)';
+    g.fillRect(0, 0, length, height);
+    for (let x = 90; x < length - 40; x += 140) drawSigil(g, x, 46);
+  }
   return c;
 }
 
 // Дверь в задней стене: деревянная, решётчатая (камера) или железная.
-function drawDoor(g, d, floorTop) {
+export function drawDoor(g, d, floorTop) {
   const x0 = Math.round(d.x - DOOR_W / 2), top = floorTop - DOOR_H;
   // каменный проём с аркой
   rect(g, x0 - 3, top - 2, DOOR_W + 6, DOOR_H + 2, PAL.wallDark);
@@ -113,6 +120,61 @@ function drawDoor(g, d, floorTop) {
     rect(g, x0 + DOOR_W - 6, top + 17, 3, 3, PAL.gold);
     rect(g, x0 + DOOR_W - 5, top + 18, 1, 1, '#3b2a1e');
   }
+}
+
+// Лестница вверх вдоль стены: ступени поднимаются вправо к тёмному проёму наверху.
+function drawStairs(g, x0, floorTop) {
+  const steps = 9, sw = 8, sh = 9;
+  rect(g, x0 + steps * sw - 6, floorTop - steps * sh - 30, 24, 30, '#0d0b14');
+  rect(g, x0 + steps * sw - 8, floorTop - steps * sh - 33, 28, 3, PAL.wallLight);
+  for (let i = 0; i < steps; i++) {
+    const x = x0 + i * sw, y = floorTop - (i + 1) * sh;
+    rect(g, x, y, sw + 70 - i * sw, sh, PAL.wallDark);
+    rect(g, x, y, sw, 2, PAL.wallLight);
+    rect(g, x, y + 2, 1, sh - 2, PAL.mortar);
+  }
+  // перила
+  for (let i = 0; i <= steps; i++) rect(g, x0 + i * sw, floorTop - i * sh - 14, 1, 12, '#5b6b86');
+  for (let i = 0; i < steps; i++) {
+    const x = x0 + i * sw;
+    for (let k = 0; k < sw; k++) rect(g, x + k, floorTop - i * sh - 14 - Math.round(k * sh / sw), 1, 1, '#6d6a7a');
+  }
+}
+
+// Знак мага на стене: круг с лучами, светится лиловым
+function drawSigil(g, x, y) {
+  for (let a = 0; a < Math.PI * 2; a += 0.12) rect(g, x + Math.cos(a) * 12, y + Math.sin(a) * 12, 1, 1, '#a46be0');
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3;
+    thick(g, x + Math.cos(a) * 5, y + Math.sin(a) * 5, x + Math.cos(a) * 9, y + Math.sin(a) * 9, 1, '#7d4fb0');
+  }
+  rect(g, x - 1, y - 1, 3, 3, '#d9b8ff');
+}
+
+// Фон из картинки: одна картинка на всю комнату или плитка, повторённая с зеркалом (tile).
+// Двери поверх плитки рисуются кодом; на целой картинке двери уже нарисованы.
+export function buildImageRoom(room, img, height, floorTop) {
+  const c = document.createElement('canvas');
+  c.width = room.length;
+  c.height = height;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  if (!room.tile) {
+    g.drawImage(img, 0, 0);
+    return c;
+  }
+  for (let i = 0; i * room.tile < room.length; i++) {
+    const x = i * room.tile;
+    if (i % 2) {
+      g.save();
+      g.translate(x + room.tile, 0);
+      g.scale(-1, 1);
+      g.drawImage(img, 0, 0);
+      g.restore();
+    } else g.drawImage(img, x, 0);
+  }
+  for (const d of room.doors ?? []) drawDoor(g, d, floorTop);
+  return c;
 }
 
 // Решётка камеры в торце: за ней темнота, прутья во всю высоту стены.

@@ -31,7 +31,7 @@ npm start    # python3 -m http.server 8080 → http://localhost:8080
 - `src/dialogue.js` — движок диалогов; `src/story/dialogues.js` — тексты (черновики) и `SHOPS` — реплики, товары и темы лавок; `docs/story.md` — сюжет владельца.
 - `src/tutorial.js` — шаги обучения у наставницы (чистая логика, есть тесты). `src/save.js` — сохранение в localStorage.
 - `assets/portraits/` — портреты для диалогов от владельца (256×256, JPG): `knight.jpg` — обычный, `knight-tired.jpg` — прищур (`mood: 'tired'` у реплики), `knight-nohelm.jpg` — без шлема (`mood: 'nohelm'`; фон заменён на кладку, как у остальных), `ilia.jpg` — Илиа (кадр обрезан под масштаб рыцаря), `lika.jpg` — Лика (в лавке и диалогах), `lika-<настроение>.jpg` — её выражения: happy, sly, surprised, sulky, serious, worried, angry (в лавке — `moods` в `SHOPS`, в диалогах — `mood` у реплики). Новый портрет с однотонным фоном: `python3 tools/portrait.py исходник assets/portraits/имя.jpg` — вырежет фон и подставит кладку в рамке. Подключаются в `FACES` в `src/main.js`.
-- `assets/backgrounds/` — фоны-картинки комнат от владельца (320×180 на экран; `image` и `flames` у комнаты в `ROOMS`). Сейчас — Караульная.
+- `assets/backgrounds/` — фоны-картинки комнат от владельца (320×180 на экран; `image` и `flames` у комнаты в `ROOMS`). Караульная — целая картинка; Галерея — плитка `gallery.png`, повторяется с зеркалом (`tile`).
 - `src/background.js` — фон комнат (стены, двери, решётки), факелы, портал, бочки, паутина, темнота.
 
 Ветки: `main` — то, что видит тестер (GitHub Pages публикует `main`); `claude/parry-prototype` — старый бой в одной плоскости (v0.4); `claude/depth-prototype` — вариант A, слит в `main` в v0.8. Новые изменения — в ветке от `main`, затем PR в `main`.
