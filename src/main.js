@@ -110,7 +110,7 @@ const world = {
     shake(2);
   },
   defeated(e) {
-    callout(`${e.def.name} отступил`, 'counter');
+    callout(`${e.def.shortName ?? e.def.name} отступил`, 'counter');
     game.stats.counter++;
   },
   spawnArrow(e, height) {
@@ -602,7 +602,7 @@ function renderEnemy(e, cam) {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
-      face: e.kind === 'duelist', rapier: e.kind === 'duelist',
+      face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe,
     });
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
       // удар, который сбивает защиту, бликует оранжевым

@@ -35,7 +35,7 @@ export function drawFigure(g, o) {
   const {
     x, ground, facing: f, pose, colors, step = 0, plume = false, weaponLen = 17,
     bladeHidden = false, scabbard = false, shield = false, skull = false,
-    bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false,
+    bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false, robe = false,
   } = o;
   const gy = ground - airY;
   const hipX = x;
@@ -50,9 +50,22 @@ export function drawFigure(g, o) {
   rect(g, hipX - 3 * f - s * f - 1, gy - 2, 4, 2, colors.boots);
   rect(g, hipX + 2 * f + s * f - 1, gy - 2, 4, 2, colors.boots);
 
+  // длинное одеяние до пят: расширяется книзу, из-под него видны только носки сапог
+  if (robe) {
+    const top = hipY - 2, bottom = gy - 3;
+    for (let y = top; y <= bottom; y++) {
+      const k = (y - top) / Math.max(1, bottom - top);
+      const half = 4 + k * 3.5 + (y === bottom ? Math.abs(s) * 0.5 : 0);
+      rect(g, hipX - half, y, Math.round(half * 2), 1, colors.robe);
+      rect(g, f > 0 ? hipX + half - 1 : hipX - half, y, 1, 1, colors.robeDark);
+    }
+    rect(g, hipX + (f > 0 ? 1 : -2), top, 1, bottom - top, colors.robeDark);
+  }
+
   // корпус и табард (у скелета — тёмные просветы между рёбрами)
   thick(g, hipX, hipY - 3, shX, shY + 3, skull ? 6 : 8, colors.armor);
   thick(g, hipX + f, hipY - 1, (hipX + shX) / 2 + f, shY + 5, skull ? 2 : 4, colors.tabard);
+  if (robe) rect(g, hipX - 4, hipY - 3, 8, 1, colors.belt);
 
   // ножны на поясе
   if (scabbard) {

@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.3';
+export const VERSION = 'v0.3.1';
 
 export const CONFIG = {
   width: 320,
@@ -123,7 +123,7 @@ export const ENEMY_TYPES = {
     colors: { ...BONE, blade: '#8a5a3b' },
   },
   duelist: {
-    kind: 'duelist', name: 'Незнакомец с рапирой', hp: 14, damage: 1, aggro: 150, reach: 34, speed: [30, 85], lunge: 8, weapon: 22,
+    kind: 'duelist', name: 'Священный рыцарь — Илиа', shortName: 'Илиа', hp: 14, damage: 1, aggro: 150, reach: 34, speed: [30, 85], lunge: 8, weapon: 22,
     windup: 0.42, comboWindup: 0.22, gap: 0.05, recover: 0.7, wait: [0.4, 0.8],
     combos: [
       ['thrust', 'thrust', 'thrust'], ['low', 'high'], ['low', 'mid'], ['whirl', 'whirl'],
@@ -131,7 +131,8 @@ export const ENEMY_TYPES = {
     ],
     leapBackChance: 0.18, leapInChance: 0.25, leapDistance: 64,
     guardChance: 0.6, reaction: 0.08,
-    colors: { armor: '#3a2a3a', armorDark: '#24182a', tabard: '#e6e1d0', helm: '#d9a87e', visor: '#14101e', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#1c1828', hair: '#14101e' },
+    robe: true,  // длинное бежевое одеяние до пят, вроде джедайского
+    colors: { armor: '#c8b48a', armorDark: '#9c8762', tabard: '#ece2c8', robe: '#b9a47a', robeDark: '#8f7c58', belt: '#5a4632', helm: '#d9a87e', visor: '#14101e', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#4a3a2a', hair: '#14101e' },
   },
   // из первого прототипа, пока не на уровне
   guard: {
