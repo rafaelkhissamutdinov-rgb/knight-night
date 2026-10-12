@@ -12,6 +12,7 @@ import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
+import { BESTIARY } from './story/bestiary.js';
 import { ENEMY_TYPES } from './config.js';
 
 const W = CONFIG.width, H = CONFIG.height;
@@ -60,6 +61,8 @@ const ui = {
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkFace: $('talk-face'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'),
+  journal: $('journal'), journalList: $('journal-list'), journalPage: $('journal-page'), journalFig: $('journal-fig'),
+  journalName: $('journal-name'), journalHow: $('journal-how'), journalWin: $('journal-win'), journalLore: $('journal-lore'), journalKills: $('journal-kills'),
   equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'),
   skillWard: $('skill-ward'), skillWardBar: $('skill-ward-bar'), skillG: $('skill-g'), skillGBar: $('skill-g-bar'),
   shop: $('shop'), shopPortrait: $('shop-portrait'), shopFace: $('shop-face'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
@@ -186,6 +189,7 @@ function newGame() {
     coins: 0,
     bag: [],
     equip: { ...START_EQUIP },
+    bestiary: {},
     wardReadyAt: 0,
     wardFlash: 0,
     skillReadyAt: 0,
@@ -211,7 +215,7 @@ function save() {
   const p = game.player;
   writeSave({
     version: VERSION, room: game.room, x: Math.round(game.checkpoint), z: Math.round(p.z), hp: p.hp, weapon: p.weapon,
-    coins: game.coins, bag: game.bag, equip: game.equip, unlocked: [...game.unlocked], cleared: [...game.cleared], flags: game.flags, pickups: game.pickups,
+    coins: game.coins, bag: game.bag, equip: game.equip, bestiary: game.bestiary, unlocked: [...game.unlocked], cleared: [...game.cleared], flags: game.flags, pickups: game.pickups,
   });
 }
 
@@ -224,6 +228,7 @@ function continueGame(data) {
   game.pickups = data.pickups ?? [];
   game.coins = data.coins ?? 0;
   game.bag = data.bag ?? [];
+  game.bestiary = data.bestiary ?? {};
   game.equip = { ...START_EQUIP, ...(data.equip ?? {}) };
   // старые сохранения: рапира была только в unlocked
   if (game.unlocked.has('rapier') && game.equip.weapon !== 'rapier' && !game.bag.includes('rapier')) game.bag.push('rapier');
@@ -630,6 +635,7 @@ function recordGuard(height) {
 function handlePress(code) {
   if (game.mode === 'shop') { shopPress(code); return; }
   if (game.mode === 'equip') { equipPress(code); return; }
+  if (game.mode === 'journal') { journalPress(code); return; }
   if (code === 'Escape' || code === 'KeyP') {
     if (game.mode === 'play') {
       game.mode = 'paused';
@@ -788,7 +794,7 @@ function updateArena() {
     if (i < 0) return;
     game.arena = { index: i, x: encs[i].x, key: encKey(game.room, i) };
     game.checkpoint = Math.max(40, encs[i].x - 140);
-    for (const e of game.enemies) if (e.group === i) e.awake = true;
+    for (const e of game.enemies) if (e.group === i) { e.awake = true; seen(e.type); }
     ui.foe.hidden = false;
     hint(hintFight());
     const before = encs[i].before;
@@ -1226,6 +1232,7 @@ function updateCharge() {
 // Враг побеждён — монеты летят к рыцарю.
 function payCoins(e) {
   e.paid = true;
+  seen(e.type).kills++;
   const n = COINS[e.type];
   game.coins += n;
   game.stats.coinsEarned += n;
@@ -1394,10 +1401,79 @@ function equipPress(code) {
   if (s) bagAction(s.id);
 }
 
-// B — журнал (бестиарий); нужен журнал от Лики
+// ---------- журнал (бестиарий) ----------
+
+// запись о враге: встречен ли и сколько побеждено
+function seen(type) {
+  if (!BESTIARY[type]) return { kills: 0 };
+  const rec = (game.bestiary[type] ??= { kills: 0 });
+  if (!rec.noted && owns('journal')) {
+    rec.noted = true;
+    callout(`Журнал: новая запись — ${ENEMY_TYPES[type].shortName ?? ENEMY_TYPES[type].name}`, 'muted');
+  }
+  return rec;
+}
+
+// B — журнал; нужен журнал от Лики (встреченные до покупки враги туда тоже попадают)
 function openJournal() {
   if (!owns('journal')) { callout('Нужен журнал — его продаёт Лика', 'muted'); return; }
-  callout('Журнал: скоро', 'muted');
+  if (game.mode !== 'play' || game.transition || game.cutscene) return;
+  game.mode = 'journal';
+  const types = Object.keys(BESTIARY).filter(t => game.bestiary[t]);
+  game.journalSel = types[0] ?? null;
+  ui.journal.hidden = false;
+  renderJournal();
+}
+function closeJournal() {
+  ui.journal.hidden = true;
+  game.mode = 'play';
+}
+
+const journalCtx = ui.journalFig.getContext('2d');
+journalCtx.imageSmoothingEnabled = false;
+
+function renderJournal() {
+  const types = Object.keys(BESTIARY).filter(t => game.bestiary[t]);
+  ui.journalList.innerHTML = '';
+  if (!types.length) ui.journalList.innerHTML = '<p class="equip-empty">Пока пусто — встреть врага.</p>';
+  types.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = t === game.journalSel ? 'sel' : '';
+    b.innerHTML = `<span>${i + 1}. ${ENEMY_TYPES[t].shortName ?? ENEMY_TYPES[t].name}</span><span class="equip-act">×${game.bestiary[t].kills}</span>`;
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); game.journalSel = t; renderJournal(); });
+    ui.journalList.appendChild(b);
+  });
+  const t = game.journalSel;
+  ui.journalPage.hidden = !t;
+  if (!t) return;
+  const d = ENEMY_TYPES[t], page = BESTIARY[t];
+  ui.journalName.textContent = d.name;
+  ui.journalHow.textContent = page.how;
+  ui.journalWin.textContent = page.win;
+  ui.journalLore.textContent = page.lore.replace('[черновик] ', '');
+  ui.journalKills.textContent = `Побеждено: ${game.bestiary[t].kills}`;
+  // рисунок врага
+  journalCtx.clearRect(0, 0, 48, 48);
+  journalCtx.fillStyle = '#1e1a2b';
+  journalCtx.fillRect(0, 0, 48, 48);
+  if (d.kind === 'slime') drawSlime(journalCtx, { x: 24, ground: 40, airY: 0, size: 1.4, squash: 0, colors: d.colors, facing: -1 });
+  else drawFigure(journalCtx, {
+    x: 26, ground: 44, facing: -1, pose: POSES.idle, colors: d.colors, weaponLen: d.weapon ?? 17,
+    skull: d.skull, shield: d.shield, bow: d.kind === 'archer', face: t === 'duelist', rapier: t === 'duelist', robe: d.robe,
+    bandit: d.bandit, axe: d.axe, plate: d.plate, spear: d.spear,
+  });
+}
+
+function journalPress(code) {
+  if (code === 'Escape' || code === 'KeyB') { closeJournal(); return; }
+  const types = Object.keys(BESTIARY).filter(t => game.bestiary[t]);
+  const m = /^Digit([1-9])$/.exec(code);
+  if (m && types[Number(m[1]) - 1]) { game.journalSel = types[Number(m[1]) - 1]; renderJournal(); }
+  if (code === 'ArrowDown' || code === 'ArrowUp' || code === 'KeyS' || code === 'KeyW') {
+    const i = types.indexOf(game.journalSel) + (code === 'ArrowDown' || code === 'KeyS' ? 1 : -1);
+    if (types[i]) { game.journalSel = types[i]; renderJournal(); }
+  }
 }
 
 // Выбитое оружие лежит на полу: подошёл — подобрал.
@@ -1472,7 +1548,7 @@ function updateFx(dt) {
 
 function step(dt) {
   updateFx(dt);
-  if (game.mode === 'shop' || game.mode === 'equip') {
+  if (game.mode === 'shop' || game.mode === 'equip' || game.mode === 'journal') {
     for (const code of input.take()) handlePress(code);
     if (game.mode === 'shop') tickShop(dt);
     return;
