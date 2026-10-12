@@ -224,10 +224,11 @@ export const ENEMY_TYPES = {
 
 // Неигровые персонажи: стоят на месте, E — заговорить (shop — открыть лавку).
 export const NPC_TYPES = {
-  // Лика — торговка: невысокая, современный японский стиль, короткий плащ на две пуговицы, чёрное каре с чёлкой
+  // Лика — торговка: невысокая, длинные чёрные волосы с чёлкой до глаз, оливковый плащ с высоким воротом на пуговицах
+  // (по портрету владельца assets/portraits/lika.jpg)
   lika: {
-    name: 'Лика', shop: 'lika', short: true, bob: true, coat: true,
-    colors: { armor: '#2b2d42', armorDark: '#1b1c2b', tabard: '#e8e6f0', belt: '#e0b04a', helm: '#efcfb0', visor: '#14101e', hair: '#141018', hairLight: '#3a3450', blush: '#e39a9a', boots: '#e8e6f0', blade: '#b9c2cc', hilt: '#6b4532' },
+    name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true,
+    colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' },
   },
 };
 
