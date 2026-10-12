@@ -104,7 +104,6 @@ function newGame() {
     player: new Player(40),
     lastPress: null,
     prevPress: null,
-    spinArmedUntil: -1,
     lastTiming: '',
     aim: 'mid',
     mouseY: null,
@@ -414,12 +413,6 @@ function recordGuard(height) {
   game.lastPress = { height, time: game.time };
 }
 
-// вихрь: прокрутил колесо и сразу ударил
-function spinRequested() {
-  const ok = game.time <= game.spinArmedUntil;
-  if (ok) game.spinArmedUntil = -1;
-  return ok;
-}
 
 function handlePress(code) {
   if (code === 'Escape' || code === 'KeyP') {
@@ -475,9 +468,13 @@ function handlePress(code) {
 
   // высота — по курсору: ЛКМ бьёт, ПКМ защищает, пробел — рывок на этой высоте
   const vert = game.aim === 'high' ? 'up' : game.aim === 'low' ? 'down' : null;
-  if (code === 'Wheel') game.spinArmedUntil = game.time + CONFIG.spinWindow;
+  if (code === 'Wheel') {
+    // прокрутка колеса — вихрь; пока перезаряжается, колесо ничего не делает
+    if (p.spinCharge < 1) callout('Вихрь не готов', 'muted');
+    else p.requestAttack(null, true);
+  }
   if (is(code, 'guard')) { recordGuard(game.aim); p.cancel(); }
-  if (is(code, 'attack')) p.requestAttack(vert, spinRequested());
+  if (is(code, 'attack')) p.requestAttack(vert, false);
   if (is(code, 'dash')) {
     const back = backKeys.some(input.isDown);
     p.requestDash(vert ?? (back && engaged ? 'back' : null));
@@ -1081,7 +1078,7 @@ let wheelAt = 0;
 ui.box.addEventListener('wheel', e => {
   e.preventDefault();
   if (game.mode !== 'play') return;
-  // прокрутка колеса готовит вихрь; серия щелчков одной прокрутки — одно нажатие
+  // прокрутка колеса — вихрь; серия щелчков одной прокрутки — одно нажатие
   const now = performance.now();
   if (now - wheelAt > 150) input.press('Wheel');
   wheelAt = now;
