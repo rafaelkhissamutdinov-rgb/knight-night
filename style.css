@@ -144,3 +144,11 @@ kbd {
 }
 .report-btn:hover, .report-btn:focus-visible { border-color: var(--gold); outline: none; }
 .report-text { width: min(90%, 60ch); font: 1.7cqw ui-monospace, monospace; color: var(--fg); background: var(--bg); border: 0.3cqw solid var(--line); }
+
+/* перезарядка вихря под сердечками */
+.hud-left { display: grid; gap: 0.8cqw; justify-items: start; }
+.skill { display: flex; align-items: center; gap: 0.8cqw; font-size: 1.6cqw; color: var(--muted); }
+.skill b { display: block; width: 9cqw; height: 0.9cqw; background: #2d2838; }
+.skill i { display: block; height: 100%; background: var(--muted); }
+.skill.ready { color: var(--gold); }
+.skill.ready i { background: var(--gold); }

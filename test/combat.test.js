@@ -334,3 +334,20 @@ test('во всех диалогах переходы ведут на сущес
     }
   }
 });
+
+test('вихрь перезаряжается: второй сразу не выйдет', () => {
+  const p = new Player(0);
+  p.sheathed = false;
+  const c = { fwd: false, back: false, guard: null, engaged: true, anyInput: false };
+  p.requestAttack(null, true);
+  assert.equal(p.atk.key, 'spin');
+  for (let i = 0; i < 90; i++) p.update(1 / 60, c);
+  p.events.length = 0;
+  p.requestAttack(null, true);
+  assert.equal(p.atk.key, 'side');
+  assert.ok(p.events.some(e => e.type === 'spinNotReady'));
+  for (let i = 0; i < 60 * CONFIG.spinCooldown; i++) p.update(1 / 60, c);
+  assert.equal(p.spinCharge, 1);
+  p.requestAttack(null, true);
+  assert.equal(p.atk.key, 'spin');
+});

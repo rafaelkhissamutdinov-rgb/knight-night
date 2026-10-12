@@ -22,11 +22,9 @@ const KEYS = {
   right: ['ArrowRight', 'KeyD'],
   depthIn: ['ArrowUp', 'KeyW'],     // к стене
   depthOut: ['ArrowDown', 'KeyS'],  // к краю экрана
-  high: ['WheelUp', 'KeyQ'],
-  mid: ['Mouse1', 'KeyE'],
-  low: ['WheelDown', 'ShiftLeft'],
   attack: ['Mouse0', 'KeyJ'],
-  dash: ['Mouse2', 'Space', 'KeyK'],
+  guard: ['Mouse2'],                 // держать — защита на высоте курсора
+  dash: ['Space', 'KeyK', 'ShiftLeft'],
 };
 // где на экране земля под бойцом на глубине z, и высота удара над ней
 const groundY = z => CONFIG.floorTop + 6 + z;
@@ -37,12 +35,11 @@ const ATTACKING = new Set(['windup', 'strike', 'leapIn', 'vault', 'crouch', 'lea
 const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' };
 const RESULT_NAME = { perfect: 'идеально', block: 'блок', broken: 'защита сбита', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
 const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin']);
-const HINT_WALK_MOUSE = 'WASD — ходить · мышь выше / ниже рыцаря — высота · ЛКМ удар · ПКМ защита · пробел рывок';
-const HINT_WALK = 'WASD — ходить по полу · ЛКМ удар · ПКМ рывок';
-const HINT_FIGHT_WHEEL = 'колесо вверх / нажать / вниз — стойка · W/S + ЛКМ — верх / низ · ПКМ рывок · C — схема';
-const HINT_FIGHT_MOUSE = 'мышь — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок · C — схема';
-const hintFight = () => (game.scheme === 'mouse' ? HINT_FIGHT_MOUSE : HINT_FIGHT_WHEEL);
-const hintWalk = () => (game.scheme === 'mouse' ? HINT_WALK_MOUSE : HINT_WALK);
+// Управление (решение владельца после бета-теста): курсор выбирает высоту, ЛКМ — удар, держать ПКМ — защита, пробел — рывок.
+const HINT_WALK = 'WASD — ходить · курсор выше / ниже рыцаря — высота · ЛКМ удар · ПКМ защита · пробел рывок';
+const HINT_FIGHT = 'курсор — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок';
+const hintFight = () => HINT_FIGHT;
+const hintWalk = () => HINT_WALK;
 
 const canvas = document.getElementById('game');
 canvas.width = W;
@@ -61,6 +58,7 @@ const ui = {
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'),
+  skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'),
 };
 ui.reportBtn.addEventListener('pointerdown', e => e.stopPropagation());
 ui.reportBtn.addEventListener('click', copyReport);
@@ -106,10 +104,8 @@ function newGame() {
     player: new Player(40),
     lastPress: null,
     prevPress: null,
-    dirHistory: [],
+    spinArmedUntil: -1,
     lastTiming: '',
-    stance: null,
-    scheme: game.scheme ?? 'mouse',  // mouse — высота по мыши; wheel — стойки на колесе
     aim: 'mid',
     mouseY: null,
     flags: {},
@@ -325,6 +321,8 @@ function handlePlayerEvents() {
       playerStrike(ev.atk);
     } else if (ev.type === 'dash' || ev.type === 'roll' || ev.type === 'backdash') {
       sfx.dash();
+    } else if (ev.type === 'spinNotReady') {
+      callout('Вихрь не готов', 'muted');
     } else if (ev.type === 'feint') {
       callout('Отмена', 'muted');
     } else if (ev.type === 'spit') {
@@ -377,7 +375,6 @@ function buildReport() {
   const pct = total ? Math.round(s.perfect / total * 100) : 0;
   return [
     `Knight Night ${VERSION} — отчёт тестера`,
-    `Схема управления: ${game.scheme === 'mouse' ? 'мышь' : 'колесо'}`,
     `Время: ${mins}:${String(secs).padStart(2, '0')} · пройдено встреч: ${game.cleared.size} из ${LEVEL.encounters.length}`,
     `Смерти по встречам:`,
     deaths,
@@ -417,12 +414,10 @@ function recordGuard(height) {
   game.lastPress = { height, time: game.time };
 }
 
+// вихрь: прокрутил колесо и сразу ударил
 function spinRequested() {
-  const h = game.dirHistory;
-  if (h.length < 2) return false;
-  const [a, b] = h.slice(-2);
-  const ok = a.d === 'fwd' && b.d === 'back' && game.time - a.t <= CONFIG.spinWindow;
-  if (ok) game.dirHistory = [];
+  const ok = game.time <= game.spinArmedUntil;
+  if (ok) game.spinArmedUntil = -1;
   return ok;
 }
 
@@ -430,7 +425,7 @@ function handlePress(code) {
   if (code === 'Escape' || code === 'KeyP') {
     if (game.mode === 'play') {
       game.mode = 'paused';
-      showOverlay('Пауза', 'R — начать встречу заново · C — сменить схему управления · Esc — продолжить', 'Esc — продолжить');
+      showOverlay('Пауза', 'R — начать встречу заново · Esc — продолжить', 'Esc — продолжить');
       ui.reportBtn.hidden = false;
     } else if (game.mode === 'paused') {
       game.mode = 'play';
@@ -440,16 +435,6 @@ function handlePress(code) {
   }
   if (game.mode === 'paused') {
     if (code === 'KeyR') restartFight();
-    else if (code === 'KeyC') {
-      game.scheme = game.scheme === 'mouse' ? 'wheel' : 'mouse';
-      showOverlay('Пауза', `Схема: ${game.scheme === 'mouse' ? 'высота по мыши' : 'колесо и W/S'} · R — встреча заново · Esc — продолжить`, 'Esc — продолжить');
-    }
-    return;
-  }
-  if (code === 'KeyC') {
-    game.scheme = game.scheme === 'mouse' ? 'wheel' : 'mouse';
-    callout(game.scheme === 'mouse' ? 'Схема: высота по мыши' : 'Схема: колесо и W/S', 'muted');
-    if (game.mode === 'play') hint(game.arena ? hintFight() : hintWalk());
     return;
   }
   if (code === 'KeyG') {
@@ -486,43 +471,16 @@ function handlePress(code) {
 
   const p = game.player;
   const engaged = !!game.current?.alive;
-  const fwdKeys = p.facing > 0 ? KEYS.right : KEYS.left;
   const backKeys = p.facing > 0 ? KEYS.left : KEYS.right;
 
-  if (game.scheme === 'mouse') {
-    // высота — по мыши: ЛКМ бьёт, ПКМ защищает, пробел — рывок на этой высоте
-    if (backKeys.includes(code)) game.dirHistory.push({ d: 'back', t: game.time });
-    if (fwdKeys.includes(code)) game.dirHistory.push({ d: 'fwd', t: game.time });
-    if (game.dirHistory.length > 4) game.dirHistory.shift();
-    const vert = game.aim === 'high' ? 'up' : game.aim === 'low' ? 'down' : null;
-    if (code === 'Mouse2') { recordGuard(game.aim); p.cancel(); }
-    if (code === 'Mouse0' || code === 'KeyJ') p.requestAttack(vert, spinRequested());
-    if (code === 'Space' || code === 'KeyK' || code === 'ShiftLeft') {
-      const back = backKeys.some(input.isDown);
-      p.requestDash(vert ?? (back && engaged ? 'back' : null));
-    }
-    return;
-  }
-
-  // колесо и средняя кнопка ставят стойку, которая держится до смены, удара или рывка
-  if (is(code, 'high')) { recordGuard('high'); p.cancel(); if (code.startsWith('Wheel')) game.stance = 'high'; }
-  if (is(code, 'low')) { recordGuard('low'); p.cancel(); if (code.startsWith('Wheel')) game.stance = 'low'; }
-  if (is(code, 'mid')) { recordGuard('mid'); p.cancel(); if (code === 'Mouse1') game.stance = 'mid'; }
-  if (backKeys.includes(code)) game.dirHistory.push({ d: 'back', t: game.time });
-  if (fwdKeys.includes(code)) game.dirHistory.push({ d: 'fwd', t: game.time });
-  if (game.dirHistory.length > 4) game.dirHistory.shift();
-
-  if (is(code, 'attack')) {
-    // W / S (или ↑ ↓) + удар — верхний / нижний удар
-    const vert = held('depthIn') || input.isDown('KeyQ') ? 'up' : held('depthOut') || input.isDown('ShiftLeft') ? 'down' : null;
-    game.stance = null;
-    p.requestAttack(vert, spinRequested());
-  }
+  // высота — по курсору: ЛКМ бьёт, ПКМ защищает, пробел — рывок на этой высоте
+  const vert = game.aim === 'high' ? 'up' : game.aim === 'low' ? 'down' : null;
+  if (code === 'Wheel') game.spinArmedUntil = game.time + CONFIG.spinWindow;
+  if (is(code, 'guard')) { recordGuard(game.aim); p.cancel(); }
+  if (is(code, 'attack')) p.requestAttack(vert, spinRequested());
   if (is(code, 'dash')) {
     const back = backKeys.some(input.isDown);
-    const dir = held('depthIn') || input.isDown('KeyQ') ? 'up' : held('depthOut') || input.isDown('ShiftLeft') ? 'down' : back && engaged ? 'back' : null;
-    game.stance = null;
-    p.requestDash(dir);
+    p.requestDash(vert ?? (back && engaged ? 'back' : null));
   }
 }
 
@@ -530,16 +488,12 @@ function controls() {
   const p = game.player;
   const engaged = !!game.current?.alive;
   const L = held('left'), R = held('right');
-  const map = {};
-  for (const c of KEYS.high) map[c] = 'high';
-  for (const c of KEYS.low) map[c] = 'low';
-  for (const c of KEYS.mid) map[c] = 'mid';
   const dz = (held('depthOut') ? 1 : 0) - (held('depthIn') ? 1 : 0);
   return {
     fwd: p.facing > 0 ? R : L,
     back: engaged && (p.facing > 0 ? L : R) && !(p.facing > 0 ? R : L),
     dz,
-    guard: game.scheme === 'mouse' ? (input.isDown('Mouse2') ? game.aim : null) : (input.latest(map) ?? game.stance ?? null),
+    guard: held('guard') ? game.aim : null,
     engaged,
     anyInput: L || R || dz !== 0,
   };
@@ -550,7 +504,7 @@ function controls() {
 // Высота по мыши: курсор выше груди рыцаря — верх, ниже пояса — низ, между — середина.
 // Перевёл мышь, держа ПКМ, — это тоже нажатие защиты (можно поймать идеальное парирование).
 function updateAim() {
-  if (game.scheme !== 'mouse' || game.mouseY == null) return;
+  if (game.mouseY == null) return;
   const p = game.player;
   const dy = game.mouseY - (groundY(p.z) - 22);
   const aim = dy < -9 ? 'high' : dy > 8 ? 'low' : 'mid';
@@ -944,6 +898,10 @@ function render() {
     g.globalAlpha = 1;
   }
   if (game.debug) renderDebug(cam);
+  // перезарядка вихря в HUD
+  const charge = game.player.spinCharge;
+  ui.skillSpinBar.style.width = `${Math.round(charge * 100)}%`;
+  ui.skillSpin.classList.toggle('ready', charge >= 1);
 }
 
 function renderEnemy(e, cam) {
@@ -1021,11 +979,8 @@ function renderPlayer(cam) {
     if (p.trail.length > (spinning ? 6 : 3)) p.trail.shift();
   } else p.trail = [];
 
-  if (game.scheme === 'mouse') {
-    // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
-    const c = input.isDown('Mouse2') ? '#8fd3ff' : '#9f97b0';
-    heightIcon(game.aim, px - p.facing * 13, GROUND - 26, c);
-  }
+  // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
+  heightIcon(game.aim, px - p.facing * 13, GROUND - 26, held('guard') ? '#8fd3ff' : '#9f97b0');
   if (p.state === 'backdash' && p.wardActive) {
     // мерцающий заслон перед рыцарем
     g.globalAlpha = 0.5 + 0.3 * Math.sin(p.t * 40);
@@ -1108,33 +1063,28 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// ЛКМ — удар, ПКМ — рывок; на заставке клик запускает игру
-// ЛКМ — удар, ПКМ — рывок, средняя кнопка (зажать) или прокрутка колёсика — средняя защита
+// ЛКМ — удар, держать ПКМ — защита; на заставке клик запускает игру
 ui.box.addEventListener('pointerdown', e => {
   ui.box.focus();
   e.preventDefault();
   if (game.mode === 'title') { input.press('Enter'); return; }
   if (e.button === 0) input.press('Mouse0');
   else if (e.button === 2) input.setHeld('Mouse2', true);
-  else if (e.button === 1) input.press('Mouse1');
 });
 window.addEventListener('pointerup', e => { if (e.button === 2) input.setHeld('Mouse2', false); });
 ui.box.addEventListener('pointermove', e => {
   const r = canvas.getBoundingClientRect();
   game.mouseY = (e.clientY - r.top) / r.height * H;
 });
-ui.box.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });  // без автопрокрутки
-ui.box.addEventListener('auxclick', e => e.preventDefault());
 ui.box.addEventListener('contextmenu', e => e.preventDefault());
-let wheelAt = { WheelUp: 0, WheelDown: 0 };
+let wheelAt = 0;
 ui.box.addEventListener('wheel', e => {
   e.preventDefault();
-  if (game.mode !== 'play' || !e.deltaY) return;
-  // колесо вверх — стойка сверху, вниз — снизу; серия щелчков одной прокрутки считается одним нажатием
-  const code = e.deltaY < 0 ? 'WheelUp' : 'WheelDown';
+  if (game.mode !== 'play') return;
+  // прокрутка колеса готовит вихрь; серия щелчков одной прокрутки — одно нажатие
   const now = performance.now();
-  if (now - wheelAt[code] > 250) input.press(code);
-  wheelAt[code] = now;
+  if (now - wheelAt > 150) input.press('Wheel');
+  wheelAt = now;
 }, { passive: false });
 
 newGame();
