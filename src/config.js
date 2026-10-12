@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.9.1';
+export const VERSION = 'v0.10';
 
 export const CONFIG = {
   width: 320,
@@ -16,9 +16,10 @@ export const CONFIG = {
   tokenPause: 0.35,     // пауза между атаками разных врагов: бьёт один, остальные ждут
 
   // Защита
-  perfectWindow: 0.16,  // нажал защиту не раньше чем за столько до удара → идеальное парирование
+  perfectWindow: 0.22,  // нажал защиту не раньше чем за столько до удара → идеальное парирование
   mashLockout: 0.3,     // если перед этим жал защиту чаще, идеального не будет (защита от «спама»)
   counterWindow: 1.3,   // сколько враг ошеломлён после идеально отбитой серии
+  reelTime: 0.55,       // идеальное парирование посреди серии: враг выбит из ритма, ударишь — серия прервётся
   guardBreakTime: 0.7,  // сколько нельзя защищаться после сбитой защиты
   autoTurn: 0.7,        // враг оказался за спиной — рыцарь сам развернётся через столько секунд (стрелкой — сразу)
 
@@ -146,12 +147,12 @@ export const ENEMY_TYPES = {
   },
   duelist: {
     kind: 'duelist', name: 'Священный рыцарь — Илиа', shortName: 'Илиа', defeatDialogue: 'ilia_defeat', hp: 14, damage: 1, aggro: 150, reach: 34, speed: [30, 85], lunge: 8, weapon: 22,
-    windup: 0.42, comboWindup: 0.22, gap: 0.05, recover: 0.7, wait: [0.4, 0.8],
+    windup: 0.5, comboWindup: 0.3, gap: 0.06, recover: 0.75, wait: [0.5, 0.9],  // v0.10: медленнее по отчётам тестера
     combos: [
       ['thrust', 'thrust', 'thrust'], ['low', 'high'], ['low', 'mid'], ['whirl', 'whirl'],
       ['diagUp'], ['diagDown'], ['thrust', 'diagDown'], ['mid', 'diagUp'], ['flick'], ['thrust', 'flick'],
     ],
-    leapBackChance: 0.15, leapInChance: 0.22, vaultChance: 0.15, leapDistance: 64, vaultWindup: 0.3,  // vault — прыжок через рыцаря с захлёстом в спину
+    leapBackChance: 0.15, leapInChance: 0.22, vaultChance: 0.1, leapDistance: 64, vaultWindup: 0.3,  // vault — прыжок через рыцаря с захлёстом в спину
     guardChance: 0.6, reaction: 0.08,
     robe: true,  // длинное бежевое одеяние до пят, вроде джедайского
     colors: { armor: '#c8b48a', armorDark: '#9c8762', tabard: '#ece2c8', robe: '#b9a47a', robeDark: '#8f7c58', belt: '#5a4632', helm: '#d9a87e', visor: '#14101e', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#4a3a2a', hair: '#14101e' },

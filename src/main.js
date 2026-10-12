@@ -31,7 +31,7 @@ const groundY = z => CONFIG.floorTop + 6 + z;
 const HIT_UP = { high: 34, mid: 22, low: 9 };
 const clashY = (h, z) => groundY(z) - HIT_UP[h];
 const near = (a, b) => Math.abs(a.z - b.z) <= CONFIG.depthReach;
-const ATTACKING = new Set(['windup', 'strike', 'leapIn', 'vault', 'crouch', 'leap', 'retreat', 'inflate', 'suck']);
+const ATTACKING = new Set(['windup', 'strike', 'reel', 'leapIn', 'vault', 'crouch', 'leap', 'retreat', 'inflate', 'suck']);
 const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' };
 const RESULT_NAME = { perfect: 'идеально', block: 'блок', broken: 'защита сбита', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
 const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin']);
@@ -40,6 +40,7 @@ const HINT_WALK = 'WASD — ходить · курсор выше / ниже р�
 const HINT_FIGHT = 'курсор — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок';
 const hintFight = () => HINT_FIGHT;
 const hintWalk = () => HINT_WALK;
+const HINT_DUMMY = 'Чучело: нажми ПКМ прямо перед ударом — идеальное парирование. Курсор — на высоте значка над чучелом';
 
 const canvas = document.getElementById('game');
 canvas.width = W;
@@ -112,6 +113,8 @@ function newGame() {
     stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0, broken: 0 },
     deaths: {},
     killers: {},
+    missWhy: {},
+    missHeight: {},
     lastHitBy: '',
     startedAt: performance.now(),
     debug: game.debug || false,
@@ -251,6 +254,12 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
   } else {
     game.stats.hit++;
     game.lastHitBy = who;
+    // почему пропущен — для отчёта тестера
+    const d = p.defense();
+    const why = backTurned ? 'удар в спину' : d.attacking ? 'бил сам' : d.vulnerable ? 'отскок рано' : d.broken ? 'защита была сбита'
+      : bypass && d.guard === height ? 'захлёст обошёл блок' : !d.guard ? 'защита не стояла' : 'не та высота';
+    game.missWhy[why] = (game.missWhy[why] ?? 0) + 1;
+    game.missHeight[height] = (game.missHeight[height] ?? 0) + 1;
     const dmg = damage * mult;
     p.hurt(dmg, sourceX);
     renderHearts();
@@ -379,6 +388,8 @@ function buildReport() {
     deaths,
     `Кто убивал: ${killers}`,
     `Удары врагов: идеально ${s.perfect} (${pct}%), блок ${s.block}, сбита защита ${s.broken}, уклон ${s.dodged}, пропущено ${s.hit}`,
+    `Почему пропущено: ${Object.entries(game.missWhy).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ') || '—'}`,
+    `Пропущено по высоте: верх ${game.missHeight.high ?? 0}, середина ${game.missHeight.mid ?? 0}, низ ${game.missHeight.low ?? 0}`,
     `Контратак: ${s.counter}`,
   ].join('\n');
 }
@@ -583,6 +594,11 @@ function update(dt) {
   const p = game.player;
   updateAim();
   updateArena();
+  if (!game.arena) {
+    // у чучела — подсказка про идеальное парирование
+    const dummy = game.enemies.find(e => e.def.practice);
+    hint(dummy && Math.abs(dummy.x - p.x) < 90 ? HINT_DUMMY : hintWalk());
+  }
   updateToken();
   pickTarget();
   const cur = game.current?.alive ? game.current : null;
@@ -823,6 +839,7 @@ function callout(text, kind) {
 }
 
 function hint(text) {
+  if (ui.hint.textContent === text && !ui.hint.hidden) return;
   ui.hint.textContent = text;
   ui.hint.hidden = false;
 }
