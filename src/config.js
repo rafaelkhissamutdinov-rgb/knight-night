@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.18';
+export const VERSION = 'v0.19';
 
 export const CONFIG = {
   width: 320,
@@ -140,12 +140,21 @@ export const ENEMY_TYPES = {
     inflateTime: 2.4, popHits: 2, suckRange: 110, stunTime: 0.9,
     colors: { body: '#7bd88f', dark: '#3c9a5f', light: '#d4ffd9', eye: '#14101e' },
   },
+  // мародёры пришли грабить замок: повязка на лице, лохмотья, разномастная кожа
   merc: {
-    kind: 'melee', name: 'Наёмник', hp: 4, damage: 1, aggro: 130, reach: 30, speed: 45, lunge: 4, weapon: 17,
+    kind: 'melee', name: 'Мародёр', hp: 4, damage: 1, aggro: 130, reach: 30, speed: 45, lunge: 4, weapon: 17, bandit: true,
     windup: 0.65, comboWindup: 0.45, gap: 0.1, recover: 0.95, wait: [0.7, 1.1],
     combos: [['low'], ['mid', 'high'], ['high', 'low'], ['mid', 'low', 'high']],
     guardChance: 0.5, reaction: 0.1,
-    colors: { armor: '#7a5a3a', armorDark: '#4d3826', tabard: '#4a6b3a', helm: '#8f7a5a', visor: '#14101e', blade: '#d6dde6', hilt: '#5a3726', boots: '#2e2420' },
+    colors: { armor: '#7a5a3a', armorDark: '#4d3826', tabard: '#7a3b2e', helm: '#c09070', visor: '#14101e', blade: '#c3ccd6', hilt: '#5a3726', boots: '#2e2420', bandana: '#3b2f2a', mask: '#5a4a3e' },
+  },
+  // мародёр с топором: медленные тяжёлые рубящие сверху — сбивают блок; держи дистанцию или парируй идеально
+  axe: {
+    kind: 'melee', name: 'Мародёр с топором', shortName: 'Топорщик', hp: 5, damage: 1, aggro: 130, reach: 32, speed: 40, lunge: 6, weapon: 18, bandit: true, axe: true,
+    windup: 0.85, comboWindup: 0.6, gap: 0.15, recover: 1.15, wait: [0.8, 1.2],
+    combos: [['heavyHigh'], ['mid', 'heavyHigh'], ['diagDown'], ['heavyMid', 'mid']],
+    guardChance: 0.3, reaction: 0.13,
+    colors: { armor: '#6b5a48', armorDark: '#45392d', tabard: '#5a5a3a', helm: '#b8866a', visor: '#14101e', blade: '#aab3bc', hilt: '#6b4532', boots: '#2e2420', bandana: '#6b2e2e', mask: '#4a3e34' },
   },
   skelShort: {
     kind: 'melee', name: 'Скелет с коротким мечом', hp: 3, damage: 1, aggro: 130, reach: 24, speed: 55, lunge: 5, weapon: 11, skull: true,
@@ -155,20 +164,20 @@ export const ENEMY_TYPES = {
     colors: BONE,
   },
   skelLong: {
-    kind: 'melee', name: 'Скелет с двуручником', hp: 6, damage: 2, aggro: 150, reach: 50, speed: 32, lunge: 10, weapon: 28, skull: true,
+    kind: 'melee', name: 'Скелет с двуручником', hp: 6, damage: 2, aggro: 150, reach: 50, speed: 32, lunge: 10, weapon: 28, skull: true, plate: true,  // в старых латах и шлеме
     windup: 0.95, comboWindup: 0.7, gap: 0.15, recover: 1.2, wait: [1, 1.4],
     combos: [['heavyHigh'], ['heavyMid'], ['heavyHigh', 'heavyMid'], ['heavyMid', 'heavyLow']],  // первый сбивает защиту — второй уже не отбить
     guardChance: 0.35, reaction: 0.14,
-    colors: { ...BONE_LEATHER },
+    colors: { ...BONE, plate: '#8e98a3', plateDark: '#5f6873', plateLight: '#c3ccd6', tabard: '#3b3550' },
   },
   // наёмник с копьём: лёгкая кожаная броня, длинные уколы и круговой взмах «тык-тык — диск».
   // Нижних ударов нет и снизу не закрывается — его берут скоростью и кувырком с подсечкой.
   spear: {
-    kind: 'melee', name: 'Наёмник с копьём', shortName: 'Копейщик', hp: 4, damage: 1, aggro: 160, reach: 46, speed: 44, lunge: 6, weapon: 30, spear: true,
+    kind: 'melee', name: 'Мародёр с копьём', shortName: 'Копейщик', bandit: true, hp: 4, damage: 1, aggro: 160, reach: 46, speed: 44, lunge: 6, weapon: 30, spear: true,
     windup: 0.6, comboWindup: 0.42, gap: 0.08, recover: 1.0, wait: [0.7, 1.1],
     combos: [['thrust', 'thrust', 'whirl'], ['thrust', 'thrust'], ['thrust', 'whirl'], ['thrust', 'thrust', 'whirl']],
     guardChance: 0.5, reaction: 0.1, noLowGuard: true,
-    colors: { armor: '#8a6a48', armorDark: '#5e4630', tabard: '#6b4532', helm: '#9a7a52', visor: '#14101e', blade: '#c9d2dc', hilt: '#7a5a3a', boots: '#3b2a1e' },
+    colors: { armor: '#8a6a48', armorDark: '#5e4630', tabard: '#6b4532', helm: '#c49a76', visor: '#14101e', blade: '#c9d2dc', hilt: '#7a5a3a', boots: '#3b2a1e', bandana: '#2e3b4a', mask: '#5e4630' },
   },
   skelShield: {
     kind: 'melee', name: 'Скелет со щитом', hp: 4, damage: 1, aggro: 130, reach: 26, speed: 40, lunge: 4, weapon: 13, skull: true, shield: true,
@@ -264,7 +273,7 @@ export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amu
 export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
-export const COINS = { slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, duelist: 10, mage: 15 };
+export const COINS = { axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, duelist: 10, mage: 15 };
 
 // Мир: комнаты и переходы между ними.
 // edges — выход за край комнаты (left / right): to — комната, x — где рыцарь появится там.
@@ -355,7 +364,7 @@ export const ROOMS = {
     flames: [[19, 77], [90, 92], [143, 80], [232, 79], [252, 90], [303, 76]],
     doors: [{ id: 'out', x: 50, kind: 'wood', to: 'gallery', toDoor: 'guard', name: 'Галерея' }],
     encounters: [
-      { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'slime', dx: 80, z: 32 }] },
+      { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'axe', dx: 80, z: 32 }] },
     ],
   },
   // капитан стражи стережёт сундук с ключом от башни

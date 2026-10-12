@@ -1929,6 +1929,7 @@ function renderEnemy(e, cam) {
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
       wrap: e.def.wrap, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
+      bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate,
     });
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
