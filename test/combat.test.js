@@ -310,19 +310,22 @@ test('Илиа перепрыгивает через рыцаря и хлеще�
 
 test('диалог: условия, флаги и выбор с переходом', async () => {
   const { DialogueRunner } = await import('../src/dialogue.js');
-  const { DIALOGUES } = await import('../src/story/dialogues.js');
+  const D = {
+    meet: [{ who: 'a', text: 'Кто ты?' }, { who: 'b', choices: [{ text: 'Друг', set: 'friend', goto: 'friend' }, { text: 'Уйди' }] }],
+    friend: [{ who: 'a', text: 'Рад видеть' }],
+    bye: [{ who: 'a', text: 'Пока' }, { who: 'a', if: 'friend', text: 'Ещё увидимся, друг' }, { who: 'a', ifNot: 'friend', text: 'Не возвращайся' }],
+  };
   const flags = {};
-  const d = new DialogueRunner(DIALOGUES, flags);
-  assert.equal(d.start('ilia_meet').who, 'ilia');
+  const d = new DialogueRunner(D, flags);
+  assert.equal(d.start('meet').text, 'Кто ты?');
   assert.ok(d.advance().choices);
-  assert.equal(d.choose(0).text.includes('Илиа'), true);
-  assert.equal(flags.asked_ilia_name, true);
+  assert.equal(d.choose(0).text, 'Рад видеть');
+  assert.equal(flags.friend, true);
   assert.equal(d.advance(), null);
-  d.start('ilia_defeat');
+  d.start('bye');
   const lines = [d.current.text];
   while (d.advance()) lines.push(d.current.text);
-  assert.equal(lines.length, 2, 'одна из двух прощальных реплик выпала по условию');
-  assert.ok(lines[1].includes('имя'));
+  assert.deepEqual(lines, ['Пока', 'Ещё увидимся, друг']);
 });
 
 test('во всех диалогах переходы ведут на существующие диалоги', async () => {

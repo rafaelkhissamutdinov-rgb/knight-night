@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.21';
+export const VERSION = 'v0.22';
 
 export const CONFIG = {
   width: 320,
@@ -221,15 +221,16 @@ export const ENEMY_TYPES = {
     leapBackChance: 0.15, leapInChance: 0.22, vaultChance: 0.1, leapDistance: 64, vaultWindup: 0.3,  // vault — прыжок через рыцаря с захлёстом в спину
     guardChance: 0.6, reaction: 0.08,
     robe: true,  // длинное бежевое одеяние до пят, вроде джедайского
+    rests: true, // до встречи отдыхает, опершись на рапиру; замечает рыцаря — «!» и в бой
     colors: { armor: '#c8b48a', armorDark: '#9c8762', tabard: '#ece2c8', robe: '#b9a47a', robeDark: '#8f7c58', belt: '#5a4632', helm: '#d9a87e', visor: '#14101e', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#4a3a2a', hair: '#14101e' },
   },
-  // наставница в фэнтезийно-арабском одеянии: вместо чучела учит драться, урона не наносит
+  // Алкима: восточное женское платье, лицо открыто; знакома с Найтом; вместо чучела учит драться, урона не наносит
   trainer: {
-    kind: 'trainer', practice: true, name: 'Незнакомка', hp: 9999, damage: 0, aggro: 0, reach: 30, speed: 45, lunge: 3, weapon: 16,
+    kind: 'trainer', practice: true, name: 'Алкима', hp: 9999, damage: 0, aggro: 0, reach: 30, speed: 45, lunge: 3, weapon: 16,
     windup: 1.1, comboWindup: 0.9, gap: 0.3, recover: 1.0, wait: [1.2, 1.7],
     combos: [['mid']],
     guardChance: 0, reaction: 0.1,
-    robe: true, wrap: true, curved: true, slim: true,
+    robe: true, wrap: true, veil: false, curved: true, slim: true, rests: false,
     colors: { armor: '#3f7a7f', armorDark: '#2a5458', tabard: '#b8323a', robe: '#2f5d62', robeDark: '#1e3f43', belt: '#e0b04a', helm: '#b7794f', visor: '#14101e', wrap: '#ead9b0', wrapDark: '#bfa97c', blade: '#e6edf3', hilt: '#e0b04a', boots: '#5a3a22' },
   },
   // из первого прототипа, пока не на уровне
@@ -331,7 +332,7 @@ export const ROOMS = {
       { x: 1020, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
       { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
       { x: 1740, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
-      { x: 2100, before: 'ilia_meet', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // before — диалог перед боем
+      { x: 2100, enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
     ],
   },
   // верхняя галерея с окнами на горы (фон владельца, плитка с зеркалом); отсюда — все комнаты и башня

@@ -143,53 +143,77 @@ function drawStairs(g, x0, floorTop) {
   }
 }
 
-// Обрушенный балкон: вместо стены — закат, горы, лес, поля, деревня с дымом; каменная балюстрада с проломами,
-// справа пол обрывается в пропасть.
+// Обрушенный балкон: замок стоит высоко на горе — вдали хребты, а далеко внизу долина: река петляет,
+// леса пятнами, лоскуты полей и маленькая деревенька кольцом вокруг церкви, дым из труб.
+// Балюстрада с проломами, справа пол обрывается в пропасть.
 function drawBalcony(g, length, height, floorTop, rand) {
-  const sky = g.createLinearGradient(0, 0, 0, floorTop);
+  const horizon = 34;  // смотрим сверху: горизонт высоко, долина занимает почти всё
+  const sky = g.createLinearGradient(0, 0, 0, horizon + 6);
   sky.addColorStop(0, '#2b2f5a');
-  sky.addColorStop(0.55, '#8a6a9a');
-  sky.addColorStop(1, '#e8a77a');
+  sky.addColorStop(0.6, '#9a6f9a');
+  sky.addColorStop(1, '#f0b088');
   g.fillStyle = sky;
-  g.fillRect(0, 0, length, floorTop);
-  // солнце у горизонта
-  for (let r = 14; r > 0; r -= 2) {
-    g.fillStyle = `rgba(255,${200 + r * 3},${140 + r * 4},${0.08 + (14 - r) * 0.04})`;
-    g.beginPath(); g.arc(length * 0.7, floorTop - 46, r, 0, Math.PI * 2); g.fill();
+  g.fillRect(0, 0, length, horizon + 6);
+  for (let i = 0; i < 5; i++) {
+    const cx = rand() * length, cy = 6 + rand() * 16, w = 30 + rand() * 50;
+    rect(g, cx, cy, w, 2, 'rgba(255,220,230,0.25)');
   }
-  // облака
-  for (let i = 0; i < 6; i++) {
-    const cx = rand() * length, cy = 14 + rand() * 30, w = 30 + rand() * 50;
-    rect(g, cx, cy, w, 3, 'rgba(255,220,220,0.25)');
-    rect(g, cx + 6, cy - 2, w * 0.6, 2, 'rgba(255,220,220,0.18)');
-  }
-  // горы: два слоя, дальние светлее
-  const ridge = (base, amp, color, step) => {
-    g.fillStyle = color;
-    let y = base;
-    for (let x = 0; x < length; x += step) {
-      y = Math.max(base - amp, Math.min(base, y + (rand() - 0.5) * amp * 0.5));
-      g.fillRect(x, y, step, floorTop - y);
+  // хребты: гладкие вершины, дальние светлее (воздушная дымка)
+  const range = (base, amp, period, color, phase, snow) => {
+    for (let x = 0; x < length; x++) {
+      const t = x / period + phase;
+      const y = Math.round(base - amp * (0.55 * Math.abs(Math.sin(t)) + 0.3 * Math.abs(Math.sin(t * 2.3 + 1)) + 0.15 * Math.sin(t * 5.1)));
+      rect(g, x, y, 1, floorTop - y, color);
+      if (snow && base - y > amp * 0.72) rect(g, x, y, 1, 2, '#e6e2f0');
     }
   };
-  ridge(floorTop - 40, 26, '#6a6a9a', 3);
-  ridge(floorTop - 26, 18, '#4f5a7a', 2);
-  // лес, поля, река
-  ridge(floorTop - 16, 6, '#2f4a3a', 2);
-  const fields = ['#7a8a3e', '#a39a4a', '#5f7a3a', '#8a7a3a'];
-  for (let x = 0; x < length; x += 22) rect(g, x, floorTop - 10, 22, 4, fields[Math.floor(rand() * fields.length)]);
-  rect(g, 0, floorTop - 6, length, 6, '#3f5a36');
-  for (let x = 0; x < length; x += 2) rect(g, x, floorTop - 8 + Math.round(Math.sin(x / 23) * 1.5), 2, 1, '#8ab0c8');
-  // деревня: домики с крышами и дымом
-  for (let i = 0; i < 7; i++) {
-    const hx = Math.round(length * 0.25 + i * 13 + rand() * 6), hy = floorTop - 14;
-    rect(g, hx, hy, 8, 5, '#d8c8a8');
-    for (let k = 0; k < 4; k++) rect(g, hx - 1 + k, hy - 1 - k, 10 - k * 2, 1, '#8a3a2e');
-    rect(g, hx + 3, hy + 2, 2, 3, '#4a3226');
-    if (i % 2 === 0) for (let k = 0; k < 6; k++) rect(g, hx + 6 + Math.round(Math.sin(k) * 1.5), hy - 6 - k * 3, 2, 2, 'rgba(220,220,230,0.35)');
+  range(horizon + 4, 22, 46, '#8a86b0', 0.3, true);
+  range(horizon + 10, 14, 30, '#6f7898', 1.7, false);
+  // долина далеко внизу
+  const valley = g.createLinearGradient(0, horizon + 8, 0, floorTop);
+  valley.addColorStop(0, '#8a9a8a');
+  valley.addColorStop(0.35, '#6a8a5a');
+  valley.addColorStop(1, '#4a6a3e');
+  g.fillStyle = valley;
+  g.fillRect(0, horizon + 8, length, floorTop - horizon - 8);
+  // лоскуты полей
+  const fields = ['#9aa64e', '#b8a85a', '#7f9a4a', '#a8964a', '#8aa05a'];
+  for (let i = 0; i < 70; i++) {
+    const y = horizon + 14 + rand() * (floorTop - horizon - 20);
+    const far = 1 - (y - horizon) / (floorTop - horizon);
+    const w = Math.round((8 + rand() * 14) * (1 - far * 0.6)), h = Math.max(1, Math.round((2 + rand() * 3) * (1 - far * 0.6)));
+    rect(g, rand() * length, y, w, h, fields[Math.floor(rand() * fields.length)]);
   }
-  rect(g, Math.round(length * 0.25) + 40, floorTop - 22, 3, 9, '#d8c8a8');  // колокольня
-  for (let k = 0; k < 3; k++) rect(g, Math.round(length * 0.25) + 39 + k, floorTop - 23 - k, 5 - k * 2, 1, '#8a3a2e');
+  // река петляет из дали к краю
+  for (let y = horizon + 10; y < floorTop; y++) {
+    const k = (y - horizon) / (floorTop - horizon);
+    const x = length * 0.55 + Math.sin(y * 0.12) * (20 + k * 40);
+    rect(g, x, y, 1 + Math.round(k * 3), 1, k < 0.2 ? '#b8c8d8' : '#7aa0c0');
+  }
+  // леса: тёмные пятна из крон
+  for (let i = 0; i < 26; i++) {
+    const cy = horizon + 14 + rand() * (floorTop - horizon - 20), cx = rand() * length;
+    const far = 1 - (cy - horizon) / (floorTop - horizon), n = 5 + Math.floor(rand() * 9);
+    for (let k = 0; k < n; k++) {
+      const r = Math.max(1, Math.round((2 + rand() * 2) * (1 - far * 0.6)));
+      const x = cx + (rand() - 0.5) * 18, y = cy + (rand() - 0.5) * 5;
+      rect(g, x, y, r + 1, r, '#2f4a32');
+      rect(g, x, y, 1, 1, '#4a6a42');
+    }
+  }
+  // деревенька кольцом вокруг церкви, дорога к ней
+  const vx = Math.round(length * 0.33), vy = Math.round(horizon + (floorTop - horizon) * 0.45);
+  for (let k = 0; k < 14; k++) rect(g, vx - 40 + k * 3, vy + 6 + Math.round(Math.sin(k * 0.5) * 2), 2, 1, '#c8b88a');
+  for (let i = 0; i < 9; i++) {
+    const a = i / 9 * Math.PI * 2;
+    const hx = Math.round(vx + Math.cos(a) * 9), hy = Math.round(vy + Math.sin(a) * 4);
+    rect(g, hx, hy, 3, 2, '#e0d4b8');
+    rect(g, hx, hy - 1, 3, 1, '#9a4a3a');
+    if (i % 3 === 0) for (let k = 1; k < 5; k++) rect(g, hx + 1 + Math.round(Math.sin(k) * 1), hy - 1 - k * 2, 1, 1, 'rgba(230,230,240,0.45)');
+  }
+  rect(g, vx, vy - 4, 2, 5, '#e0d4b8');  // церковь
+  rect(g, vx, vy - 5, 2, 1, '#9a4a3a');
+  rect(g, vx, vy - 7, 1, 2, '#c8c0b0');
   // балюстрада: столбики и перила, местами обрушены
   for (let x = 4; x < length - 50; x += 7) {
     if (Math.floor(x / 7) % 9 === 4 || Math.floor(x / 7) % 9 === 5) continue;  // пролом

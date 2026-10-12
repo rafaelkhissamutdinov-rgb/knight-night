@@ -607,6 +607,29 @@ class Duelist extends Melee {
     const d = this.def;
     if (this.state === 'yield' || this.state === 'flee') this.flashT = Math.max(0, this.flashT - dt);
     switch (this.state) {
+      case 'dormant':
+        if (!d.rests) break;
+        // отдыхает, опершись на рапиру, тяжело дышит
+        this.t += dt;
+        this.pose = approachPose(this.pose, { ...POSES.lean_sword, crouch: POSES.lean_sword.crouch + (Math.sin(this.t * 4) > 0 ? 1 : 0) }, dt, 8);
+        if (this.awake) {
+          this.faceTo(w);
+          this.enter('notice');
+          w.cue?.('high');
+        }
+        return;
+
+      case 'notice':
+        // заметил: «!» над головой, рапиру — наголо
+        this.t += dt;
+        this.faceTo(w);
+        this.pose = approachPose(this.pose, this.t < 0.35 ? POSES.stagger : POSES.guard_mid, dt, 14);
+        if (this.t >= 0.9) {
+          w.engage(this);
+          this.enter('approach');
+        }
+        return;
+
       case 'leapBack':
       case 'leapIn': {
         this.t += dt;
