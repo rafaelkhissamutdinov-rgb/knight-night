@@ -57,7 +57,7 @@ const ui = {
   box: $('game-box'), hearts: $('hearts'), foe: $('foe'), foeName: $('foe-name'), foeBar: $('foe-bar'),
   callout: $('callout'), hint: $('hint'), debug: $('debug'), overlay: $('overlay'), version: $('version'),
   overlayTitle: $('overlay-title'), overlayText: $('overlay-text'), overlayPress: $('overlay-press'),
-  talk: $('talk'), talkPortrait: $('talk-portrait'), talkName: $('talk-name'), talkText: $('talk-text'),
+  talk: $('talk'), talkPortrait: $('talk-portrait'), talkFace: $('talk-face'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'),
   shop: $('shop'), shopPortrait: $('shop-portrait'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
@@ -1230,6 +1230,12 @@ function step(dt) {
 // ---------- диалоги ----------
 
 const portraitCtx = ui.talkPortrait.getContext('2d');
+// Нарисованные портреты владельца: у реплики можно указать mood (настроение), иначе — default.
+const FACES = {
+  knight: { default: 'assets/portraits/knight.jpg', tired: 'assets/portraits/knight-tired.jpg' },
+};
+for (const set of Object.values(FACES)) for (const src of Object.values(set)) new Image().src = src;  // загрузить заранее
+
 const PORTRAITS = {
   knight: { colors: KNIGHT_COLORS, plume: true },
   ilia: { colors: ENEMY_TYPES.duelist.colors, face: true, rapier: true, robe: true },
@@ -1264,8 +1270,14 @@ function showLine() {
   const who = SPEAKERS[line.who] ?? SPEAKERS.narrator;
   ui.talk.hidden = false;
   ui.talkName.textContent = who.name;
-  ui.talkPortrait.hidden = !who.portrait;
-  if (who.portrait) {
+  const face = FACES[who.portrait];
+  ui.talkFace.hidden = !face;
+  if (face) {
+    const src = face[line.mood] ?? face.default;
+    if (!ui.talkFace.src.endsWith(src)) ui.talkFace.src = src;
+  }
+  ui.talkPortrait.hidden = !who.portrait || !!face;
+  if (who.portrait && !face) {
     portraitCtx.clearRect(0, 0, 16, 16);
     portraitCtx.fillStyle = '#1e1a2b';
     portraitCtx.fillRect(0, 0, 16, 16);
