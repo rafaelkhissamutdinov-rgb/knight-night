@@ -37,7 +37,7 @@ export function drawFigure(g, o) {
     bladeHidden = false, scabbard = false, shield = false, skull = false,
     bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false, robe = false,
     offhandBack = false, sit = false, wrap = false, curved = false, slim = false, hood = false, pack = false,
-    short = false, bob = false, coat = false, spear = false,
+    short = false, bob = false, coat = false, spear = false, bandit = false, axe = false, plate = false,
   } = o;
   const gy = ground - airY;
   const hipX = x;
@@ -101,6 +101,14 @@ export function drawFigure(g, o) {
     thick(g, hipX, hipY - 3, shX, shY + 3, skull || slim ? 6 : 8, colors.armor);
     thick(g, hipX + f, hipY - 1, (hipX + shX) / 2 + f, shY + 5, skull ? 2 : slim ? 2 : 4, colors.tabard);
   }
+  if (plate) {
+    // латы: нагрудник с бликом и наплечник поверх рёбер
+    thick(g, hipX, hipY - 4, shX, shY + 3, 7, colors.plate);
+    thick(g, hipX + f, hipY - 4, shX + f, shY + 3, 2, colors.plateLight);
+    rect(g, hipX - 4, hipY - 3, 8, 2, colors.plateDark);
+    rect(g, shX - 4, shY, 9, 3, colors.plateDark);
+    rect(g, shX - 3, shY, 7, 1, colors.plateLight);
+  }
   if (robe) rect(g, hipX - 4, hipY - 3, 8, slim ? 2 : 1, slim ? colors.tabard : colors.belt);
   if (robe && slim) rect(g, hipX - 4, hipY - 1, 8, 1, colors.belt);
 
@@ -116,7 +124,16 @@ export function drawFigure(g, o) {
   // голова
   const headX = shX - 3 + f;
   const headY = shY - 9;
-  if (bob) {
+  if (bandit) {
+    // мародёр: лицо, повязка на голове с хвостами, платок закрывает рот и нос
+    rect(g, headX, headY, 7, 8, colors.helm);
+    rect(g, headX - 1, headY - 1, 9, 3, colors.bandana);
+    rect(g, f > 0 ? headX - 3 : headX + 7, headY, 3, 1, colors.bandana);
+    rect(g, f > 0 ? headX - 4 : headX + 9, headY + 1, 2, 1, colors.bandana);
+    rect(g, f > 0 ? headX + 4 : headX + 1, headY + 3, 2, 1, colors.visor);
+    rect(g, headX, headY + 5, 7, 3, colors.mask);
+    rect(g, f > 0 ? headX + 6 : headX, headY + 7, 1, 2, colors.mask);
+  } else if (bob) {
     // длинные волосы ниже плеч, чёлка прядями падает на глаза
     rect(g, f > 0 ? headX - 2 : headX + 5, headY + 1, 4, 12, colors.hair);
     rect(g, headX - 1, headY - 1, 9, 8, colors.hair);
@@ -158,6 +175,13 @@ export function drawFigure(g, o) {
     rect(g, headX, headY + 1, 7, 6, colors.helm);
     rect(g, f > 0 ? headX + 4 : headX + 1, headY + 3, 2, 2, colors.visor);
     rect(g, f > 0 ? headX + 3 : headX + 1, headY + 6, 3, 1, colors.armorDark);
+    if (plate) {
+      // шлем-шапель с наносником
+      rect(g, headX - 1, headY - 1, 9, 4, colors.plate);
+      rect(g, headX - 2, headY + 2, 11, 1, colors.plateDark);
+      rect(g, headX, headY - 1, 7, 1, colors.plateLight);
+      rect(g, f > 0 ? headX + 5 : headX + 1, headY + 3, 1, 2, colors.plateDark);
+    }
   } else {
     rect(g, headX, headY, 7, 8, colors.helm);
     rect(g, f > 0 ? headX + 3 : headX, headY + 3, 4, 1, colors.visor);
@@ -207,6 +231,16 @@ export function drawFigure(g, o) {
       rect(g, tipX - dx * 4 - dy, tipY - dy * 4 + dx, 1, 1, colors.blade);
       rect(g, tipX - dx * 4 + dy, tipY - dy * 4 - dx, 1, 1, colors.blade);
       return { tipX, tipY, handX, handY };
+    }
+    if (axe) {
+      // топор: топорище и широкое лезвие на конце
+      thick(g, handX - dx * 3, handY - dy * 3, tipX, tipY, 1, colors.hilt);
+      const px = -dy, py = dx;
+      for (let i = 0; i < 7; i++) {
+        const bx = tipX - dx * i, by = tipY - dy * i, w = 6 - Math.abs(i - 3) * 0.8;
+        thick(g, bx + px, by + py, bx + px * w, by + py * w, 1, i === 0 || i === 6 ? colors.hilt : colors.blade);
+      }
+      return { tipX: tipX + px * 3, tipY: tipY + py * 3, handX, handY };
     }
     if (curved) {
       // изогнутый клинок: середина выгнута в сторону обуха
