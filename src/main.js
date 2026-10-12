@@ -1233,6 +1233,7 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 // Нарисованные портреты владельца: у реплики можно указать mood (настроение), иначе — default.
 const FACES = {
   knight: { default: 'assets/portraits/knight.jpg', tired: 'assets/portraits/knight-tired.jpg', nohelm: 'assets/portraits/knight-nohelm.jpg' },
+  ilia: { default: 'assets/portraits/ilia.jpg' },
 };
 for (const set of Object.values(FACES)) for (const src of Object.values(set)) new Image().src = src;  // загрузить заранее
 
