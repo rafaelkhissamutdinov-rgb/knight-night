@@ -579,3 +579,17 @@ test('наставница: шаг сменился посреди серии �
   assert.equal(w.impacts.length, 1, 'серия оборвалась после первого удара');
   assert.notEqual(e.state, 'windup');
 });
+
+test('копейщик: тык-тык — диск, нижних ударов нет, снизу не закрывается', () => {
+  const d = ENEMY_TYPES.spear;
+  assert.ok(d.combos.every(c => c.every(h => h === 'thrust' || h === 'whirl')));
+  const e = createEnemy('spear', 100);
+  e.enter('idle');
+  e.guardHeight = 'low';
+  assert.equal(e.receiveAttack({ ...WEAPON.attacks.low }).out, 'hit');
+  const f = createEnemy('spear', 100);
+  f.enter('idle');
+  f.guardHeight = 'mid';
+  f.guardT = 1;
+  assert.equal(f.receiveAttack({ ...WEAPON.attacks.side }).out, 'blocked');
+});

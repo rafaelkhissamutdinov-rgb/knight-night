@@ -132,6 +132,7 @@ class Enemy {
   blocks(height) {
     if (!this.canGuard) return false;
     if (this.def.shield && height !== 'low') return true;
+    if (this.def.noLowGuard && height === 'low') return false;  // копейщик снизу не закрывается
     return this.guardHeight === height;
   }
 

@@ -213,7 +213,7 @@ export function drawPortal(g, cx, cy, time, lit = 1, glow = 0.5) {
 }
 
 // Бочки, ящики, мешки и кости — стоят на полу и сортируются по глубине вместе с бойцами.
-export function drawProp(g, type, x, gy) {
+export function drawProp(g, type, x, gy, opened = false) {
   x = Math.round(x);
   if (type === 'barrel') {
     rect(g, x - 5, gy - 13, 10, 13, '#6b4532');
@@ -234,6 +234,19 @@ export function drawProp(g, type, x, gy) {
     rect(g, x - 3, gy - 10, 7, 2, '#8c7a58');
     rect(g, x - 1, gy - 11, 3, 1, '#5a4632');
     rect(g, x - 4, gy - 1, 9, 1, '#6b5a3e');
+  } else if (type === 'chest') {
+    // сундук: открытый — крышка откинута, внутри темно
+    rect(g, x - 8, gy - 9, 16, 9, '#7a4f36');
+    rect(g, x - 8, gy - 5, 16, 1, '#3b3550');
+    rect(g, x - 8, gy - 1, 16, 1, '#4a3226');
+    if (opened) {
+      rect(g, x - 8, gy - 15, 16, 4, '#8a5a3b');
+      rect(g, x - 7, gy - 10, 14, 1, '#2a1f18');
+    } else {
+      rect(g, x - 8, gy - 12, 16, 4, '#8a5a3b');
+      rect(g, x - 1, gy - 9, 3, 3, PAL.gold);
+      rect(g, x, gy - 8, 1, 1, '#3b2a1e');
+    }
   } else if (type === 'bones') {
     rect(g, x - 2, gy - 3, 4, 3, '#d9d4c3');
     rect(g, x - 1, gy - 2, 1, 1, '#14101e');

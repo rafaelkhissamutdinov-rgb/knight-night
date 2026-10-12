@@ -37,7 +37,7 @@ export function drawFigure(g, o) {
     bladeHidden = false, scabbard = false, shield = false, skull = false,
     bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false, robe = false,
     offhandBack = false, sit = false, wrap = false, curved = false, slim = false, hood = false, pack = false,
-    short = false, bob = false, coat = false,
+    short = false, bob = false, coat = false, spear = false,
   } = o;
   const gy = ground - airY;
   const hipX = x;
@@ -195,6 +195,14 @@ export function drawFigure(g, o) {
   if (!bladeHidden) {
     if (trail) for (const [i, p] of trail.entries()) {
       withAlpha(g, 0.15 + 0.12 * i, () => thick(g, handX, handY, p.tipX, p.tipY, 1, '#ffffff'));
+    }
+    if (spear) {
+      // древко назад от кисти, наконечник на конце
+      thick(g, handX - dx * 8, handY - dy * 8, tipX - dx * 4, tipY - dy * 4, 1, colors.hilt);
+      thick(g, tipX - dx * 4, tipY - dy * 4, tipX, tipY, 1, colors.blade);
+      rect(g, tipX - dx * 4 - dy, tipY - dy * 4 + dx, 1, 1, colors.blade);
+      rect(g, tipX - dx * 4 + dy, tipY - dy * 4 - dx, 1, 1, colors.blade);
+      return { tipX, tipY, handX, handY };
     }
     if (curved) {
       // изогнутый клинок: середина выгнута в сторону обуха
