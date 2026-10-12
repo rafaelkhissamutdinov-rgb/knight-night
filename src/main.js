@@ -1,4 +1,4 @@
-import { CONFIG, ROOMS, START, NPC_TYPES, ITEMS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
+import { CONFIG, ROOMS, START, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy } from './enemy.js';
@@ -11,7 +11,7 @@ import { Tutorial } from './tutorial.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
-import { DIALOGUES, SPEAKERS, SHOPS } from './story/dialogues.js';
+import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { ENEMY_TYPES } from './config.js';
 
 const W = CONFIG.width, H = CONFIG.height;
@@ -60,6 +60,8 @@ const ui = {
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkFace: $('talk-face'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'),
+  equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'),
+  skillWard: $('skill-ward'), skillWardBar: $('skill-ward-bar'), skillG: $('skill-g'), skillGBar: $('skill-g-bar'),
   shop: $('shop'), shopPortrait: $('shop-portrait'), shopFace: $('shop-face'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
   shopText: $('shop-text'), shopMenu: $('shop-menu'),
   skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'), skillName: $('skill-name'), weapon: $('weapon'),
@@ -103,7 +105,17 @@ function spawnRoom(roomId) {
 }
 
 // Перейти в комнату: враги, персонажи, камера. at — { x, z, facing } прибытия.
+// Обычные встречи (не боссы и не встречи с диалогом) возвращаются, если долго не заходил: монеты не кончаются.
+const BOSSES = new Set(['duelist', 'captain', 'commander', 'mage']);
+function respawnable(enc) {
+  return !enc.before && !enc.unique && !enc.enemies.some(e => BOSSES.has(e.type));
+}
+
 function loadRoom(id, at) {
+  (ROOMS[id].encounters ?? []).forEach((enc, i) => {
+    const key = encKey(id, i);
+    if (game.cleared.has(key) && respawnable(enc) && game.time - (game.clearedAt[key] ?? 0) >= CONFIG.respawnTime) game.cleared.delete(key);
+  });
   game.room = id;
   game.visited.push(id);
   const r = ROOMS[id];
@@ -141,6 +153,7 @@ function newGame() {
     room: START.room,
     arena: null,
     cleared: new Set(),
+    clearedAt: {},
     token: null,
     tokenFreeAt: 0,
     current: null,
@@ -172,9 +185,13 @@ function newGame() {
     visited: [],
     coins: 0,
     bag: [],
+    equip: { ...START_EQUIP },
+    wardReadyAt: 0,
+    wardFlash: 0,
+    skillReadyAt: 0,
     shop: null,
     impactFrom: null,
-    stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0, broken: 0, weave: 0, riposte: 0, vault: 0, vaultHit: 0 },
+    stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0, broken: 0, weave: 0, riposte: 0, vault: 0, vaultHit: 0, ward: 0, potions: 0, coinsEarned: 0, skill: 0, spell: 0 },
     deaths: {},
     killers: {},
     missWhy: {},
@@ -194,7 +211,7 @@ function save() {
   const p = game.player;
   writeSave({
     version: VERSION, room: game.room, x: Math.round(game.checkpoint), z: Math.round(p.z), hp: p.hp, weapon: p.weapon,
-    coins: game.coins, bag: game.bag, unlocked: [...game.unlocked], cleared: [...game.cleared], flags: game.flags, pickups: game.pickups,
+    coins: game.coins, bag: game.bag, equip: game.equip, unlocked: [...game.unlocked], cleared: [...game.cleared], flags: game.flags, pickups: game.pickups,
   });
 }
 
@@ -202,11 +219,16 @@ function continueGame(data) {
   newGame();
   game.unlocked = new Set(data.unlocked ?? ['sword']);
   game.cleared = new Set(data.cleared ?? []);
+  for (const k of game.cleared) game.clearedAt[k] = 0;  // после загрузки обычные враги вернутся через respawnTime
   game.flags = data.flags ?? {};
   game.pickups = data.pickups ?? [];
   game.coins = data.coins ?? 0;
   game.bag = data.bag ?? [];
-  game.player = new Player(data.x, game.unlocked.has(data.weapon) ? data.weapon : 'sword');
+  game.equip = { ...START_EQUIP, ...(data.equip ?? {}) };
+  // старые сохранения: рапира была только в unlocked
+  if (game.unlocked.has('rapier') && game.equip.weapon !== 'rapier' && !game.bag.includes('rapier')) game.bag.push('rapier');
+  if (!data.equip && data.weapon === 'rapier') { game.bag = game.bag.filter(i => i !== 'rapier'); game.bag.push('sword_old'); game.equip.weapon = 'rapier'; }
+  game.player = new Player(data.x, ITEMS[game.equip.weapon].weapon);
   game.player.sheathed = false;
   game.player.hp = Math.max(1, Math.min(CONFIG.playerHp, data.hp ?? CONFIG.playerHp));
   loadRoom(ROOMS[data.room] ? data.room : START.room, { x: data.x, z: data.z ?? 22 });
@@ -368,14 +390,26 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
     game.missWhy[why] = (game.missWhy[why] ?? 0) + 1;
     game.missHeight[height] = (game.missHeight[height] ?? 0) + 1;
     const dmg = damage * mult;
-    p.hurt(dmg, sourceX);
-    renderHearts();
-    sparks(p.x + 2, y, 10, [PAL.blood, '#9e2648'], 80);
-    sfx.hit();
-    game.hitstop = CONFIG.hitstop.hit;
-    shake(mult > 1 ? 4 : 3);
-    flash('#e8454f', 0.3);
-    callout(backTurned ? `В спину! −${dmg}` : mult > 1 ? `Пропущен ×${mult}  −${dmg}` : `Пропущен  −${dmg}`, 'hit');
+    const ward = ITEMS[game.equip.amulet]?.ward;
+    if (ward && game.time >= game.wardReadyAt && dmg <= ward.absorb) {
+      // Бубновый туз: удар засчитан, но здоровье не уходит; потом перезарядка
+      game.wardReadyAt = game.time + ward.cooldown;
+      game.wardFlash = 0.8;
+      game.stats.ward++;
+      sparks(p.x, y, 14, ['#e8454f', '#ffffff', '#ffb3b8'], 110);
+      sfx.ward();
+      shake(1.5);
+      callout(`♦ Бубновый туз  −0`, 'perfect');
+    } else {
+      p.hurt(dmg, sourceX);
+      renderHearts();
+      sparks(p.x + 2, y, 10, [PAL.blood, '#9e2648'], 80);
+      sfx.hit();
+      game.hitstop = CONFIG.hitstop.hit;
+      shake(mult > 1 ? 4 : 3);
+      flash('#e8454f', 0.3);
+      callout(backTurned ? `В спину! −${dmg}` : mult > 1 ? `Пропущен ×${mult}  −${dmg}` : `Пропущен  −${dmg}`, 'hit');
+    }
   }
   // рапира: два успешных блока подряд — автоматический рипост
   if (result === 'block' || result === 'perfect') {
@@ -526,6 +560,8 @@ function buildReport() {
     `Почему пропущено: ${Object.entries(game.missWhy).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ') || '—'}`,
     `Пропущено по высоте: верх ${game.missHeight.high ?? 0}, середина ${game.missHeight.mid ?? 0}, низ ${game.missHeight.low ?? 0}`,
     `Контратак: ${s.counter}`,
+    `Снаряжение: ${SLOTS.map(([s, l]) => `${l.toLowerCase()} — ${game.equip[s] ? ITEMS[game.equip[s]].name : 'нет'}`).join(', ')}`,
+    `Монеты: ${game.coins} (заработано ${s.coinsEarned}) · в сумке: ${game.bag.map(id => ITEMS[id].name).join(', ') || 'пусто'} · туз погасил ${s.ward} · зелий ${s.potions} · навык ${s.skill} раз`,
     `Оружие: ${game.unlocked.has('rapier') ? `рапира получена, сейчас — ${game.player.arms.name.toLowerCase()}` : 'только меч'}`
       + (game.unlocked.has('rapier') ? ` · рипостов ${s.riposte}, отбито восьмёркой ${s.weave}, прыжков с захлёстом ${s.vault} (попали ${s.vaultHit})` : ''),
   ].join('\n');
@@ -593,6 +629,7 @@ function recordGuard(height) {
 
 function handlePress(code) {
   if (game.mode === 'shop') { shopPress(code); return; }
+  if (game.mode === 'equip') { equipPress(code); return; }
   if (code === 'Escape' || code === 'KeyP') {
     if (game.mode === 'play') {
       game.mode = 'paused';
@@ -608,7 +645,7 @@ function handlePress(code) {
     if (code === 'KeyR') restartFight();
     return;
   }
-  if (code === 'KeyG') {
+  if (code === 'F3') {
     game.debug = !game.debug;
     ui.debug.hidden = !game.debug;
     return;
@@ -635,7 +672,7 @@ function handlePress(code) {
   }
   // сцена пробуждения: любое нажатие — пропустить; во время перехода между комнатами ввод ждёт
   if (game.cutscene) {
-    if (code !== 'Wheel') game.cutscene.t = Math.max(game.cutscene.t, WAKE.end);
+    if (!code.startsWith('Wheel')) game.cutscene.t = Math.max(game.cutscene.t, WAKE.end);
     return;
   }
   if (game.transition) return;
@@ -668,18 +705,23 @@ function handlePress(code) {
 
   // высота — по курсору: ЛКМ бьёт, ПКМ защищает, пробел — рывок на этой высоте
   const vert = game.aim === 'high' ? 'up' : game.aim === 'low' ? 'down' : null;
-  if (code === 'Wheel') {
-    // прокрутка колеса — вихрь; пока перезаряжается, колесо ничего не делает
+  if (code === 'WheelUp') {
+    // колесо вверх — приём оружия (вихрь или восьмёрка); пока перезаряжается, ничего не делает
     if (p.spinCharge < 1) callout(p.weapon === 'rapier' ? 'Восьмёрка не готова' : 'Вихрь не готов', 'muted');
     else p.requestAttack(null, true);
   }
-  if (code === 'KeyQ' && game.unlocked.has('rapier') && (p.ready || (p.state === 'attack' && p.airY === 0))) {
-    const next = p.weapon === 'sword' ? 'rapier' : 'sword';
-    p.setWeapon(next);
-    game.charge = null;
-    game.blockStreak = 0;
-    callout(WEAPONS[next].name, 'muted');
+  if (code === 'WheelDown') useSkill();
+  if (code === 'KeyQ' && (p.ready || (p.state === 'attack' && p.airY === 0))) {
+    // Q — взять другое оружие из сумки
+    const other = game.bag.find(id => ITEMS[id].slot === 'weapon');
+    if (other) {
+      equipItem(other);
+      callout(ITEMS[other].name, 'muted');
+    }
   }
+  if (code === 'KeyI') { openEquip(); return; }
+  if (code === 'KeyH') drinkPotion();
+  if (code === 'KeyB') openJournal();
   if (is(code, 'guard')) { recordGuard(game.aim); p.cancel(); game.charge = null; }
   if (is(code, 'attack')) {
     // рапира, курсор вверху: зажал — прыжок с захлёстом, щёлкнул — обычный захлёст
@@ -748,6 +790,7 @@ function updateArena() {
   const alive = game.enemies.some(e => e.group === game.arena.index && (e.alive || e.state === 'yield'));
   if (!alive) {
     game.cleared.add(game.arena.key);
+    game.clearedAt[game.arena.key] = game.time;
     // отдых после победы над группой
     const healed = Math.min(CONFIG.restHeal, CONFIG.playerHp - p.hp);
     if (healed > 0) {
@@ -1076,7 +1119,9 @@ function update(dt) {
   for (const e of game.enemies) {
     if ((e.state === 'dead' && e.t > 2) || e.state === 'gone') continue;
     e.update(dt, world);
+    if (!e.alive && !e.paid && e.state !== 'leave' && COINS[e.type]) payCoins(e);
   }
+  game.wardFlash = Math.max(0, game.wardFlash - dt);
   updateArrows(dt);
 
   // тела не проходят друг сквозь друга (если стоят на одной линии по глубине)
@@ -1160,6 +1205,183 @@ function updateCharge() {
   }
 }
 
+// Враг побеждён — монеты летят к рыцарю.
+function payCoins(e) {
+  e.paid = true;
+  const n = COINS[e.type];
+  game.coins += n;
+  game.stats.coinsEarned += n;
+  sparks(e.x, groundY(e.z) - 14, 4 + n * 2, [PAL.gold, '#fff4c2'], 70);
+  sfx.bow();
+  ui.weapon.classList.remove('gain');
+  void ui.weapon.offsetWidth;
+  ui.weapon.classList.add('gain');
+}
+
+// ---------- снаряжение и сумка ----------
+
+// предмет надет или лежит в сумке
+const owns = id => game.bag.includes(id) || Object.values(game.equip).includes(id);
+
+// Надеть предмет из сумки в его слот; что было надето — в сумку. Возвращает true, если надето.
+function equipItem(id) {
+  const item = ITEMS[id];
+  const i = game.bag.indexOf(id);
+  if (!item?.slot || i < 0) return false;
+  const p = game.player;
+  if (item.slot === 'weapon' && !(p.ready || p.state === 'attack')) return false;
+  game.bag.splice(i, 1);
+  const prev = game.equip[item.slot];
+  if (prev) game.bag.push(prev);
+  game.equip[item.slot] = id;
+  if (item.slot === 'weapon') {
+    p.setWeapon(item.weapon);
+    game.charge = null;
+    game.blockStreak = 0;
+  }
+  return true;
+}
+
+// Снять амулет, заклинание или навык (оружие и броню не снять — можно только заменить)
+function unequip(slot) {
+  if (slot === 'weapon' || slot === 'armor' || !game.equip[slot]) return;
+  game.bag.push(game.equip[slot]);
+  game.equip[slot] = null;
+}
+
+function useItem(id) {
+  const item = ITEMS[id];
+  const p = game.player;
+  if (!item?.use) return false;
+  if (item.use.heal && p.hp >= CONFIG.playerHp) { callout('Здоровье полное', 'muted'); return false; }
+  game.bag.splice(game.bag.indexOf(id), 1);
+  const heal = Math.min(item.use.heal ?? 0, CONFIG.playerHp - p.hp);
+  p.hp += heal;
+  renderHearts();
+  game.stats.potions++;
+  sparks(p.x, groundY(p.z) - 20, 10, ['#7bd88f', '#d4ffd9'], 50);
+  sfx.ward();
+  callout(`${item.name}  +${heal} ♥`, 'perfect');
+  return true;
+}
+
+// H — выпить: при большой ране — зелье, при малой — бинт
+function drinkPotion() {
+  const p = game.player;
+  if (!p.ready) return;
+  const lost = CONFIG.playerHp - p.hp;
+  const order = lost >= 2 ? ['potion', 'bandage'] : ['bandage', 'potion'];
+  const id = order.find(x => game.bag.includes(x));
+  if (!id) { callout('Нет зелий — купи у Лики', 'muted'); return; }
+  useItem(id);
+}
+
+// Колесо вниз — навык из слота: приём боя (движение), у навыка своё оружие и перезарядка
+function useSkill() {
+  const id = game.equip.skill;
+  if (!id) { callout('Навыка нет — свиток у Лики', 'muted'); return; }
+  const skill = ITEMS[id];
+  const p = game.player;
+  if (skill.need && p.weapon !== skill.need) { callout(`${skill.name}: нужна ${skill.need === 'rapier' ? 'рапира' : 'другое оружие'}`, 'muted'); return; }
+  if (game.time < game.skillReadyAt) { callout(`${skill.name} не готов`, 'muted'); return; }
+  if (!p.ready) return;
+  p.startAttack(skill.attack);
+  game.skillReadyAt = game.time + skill.cooldown;
+  game.stats.skill++;
+  callout(skill.name, 'muted');
+}
+
+// Прочитать свиток: выучить навык (если есть нужное оружие) и сразу поставить в слот
+function readScroll(id) {
+  const scroll = ITEMS[id];
+  const skill = ITEMS[scroll.learn];
+  if (skill.need && !owns(skill.need)) { callout(`Непонятно без оружия: нужна ${skill.need === 'rapier' ? 'рапира' : 'другое оружие'}`, 'muted'); return false; }
+  game.bag.splice(game.bag.indexOf(id), 1);
+  game.bag.push(scroll.learn);
+  equipItem(scroll.learn);
+  sfx.perfect();
+  callout(`Выучен навык: ${skill.name} (колесо вниз)`, 'perfect');
+  return true;
+}
+
+// Окно снаряжения: слева — надетое, справа — сумка, внизу — описание
+function openEquip() {
+  if (game.mode !== 'play' || game.transition || game.cutscene) return;
+  game.mode = 'equip';
+  game.equipSel = null;
+  ui.equip.hidden = false;
+  renderEquip();
+}
+function closeEquip() {
+  ui.equip.hidden = true;
+  game.mode = 'play';
+  save();
+}
+
+function bagStacks() {
+  const out = [];
+  for (const id of game.bag) {
+    const s = out.find(x => x.id === id);
+    if (s) s.n++;
+    else out.push({ id, n: 1 });
+  }
+  return out;
+}
+
+function renderEquip() {
+  ui.equipSlots.innerHTML = '';
+  for (const [slot, label] of SLOTS) {
+    const id = game.equip[slot];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = `<span class="equip-slot">${label}</span><span>${id ? ITEMS[id].name : '—'}</span>`;
+    b.addEventListener('pointerenter', () => showEquipDesc(id));
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); unequip(slot); renderEquip(); });
+    ui.equipSlots.appendChild(b);
+  }
+  ui.equipBag.innerHTML = '';
+  const stacks = bagStacks();
+  if (!stacks.length) ui.equipBag.innerHTML = '<p class="equip-empty">Пусто</p>';
+  stacks.forEach((s, i) => {
+    const item = ITEMS[s.id];
+    const b = document.createElement('button');
+    b.type = 'button';
+    const what = item.slot ? 'надеть' : item.use ? 'использовать' : item.learn ? 'прочитать' : item.journal ? 'открыть' : '';
+    b.innerHTML = `<span>${i + 1}. ${item.name}${s.n > 1 ? ' ×' + s.n : ''}</span><span class="equip-act">${what}</span>`;
+    b.addEventListener('pointerenter', () => showEquipDesc(s.id));
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); bagAction(s.id); });
+    ui.equipBag.appendChild(b);
+  });
+  ui.equipCoins.textContent = `Монеты: ${game.coins}`;
+}
+
+function showEquipDesc(id) {
+  ui.equipDesc.textContent = id ? `${ITEMS[id].name}. ${(ITEM_TEXTS[id] ?? '').replace('[черновик] ', '')}` : '';
+}
+
+function bagAction(id) {
+  const item = ITEMS[id];
+  if (item.slot) equipItem(id);
+  else if (item.use) useItem(id);
+  else if (item.learn) readScroll(id);
+  else if (item.journal) { closeEquip(); openJournal(); return; }
+  showEquipDesc(id);
+  renderEquip();
+}
+
+function equipPress(code) {
+  if (code === 'Escape' || code === 'KeyI') { closeEquip(); return; }
+  const m = /^Digit([1-9])$/.exec(code);
+  const s = m && bagStacks()[Number(m[1]) - 1];
+  if (s) bagAction(s.id);
+}
+
+// B — журнал (бестиарий); нужен журнал от Лики
+function openJournal() {
+  if (!owns('journal')) { callout('Нужен журнал — его продаёт Лика', 'muted'); return; }
+  callout('Журнал: скоро', 'muted');
+}
+
 // Выбитое оружие лежит на полу: подошёл — подобрал.
 function updatePickups(dt) {
   const p = game.player;
@@ -1170,9 +1392,9 @@ function updatePickups(dt) {
     if (Math.abs(it.x - p.x) < 10 && Math.abs(it.z - p.z) < 8) {
       it.taken = true;
       game.unlocked.add(it.kind);
-      p.setWeapon(it.kind);
-      game.blockStreak = 0;
-      callout('Рапира! Q — сменить оружие', 'perfect');
+      game.bag.push(it.kind);
+      equipItem(it.kind);
+      callout('Рапира! Q — сменить оружие, I — снаряжение', 'perfect');
       setTimeout(save, 0);
       sfx.perfect();
     }
@@ -1232,9 +1454,9 @@ function updateFx(dt) {
 
 function step(dt) {
   updateFx(dt);
-  if (game.mode === 'shop') {
+  if (game.mode === 'shop' || game.mode === 'equip') {
     for (const code of input.take()) handlePress(code);
-    tickShop(dt);
+    if (game.mode === 'shop') tickShop(dt);
     return;
   }
   if (game.mode === 'talk') {
@@ -1423,13 +1645,14 @@ function shopOptions() {
 function buyItem(it) {
   const d = game.shop.data, item = ITEMS[it.id];
   if (it.soon) return shopSay(d.soon, d.moods?.soon);
+  if ((item.slot || item.journal || item.learn || item.artifact) && (owns(it.id) || (item.learn && owns(item.learn)))) return shopSay(d.owned, d.moods?.soon);
   if (item.price > game.coins) return shopSay(d.poor, d.moods?.poor);
   game.coins -= item.price;
-  const p = game.player;
-  const heal = Math.min(item.effect?.heal ?? 0, CONFIG.playerHp - p.hp);
-  if (heal > 0) { p.hp += heal; renderHearts(); }
+  game.bag.push(it.id);
+  // амулет надевается сразу, если слот пуст
+  const worn = item.slot && !game.equip[item.slot] && equipItem(it.id);
   sfx.perfect();
-  shopSay(d.bought + (heal > 0 ? `  (+${heal} ♥)` : ''), d.moods?.bought);
+  shopSay(d.bought + (worn ? '  (надето)' : item.use ? '  (в сумке, H — использовать)' : ''), d.moods?.bought);
   renderShop();
   save();
 }
@@ -1656,9 +1879,25 @@ function render() {
   const rapier = game.player.weapon === 'rapier';
   const skill = rapier ? 'восьмёрка' : 'вихрь';
   if (ui.skillName.textContent !== skill) ui.skillName.textContent = skill;
-  const wl = [game.unlocked.has('rapier') ? `${game.player.arms.name} · Q` : '', game.coins ? `монеты: ${game.coins}` : ''].filter(Boolean).join(' · ');
+  const wl = [game.bag.some(id => ITEMS[id].slot === 'weapon') ? `${game.player.arms.name} · Q` : '', game.coins ? `монеты: ${game.coins}` : ''].filter(Boolean).join(' · ');
   if (ui.weapon.textContent !== wl) { ui.weapon.textContent = wl; ui.weapon.hidden = !wl; }
   ui.skillSpin.classList.toggle('ready', charge >= 1);
+  // навык из слота и Бубновый туз
+  const sk = ITEMS[game.equip.skill];
+  ui.skillG.hidden = !sk;
+  if (sk) {
+    const k = Math.min(1, 1 - (game.skillReadyAt - game.time) / sk.cooldown);
+    ui.skillGBar.style.width = `${Math.round(k * 100)}%`;
+    ui.skillG.classList.toggle('ready', k >= 1);
+    if (ui.skillG.firstChild.textContent !== sk.name.toLowerCase()) ui.skillG.firstChild.textContent = sk.name.toLowerCase();
+  }
+  const ward = ITEMS[game.equip.amulet]?.ward;
+  ui.skillWard.hidden = !ward;
+  if (ward) {
+    const k = Math.min(1, 1 - (game.wardReadyAt - game.time) / ward.cooldown);
+    ui.skillWardBar.style.width = `${Math.round(k * 100)}%`;
+    ui.skillWard.classList.toggle('ready', k >= 1);
+  }
 }
 
 function renderEnemy(e, cam) {
@@ -1770,6 +2009,15 @@ function renderPlayer(cam) {
     if (p.trail.length > (spinning || weaving ? 6 : 3)) p.trail.shift();
   } else p.trail = [];
 
+  if (game.wardFlash > 0) {
+    // знак бубны над рыцарем: Бубновый туз погасил удар
+    g.globalAlpha = Math.min(1, game.wardFlash * 2);
+    const cy = GROUND - 44 - Math.round((0.8 - game.wardFlash) * 8);
+    for (let i = 0; i < 5; i++) rect(g, px - i, cy - 4 + i, i * 2 + 1, 1, '#e8454f');
+    for (let i = 0; i < 4; i++) rect(g, px - 3 + i, cy + 1 + i, 7 - i * 2, 1, '#e8454f');
+    rect(g, px, cy - 2, 1, 3, '#ffffff');
+    g.globalAlpha = 1;
+  }
   // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
   if (!game.cutscene && !tr) heightIcon(game.aim, px - p.facing * 13, GROUND - 26, held('guard') ? '#8fd3ff' : '#9f97b0');
   if (p.state === 'backdash' && p.wardActive) {
@@ -1905,8 +2153,9 @@ ui.box.addEventListener('wheel', e => {
   e.preventDefault();
   if (game.mode !== 'play') return;
   // прокрутка колеса — вихрь; серия щелчков одной прокрутки — одно нажатие
+  // вверх — приём оружия, вниз — навык из слота
   const now = performance.now();
-  if (now - wheelAt > 150) input.press('Wheel');
+  if (now - wheelAt > 150) input.press(e.deltaY < 0 ? 'WheelUp' : 'WheelDown');
   wheelAt = now;
 }, { passive: false });
 
