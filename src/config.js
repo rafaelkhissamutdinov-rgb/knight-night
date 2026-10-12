@@ -249,6 +249,7 @@ export const ITEMS = {
 // encounters — встречи: пока группа жива, проход закрыт. dx — смещение врага от центра встречи, z — глубина.
 // trainer — где ждёт наставница; npcs — персонажи; props — бочки и ящики; portal — знак портала на полу.
 // dark — тёмная комната (свет только от портала и выхода); gate — решётка камеры с открытой дверью (left / right).
+// image — фон-картинка вместо нарисованного кодом (assets/backgrounds/, 320×180 на экран); flames — где на ней факелы [x, y].
 export const START = { room: 'cell', x: 112, z: 26 };
 
 export const ROOMS = {
@@ -302,12 +303,13 @@ export const ROOMS = {
       { x: 290, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'spear', dx: 110, z: 32 }] },
     ],
   },
+  // фон нарисован целиком (картинка владельца): двери и факелы уже на нём, поверх — только мерцание огня
   guardroom: {
-    name: 'Караульная', length: 480, columns: false, torches: [120, 360],
-    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'guard', name: 'Темница' }],
-    props: [{ type: 'crate', x: 440, z: 2 }, { type: 'barrel', x: 456, z: 12 }, { type: 'bones', x: 300, z: 36 }],
+    name: 'Караульная', length: 320, image: 'assets/backgrounds/guardroom.png', torches: [],
+    flames: [[19, 77], [90, 92], [143, 80], [232, 79], [252, 90], [303, 76]],
+    doors: [{ id: 'out', x: 50, kind: 'wood', to: 'hall', toDoor: 'guard', name: 'Темница' }],
     encounters: [
-      { x: 300, enemies: [{ type: 'skelShort', dx: 40, z: 18 }, { type: 'slime', dx: 100, z: 32 }] },
+      { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'slime', dx: 80, z: 32 }] },
     ],
   },
 };
