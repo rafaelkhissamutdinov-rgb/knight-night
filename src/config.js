@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.11';
+export const VERSION = 'v0.12';
 
 export const CONFIG = {
   width: 320,
@@ -14,6 +14,7 @@ export const CONFIG = {
   depthSpeed: 42,       // шаг вглубь медленнее, чем вбок
   depthReach: 9,        // насколько можно разойтись по глубине, чтобы удар всё равно достал
   tokenPause: 0.35,     // пауза между атаками разных врагов: бьёт один, остальные ждут
+  tokenRepeat: 1.0,     // кто только что бил, пропускает других вперёд столько секунд
 
   // Защита
   perfectWindow: 0.22,  // нажал защиту не раньше чем за столько до удара → идеальное парирование
@@ -52,6 +53,7 @@ export const CONFIG = {
 // windup — замах, active — клинок разит, recover — восстановление; reach — дальность, damage — урон.
 export const WEAPON = {
   name: 'Полуторный меч',
+  spinKey: 'spin',      // приём на колесе
   length: 17,
   drawSide: -0.01,      // удар сбоку прямо из ножен — чуть быстрее обычного
   drawExtra: 0.06,      // верхний или нижний удар из ножен — чуть медленнее
@@ -69,6 +71,34 @@ export const WEAPON = {
   backdash: { distance: 26, time: 0.22, total: 0.6, ward: 0.35 },  // ward — сколько держится заслон от одного удара
   roll:     { distance: 34, time: 0.38, iframes: [0.04, 0.32], strikeWindow: 0.3 },
 };
+
+// Рапира — трофей Илиа (выпадает, когда он повержен). Быстрее и длиннее меча, слабее; свои приёмы.
+export const RAPIER = {
+  name: 'Рапира',
+  length: 22,
+  drawSide: 0,
+  drawExtra: 0,
+  spinKey: 'figure8',   // колесо — «восьмёрка»: слабая атака и блок одновременно
+  chainMax: 3,          // до трёх уколов подряд быстрыми кликами
+  chainRecover: 0.35,   // пауза после третьего укола
+  chargeTime: 0.3,      // зажать ЛКМ вверху столько — прыжок с захлёстом
+  vaultCooldown: 3,
+  riposteAfter: 2,      // столько успешных блоков подряд — автоматический рипост
+  attacks: {
+    side:       { name: 'Укол',               height: 'mid',  pose: 'thrust', windup: 0.09, active: 0.06, recover: 0.16, reach: 34, damage: 1, chain: true },
+    overhead:   { name: 'Захлёст',            height: 'high', pose: 'flick',  windup: 0.18, active: 0.08, recover: 0.26, reach: 30, damage: 2, bypass: true },
+    low:        { name: 'Нижний укол',        height: 'low',  pose: 'low',    windup: 0.12, active: 0.07, recover: 0.2,  reach: 32, damage: 1 },
+    dashCut:    { name: 'Выпад',              height: 'mid',  pose: 'thrust', windup: 0.05, active: 0.1,  recover: 0.26, reach: 38, damage: 2, move: 14 },
+    leap:       { name: 'Прыжок с уколом',    height: 'high', pose: 'high',   windup: 0.26, active: 0.1,  recover: 0.34, reach: 30, damage: 2, move: 26 },
+    rollCut:    { name: 'Подсечка',           height: 'low',  pose: 'sweep',  windup: 0.1,  active: 0.12, recover: 0.3,  reach: 32, damage: 1 },
+    // прыгает через врага и хлещет сзади: много урона, но долгая подготовка; закрылся враг — долгая отдача
+    vaultFlick: { name: 'Прыжок с захлёстом', height: 'high', pose: 'flick',  windup: 0.65, active: 0.1,  recover: 0.4,  reach: 30, damage: 4, vault: 0.4 },
+    riposte:    { name: 'Рипост',             height: 'mid',  pose: 'thrust', windup: 0.04, active: 0.06, recover: 0.15, reach: 38, damage: 1, pierce: true },
+    figure8:    { name: 'Восьмёрка',          height: 'any',  pose: 'eight',  windup: 0.05, active: 0.9,  recover: 0.2,  reach: 26, damage: 1, hits: [0.15, 0.45, 0.75], weave: true, front: true },
+  },
+};
+
+export const WEAPONS = { sword: WEAPON, rapier: RAPIER };
 
 // Удары врагов. guard — какой защитой отбивать; pose — поза замаха и удара;
 // breaks — сбивает защиту, если отбить обычным блоком (идеальное парирование спасает); mult — множитель урона;

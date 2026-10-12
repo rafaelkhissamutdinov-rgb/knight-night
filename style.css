@@ -152,3 +152,5 @@ kbd {
 .skill i { display: block; height: 100%; background: var(--muted); }
 .skill.ready { color: var(--gold); }
 .skill.ready i { background: var(--gold); }
+.weapon { font-size: 1.6cqw; color: var(--gold); }
+.weapon[hidden] { display: none; }

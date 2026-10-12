@@ -1,10 +1,10 @@
-import { CONFIG, LEVEL, VERSION, STRIKES, WEAPON } from './config.js';
+import { CONFIG, LEVEL, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
-import { drawFigure, drawSlime, drawArrow, flashColors, rect } from './draw.js';
+import { drawFigure, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES } from './poses.js';
 import { buildBackground, drawTorches } from './background.js';
 import { unlockAudio, sfx } from './audio.js';
@@ -34,7 +34,7 @@ const near = (a, b) => Math.abs(a.z - b.z) <= CONFIG.depthReach;
 const ATTACKING = new Set(['windup', 'strike', 'reel', 'leapIn', 'vault', 'crouch', 'leap', 'retreat', 'inflate', 'suck']);
 const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' };
 const RESULT_NAME = { perfect: 'идеально', block: 'блок', broken: 'защита сбита', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
-const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin']);
+const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin', 'figure8', 'vaultFlick']);
 // Управление (решение владельца после бета-теста): курсор выбирает высоту, ЛКМ — удар, держать ПКМ — защита, пробел — рывок.
 const HINT_WALK = 'WASD — ходить · курсор выше / ниже рыцаря — высота · ЛКМ удар · ПКМ защита · пробел рывок';
 const HINT_FIGHT = 'курсор — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок';
@@ -59,7 +59,7 @@ const ui = {
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'),
-  skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'),
+  skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'), skillName: $('skill-name'), weapon: $('weapon'),
 };
 ui.reportBtn.addEventListener('pointerdown', e => e.stopPropagation());
 ui.reportBtn.addEventListener('click', copyReport);
@@ -103,6 +103,11 @@ function newGame() {
     current: null,
     checkpoint: 40,
     player: new Player(40),
+    unlocked: game.unlocked ?? new Set(['sword']),  // открытое оружие сохраняется между забегами
+    pickups: [],
+    blockStreak: 0,
+    charge: null,
+    lastHolder: null,
     lastPress: null,
     prevPress: null,
     lastTiming: '',
@@ -110,7 +115,7 @@ function newGame() {
     mouseY: null,
     flags: {},
     talk: null,
-    stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0, broken: 0 },
+    stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0, broken: 0, weave: 0, riposte: 0, vault: 0, vaultHit: 0 },
     deaths: {},
     killers: {},
     missWhy: {},
@@ -128,6 +133,15 @@ function newGame() {
 const world = {
   get player() { return game.player; },
   engage() {},
+  // сколько места у врага в сторону dir до края арены
+  roomBehind(e, dir) {
+    if (!game.arena) return 999;
+    return dir > 0 ? game.arena.x + 150 - e.x : e.x - (game.arena.x - 150);
+  },
+  dropWeapon(e, kind) {
+    game.pickups.push({ kind, x: e.x - e.facing * 10, z: e.z, t: 0 });
+    callout('Рапира выбита!', 'counter');
+  },
   // бьёт один враг, остальные ждут своей очереди
   requestToken(e) {
     if (e.def.practice) return !game.arena;  // чучело не занимает очередь и молчит во время боя
@@ -135,6 +149,8 @@ const world = {
     if (t && t.e === e) return true;
     if (t && t.e.alive) return false;
     if (game.time < game.tokenFreeAt) return false;
+    // кто только что бил, пропускает других вперёд
+    if (e === game.lastHolder && game.time < game.tokenFreeAt + CONFIG.tokenRepeat && game.enemies.some(o => o !== e && o.alive && o.group === e.group && o.state !== 'dormant')) return false;
     game.token = { e, since: game.time, attacked: false };
     return true;
   },
@@ -229,7 +245,9 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
     sparks(x, y, 6, [PAL.sparkHot, PAL.flame2], 70);
     sfx.block();
     shake(1);
-    callout('Блок', 'block');
+    const weave = p.defense().weave;
+    if (weave) game.stats.weave++;
+    callout(weave ? 'Отбито восьмёркой' : 'Блок', 'block');
   } else if (result === 'broken') {
     game.stats.broken++;
     p.breakGuard(sourceX);
@@ -270,6 +288,18 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
     flash('#e8454f', 0.3);
     callout(backTurned ? `В спину! −${dmg}` : mult > 1 ? `Пропущен ×${mult}  −${dmg}` : `Пропущен  −${dmg}`, 'hit');
   }
+  // рапира: два успешных блока подряд — автоматический рипост
+  if (result === 'block' || result === 'perfect') {
+    if (p.weapon === 'rapier') {
+      game.blockStreak++;
+      if (game.blockStreak >= WEAPONS.rapier.riposteAfter && p.ready) {
+        game.blockStreak = 0;
+        p.startAttack('riposte');
+        game.stats.riposte++;
+        callout('Рипост!', 'counter');
+      }
+    }
+  } else if (result === 'hit' || result === 'broken') game.blockStreak = 0;
   return result;
 }
 
@@ -280,10 +310,11 @@ function playerStrike(atk) {
   for (const e of game.enemies) {
     if (!e.alive) continue;
     const dx = (e.x - p.x) * p.facing;
-    const inReach = atk.height === 'any' ? Math.abs(dx) <= atk.reach : dx >= -6 && dx <= atk.reach;
+    const inReach = atk.height === 'any' && !atk.front ? Math.abs(dx) <= atk.reach : dx >= -6 && dx <= atk.reach;
     if (!inReach || !near(p, e)) continue;
     touched = true;
     const { out, dmg } = e.receiveAttack(atk);
+    if (atk.key === 'vaultFlick' && (out === 'hit' || out === 'counter')) game.stats.vaultHit++;
     if (e.state === 'yield' && e.def.defeatDialogue && !e.spoke) {
       e.spoke = true;
       setTimeout(() => startTalk(e.def.defeatDialogue), 700);  // сначала встаёт на колено
@@ -324,13 +355,14 @@ function handlePlayerEvents() {
     if (ev.type === 'attackStart') {
       for (const e of game.enemies) if (e.alive && Math.abs(e.x - p.x) < 150) e.notifyAttack(ev.atk);
       if (SPECIAL.has(ev.atk.key)) callout(ev.atk.name, 'muted');
+      if (ev.atk.key === 'vaultFlick') game.stats.vault++;
     } else if (ev.type === 'strike') {
       if (ev.atk.height === 'low') dust(p.x + p.facing * 22, groundY(p.z), p.facing);
       playerStrike(ev.atk);
     } else if (ev.type === 'dash' || ev.type === 'roll' || ev.type === 'backdash') {
       sfx.dash();
     } else if (ev.type === 'spinNotReady') {
-      callout('Вихрь не готов', 'muted');
+      callout(p.weapon === 'rapier' ? 'Восьмёрка не готова' : 'Вихрь не готов', 'muted');
     } else if (ev.type === 'feint') {
       callout('Отмена', 'muted');
     } else if (ev.type === 'spit') {
@@ -361,8 +393,10 @@ function restartFight() {
   game.current = null;
   game.token = null;
   game.arrows = [];
-  game.player = new Player(game.checkpoint);
+  game.player = new Player(game.checkpoint, game.player.weapon);
   game.player.sheathed = false;
+  game.blockStreak = 0;
+  game.charge = null;
   game.lastPress = game.prevPress = null;
   game.mode = 'play';
   ui.foe.hidden = true;
@@ -391,6 +425,8 @@ function buildReport() {
     `Почему пропущено: ${Object.entries(game.missWhy).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ') || '—'}`,
     `Пропущено по высоте: верх ${game.missHeight.high ?? 0}, середина ${game.missHeight.mid ?? 0}, низ ${game.missHeight.low ?? 0}`,
     `Контратак: ${s.counter}`,
+    `Оружие: ${game.unlocked.has('rapier') ? `рапира получена, сейчас — ${game.player.arms.name.toLowerCase()}` : 'только меч'}`
+      + (game.unlocked.has('rapier') ? ` · рипостов ${s.riposte}, отбито восьмёркой ${s.weave}, прыжков с захлёстом ${s.vault} (попали ${s.vaultHit})` : ''),
   ].join('\n');
 }
 
@@ -481,11 +517,22 @@ function handlePress(code) {
   const vert = game.aim === 'high' ? 'up' : game.aim === 'low' ? 'down' : null;
   if (code === 'Wheel') {
     // прокрутка колеса — вихрь; пока перезаряжается, колесо ничего не делает
-    if (p.spinCharge < 1) callout('Вихрь не готов', 'muted');
+    if (p.spinCharge < 1) callout(p.weapon === 'rapier' ? 'Восьмёрка не готова' : 'Вихрь не готов', 'muted');
     else p.requestAttack(null, true);
   }
-  if (is(code, 'guard')) { recordGuard(game.aim); p.cancel(); }
-  if (is(code, 'attack')) p.requestAttack(vert, false);
+  if (code === 'KeyQ' && game.unlocked.has('rapier') && (p.ready || (p.state === 'attack' && p.airY === 0))) {
+    const next = p.weapon === 'sword' ? 'rapier' : 'sword';
+    p.setWeapon(next);
+    game.charge = null;
+    game.blockStreak = 0;
+    callout(WEAPONS[next].name, 'muted');
+  }
+  if (is(code, 'guard')) { recordGuard(game.aim); p.cancel(); game.charge = null; }
+  if (is(code, 'attack')) {
+    // рапира, курсор вверху: зажал — прыжок с захлёстом, щёлкнул — обычный захлёст
+    if (p.weapon === 'rapier' && vert === 'up' && p.ready) game.charge = { t: game.time };
+    else p.requestAttack(vert, false);
+  }
   if (is(code, 'dash')) {
     const back = backKeys.some(input.isDown);
     p.requestDash(vert ?? (back && engaged ? 'back' : null));
@@ -515,7 +562,7 @@ function updateAim() {
   if (game.mouseY == null) return;
   const p = game.player;
   const dy = game.mouseY - (groundY(p.z) - 22);
-  const aim = dy < -9 ? 'high' : dy > 8 ? 'low' : 'mid';
+  const aim = dy < -13 ? 'high' : dy > 12 ? 'low' : 'mid';  // середина шире (v0.12)
   if (aim !== game.aim) {
     game.aim = aim;
     if (input.isDown('Mouse2')) { recordGuard(aim); p.cancel(); }
@@ -565,6 +612,7 @@ function updateToken() {
   if (attacking) t.attacked = true;
   const stale = !t.attacked && game.time - t.since > 2.5;  // так и не ударил — пусть попробует другой
   if (!e.alive || (t.attacked && !attacking) || stale) {
+    game.lastHolder = e;
     game.token = null;
     game.tokenFreeAt = game.time + CONFIG.tokenPause;
   }
@@ -587,12 +635,12 @@ function pickTarget() {
 }
 
 function update(dt) {
+  if (game.mode === 'play') updateAim();  // высота — до нажатий этого кадра
   for (const code of input.take()) handlePress(code);
   if (game.mode !== 'play') return;
 
   game.time += dt;
   const p = game.player;
-  updateAim();
   updateArena();
   if (!game.arena) {
     // у чучела — подсказка про идеальное парирование
@@ -622,8 +670,10 @@ function update(dt) {
     else if (held('right') && !held('left')) p.facing = 1;
   }
 
+  updateCharge();
   p.update(dt, controls());
   handlePlayerEvents();
+  updatePickups(dt);
 
   for (const e of game.enemies) {
     if ((e.state === 'dead' && e.t > 2) || e.state === 'gone') continue;
@@ -634,7 +684,7 @@ function update(dt) {
   // тела не проходят друг сквозь друга (если стоят на одной линии по глубине)
   const solids = game.enemies.filter(e => e.solid && !e.def.practice);  // сквозь чучело можно пройти
   for (const e of solids) {
-    if (p.state === 'swallowed' || Math.abs(e.z - p.z) >= 8) continue;
+    if (p.state === 'swallowed' || p.airY > 4 || Math.abs(e.z - p.z) >= 8) continue;  // в прыжке — над врагом
     const d = e.x - p.x;
     if (Math.abs(d) < CONFIG.bodyGap) p.x = e.x - (Math.sign(d) || p.facing) * CONFIG.bodyGap;
   }
@@ -659,6 +709,46 @@ function update(dt) {
   const target = game.arena ? game.arena.x - W / 2 : p.x - (p.facing > 0 ? 120 : 200);
   const clamped = Math.max(0, Math.min(LEVEL.length - W, target));
   game.camX += (clamped - game.camX) * Math.min(1, dt * 5);
+}
+
+// Зажатая ЛКМ вверху с рапирой: отпустил быстро — захлёст, держал дольше chargeTime — прыжок через врага.
+function updateCharge() {
+  const c = game.charge;
+  if (!c) return;
+  const p = game.player;
+  if (p.weapon !== 'rapier' || !p.ready) { game.charge = null; return; }
+  const heldFor = game.time - c.t;
+  if (!held('attack')) {
+    game.charge = null;
+    p.requestAttack('up', false);
+    return;
+  }
+  if (heldFor < WEAPONS.rapier.chargeTime) return;
+  game.charge = null;
+  const cur = game.current?.alive ? game.current : null;
+  const target = cur && Math.abs(cur.x - p.x) < 70 && Math.sign(cur.x - p.x) === p.facing ? cur.x : p.x + p.facing * 44;
+  if (!p.requestVault(target)) {
+    callout('Прыжок не готов', 'muted');
+    p.requestAttack('up', false);
+  }
+}
+
+// Выбитое оружие лежит на полу: подошёл — подобрал.
+function updatePickups(dt) {
+  const p = game.player;
+  for (const it of game.pickups) {
+    it.t += dt;
+    if (it.taken || it.t < 0.6) continue;
+    if (Math.abs(it.x - p.x) < 10 && Math.abs(it.z - p.z) < 8) {
+      it.taken = true;
+      game.unlocked.add(it.kind);
+      p.setWeapon(it.kind);
+      game.blockStreak = 0;
+      callout('Рапира! Q — сменить оружие', 'perfect');
+      sfx.perfect();
+    }
+  }
+  game.pickups = game.pickups.filter(it => !it.taken);
 }
 
 function updateArrows(dt) {
@@ -893,6 +983,7 @@ function render() {
     rect(g, a.x - cam - 5, gy - 2, 10, 1, '#0d0b14');
     g.globalAlpha = 1;
   }
+  for (const it of game.pickups) drawPickup(g, it.x - cam, groundY(it.z), it.t);
   actors.sort((a, b) => a.z - b.z);
   for (const a of actors) a === game.player ? renderPlayer(cam) : renderEnemy(a, cam);
   if (game.current?.alive) {
@@ -915,6 +1006,11 @@ function render() {
   // перезарядка вихря в HUD
   const charge = game.player.spinCharge;
   ui.skillSpinBar.style.width = `${Math.round(charge * 100)}%`;
+  const rapier = game.player.weapon === 'rapier';
+  const skill = rapier ? 'восьмёрка' : 'вихрь';
+  if (ui.skillName.textContent !== skill) ui.skillName.textContent = skill;
+  const wl = game.unlocked.has('rapier') ? `${game.player.arms.name} · Q` : '';
+  if (ui.weapon.textContent !== wl) { ui.weapon.textContent = wl; ui.weapon.hidden = !wl; }
   ui.skillSpin.classList.toggle('ready', charge >= 1);
 }
 
@@ -945,9 +1041,9 @@ function renderEnemy(e, cam) {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
-      face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe,
+      face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
     });
-    if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 44 - e.airY);
+    if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
       // удар, который сбивает защиту, бликует оранжевым
       const c = e.strike?.breaks || e.strike?.bypass ? PAL.flame2 : PAL.spark;
@@ -967,7 +1063,7 @@ function renderPlayer(cam) {
   if (p.state === 'roll') {
     // кувырок: сгруппированный рыцарь делает полный оборот
     rollCtx.clearRect(0, 0, 48, 48);
-    drawFigure(rollCtx, { x: 24, ground: 44, facing: p.facing, pose: POSES.tuck, colors, plume: true, weaponLen: 17, scabbard: true });
+    drawFigure(rollCtx, { x: 24, ground: 44, facing: p.facing, pose: POSES.tuck, colors, plume: true, weaponLen: p.arms.length ?? 17, scabbard: p.weapon === 'sword', rapier: p.weapon === 'rapier' });
     const k = Math.min(1, p.t / WEAPON.roll.time);
     g.save();
     g.translate(Math.round(px), GROUND - 12);
@@ -977,20 +1073,28 @@ function renderPlayer(cam) {
     return;
   }
   const spinning = p.state === 'attack' && p.atk.key === 'spin' && p.phase === 'active';
+  const weaving = p.state === 'attack' && p.atk.weave && p.phase === 'active';
   const k = spinning ? (p.t - p.atk.windup) / p.atk.active : 0;
   const facing = spinning && k > 0.5 ? -p.facing : p.facing;
   const active = p.phase === 'active';
   const drawing = p.state === 'attack' && p.atk.draw && p.phase === 'windup';
 
   if (spinning) disc(px, GROUND - 27, 19);
+  const rapier = p.weapon === 'rapier';
+  if (game.charge) {
+    // копит прыжок: под рыцарем растёт полоска
+    const k = Math.min(1, (game.time - game.charge.t) / WEAPONS.rapier.chargeTime);
+    rect(g, px - 6, GROUND + 3, Math.round(12 * k), 1, PAL.gold);
+  }
   const tip = drawFigure(g, {
-    x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true,
-    weaponLen: 17, scabbard: true, bladeHidden: p.sheathed || drawing,
+    x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY,
+    weaponLen: p.arms.length ?? 17, scabbard: !rapier, rapier, offhandBack: rapier && p.state !== 'hurt',
+    bladeHidden: p.sheathed || drawing,
     trail: active ? p.trail : null,
   });
   if (active) {
     p.trail.push({ tipX: tip.tipX, tipY: tip.tipY });
-    if (p.trail.length > (spinning ? 6 : 3)) p.trail.shift();
+    if (p.trail.length > (spinning || weaving ? 6 : 3)) p.trail.shift();
   } else p.trail = [];
 
   // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
@@ -1003,20 +1107,37 @@ function renderPlayer(cam) {
   }
 }
 
-// значок высоты удара над головой врага во время замаха
+// значок высоты удара над головой врага во время замаха: крупный, с тёмной обводкой.
+// Диагональ — косая черта, мигает оранжевым: обычный блок её не держит.
 function windupHint(e, x, y) {
   const h = e.kind === 'archer' ? (e.height === 'arc' ? 'high' : e.height) : e.strike?.guard;
   if (!h) return;
-  const c = e.strike?.breaks || e.strike?.bypass || e.height === 'arc' ? PAL.flame2 : '#fff4c2';
-  heightIcon(h, x, y, c);
+  const pose = e.strike?.pose;
+  const diag = pose === 'diagUp' || pose === 'diagDown';
+  const danger = e.strike?.breaks || e.strike?.bypass || e.height === 'arc';
+  const blink = Math.floor(game.time * 12) % 2 === 0;
+  const c = diag ? (blink ? PAL.flame2 : '#ffffff') : danger ? PAL.flame2 : '#fff4c2';
+  if (diag) {
+    const up = pose === 'diagUp';
+    for (const [o, col] of [[1, '#14101e'], [0, c]]) for (let i = 0; i < 9; i++) {
+      const px = Math.round(x - 4 + i), py = Math.round(up ? y + 8 - i : y + i);
+      rect(g, px - o, py - o, 2 + o * 2, 2 + o * 2, col);
+    }
+    return;
+  }
+  heightIcon(h, x, y, c, 2);
 }
 
-// ▲ верх, ━ середина, ▼ низ
-function heightIcon(h, x, y, c) {
+// ▲ верх, ━ середина, ▼ низ; s — масштаб (2 — с тёмной обводкой)
+function heightIcon(h, x, y, c, s = 1) {
   x = Math.round(x);
   y = Math.round(y);
-  if (h === 'mid') rect(g, x - 3, y + 2, 7, 2, c);
-  else for (let i = 0; i < 4; i++) rect(g, x - i, h === 'high' ? y + i : y + 3 - i, i * 2 + 1, 1, c);
+  const shape = (col, o) => {
+    if (h === 'mid') rect(g, x - 3 * s - o, y + 2 * s - o, 7 * s + o * 2, 2 * s + o * 2, col);
+    else for (let i = 0; i < 4; i++) rect(g, x - i * s - o, (h === 'high' ? y + i * s : y + (3 - i) * s) - o, (i * 2 + 1) * s + o * 2, s + o * 2, col);
+  };
+  if (s > 1) shape('#14101e', 1);
+  shape(c, 0);
 }
 
 // бледный диск от кругового удара
@@ -1082,10 +1203,13 @@ ui.box.addEventListener('pointerdown', e => {
   ui.box.focus();
   e.preventDefault();
   if (game.mode === 'title') { input.press('Enter'); return; }
-  if (e.button === 0) input.press('Mouse0');
+  if (e.button === 0) input.setHeld('Mouse0', true);
   else if (e.button === 2) input.setHeld('Mouse2', true);
 });
-window.addEventListener('pointerup', e => { if (e.button === 2) input.setHeld('Mouse2', false); });
+window.addEventListener('pointerup', e => {
+  if (e.button === 0) input.setHeld('Mouse0', false);
+  if (e.button === 2) input.setHeld('Mouse2', false);
+});
 ui.box.addEventListener('pointermove', e => {
   const r = canvas.getBoundingClientRect();
   game.mouseY = (e.clientY - r.top) / r.height * H;

@@ -1,5 +1,5 @@
-import { CONFIG, WEAPON } from './config.js';
-import { POSES, approachPose, spinPose, ease } from './poses.js';
+import { CONFIG, WEAPON, WEAPONS } from './config.js';
+import { POSES, approachPose, spinPose, eightPose, ease } from './poses.js';
 
 // Какой удар выйдет при нажатии атаки. vert — зажатое направление ('up' | 'down' | null),
 // spin — только что нажато вперёд → назад, state / t — что рыцарь делает сейчас, sinceRoll — сколько прошло после кувырка.
@@ -13,22 +13,25 @@ export function chooseAttack({ vert, spin, state, t, sinceRoll }) {
 }
 
 // Замах с учётом ножен: сбоку из ножен — быстрее, верх и низ — медленнее.
-export function attackWindup(key, sheathed) {
-  const a = WEAPON.attacks[key];
+export function attackWindup(key, sheathed, arms = WEAPON) {
+  const a = arms.attacks[key];
   if (!sheathed) return a.windup;
-  return a.windup + (key === 'side' ? WEAPON.drawSide : WEAPON.drawExtra);
+  return a.windup + (key === 'side' ? arms.drawSide : arms.drawExtra);
 }
 
 export class Player {
-  constructor(x) {
+  constructor(x, weapon = 'sword') {
     this.x = x;
+    this.weapon = weapon;
+    this.airY = 0;
+    this.vaultReadyAt = 0;
     this.z = CONFIG.depth / 2;
     this.hp = CONFIG.playerHp;
     this.facing = 1;
     this.clock = 0;
     this.pose = { ...POSES.sheathed };
     this.guard = null;
-    this.sheathed = true;
+    this.sheathed = weapon === 'sword';
     this.idleT = 0;
     this.walking = false;
     this.step = 0;
@@ -52,6 +55,15 @@ export class Player {
   }
 
   get ready() { return this.state === 'ready'; }
+  get arms() { return WEAPONS[this.weapon]; }
+
+  setWeapon(weapon) {
+    this.weapon = weapon;
+    this.airY = 0;
+    this.sheathed = false;
+    this.atk = null;
+    if (this.state === 'attack') this.enter('ready');
+  }
 
   // фаза удара: windup → active → recover
   get phase() {
@@ -74,6 +86,8 @@ export class Player {
       dodge: (this.state === 'roll' && this.t >= r[0] && this.t <= r[1]) || this.state === 'swallowed',
       ward: this.state === 'backdash' && this.wardActive,
       attacking: this.state === 'attack',
+      // «восьмёрка» рапирой: клинок сам закрывает от лёгких ударов
+      weave: this.state === 'attack' && !!this.atk?.weave && this.phase === 'active',
       // отскок сделан раньше времени: заслон погас, а рыцарь ещё не собрался
       vulnerable: this.state === 'backdash' && !this.wardActive && !this.ward?.used,
     };
@@ -89,8 +103,15 @@ export class Player {
       spin = false;
       this.events.push({ type: 'spinNotReady' });
     }
+    // рапира: быстрые клики — серия уколов до трёх подряд
+    const a = this.atk;
+    if (this.state === 'attack' && a?.chain && !vert && !spin && this.phase !== 'windup' && a.chainIdx < this.arms.chainMax - 1) {
+      this.startAttack('side', a.chainIdx + 1);
+      return;
+    }
     const sinceRoll = this.state === 'ready' ? this.clock - this.rollEnd : Infinity;
-    const key = chooseAttack({ vert, spin, state: this.state, t: this.t, sinceRoll });
+    let key = chooseAttack({ vert, spin, state: this.state, t: this.t, sinceRoll });
+    if (key === 'spin') key = this.arms.spinKey;
     if (key === 'dashCut' || this.state === 'ready') {
       this.startAttack(key);
       return;
@@ -99,10 +120,12 @@ export class Player {
     else this.buffer = { vert, spin, until: this.clock + CONFIG.attackBuffer };
   }
 
-  startAttack(key) {
-    const a = WEAPON.attacks[key];
-    this.atk = { ...a, key, windup: attackWindup(key, this.sheathed), draw: this.sheathed, hit: 0 };
-    if (key === 'spin') this.spinReadyAt = this.clock + CONFIG.spinCooldown;
+  startAttack(key, chainIdx = 0) {
+    const arms = this.arms;
+    const a = arms.attacks[key];
+    this.atk = { ...a, key, windup: attackWindup(key, this.sheathed, arms), draw: this.sheathed, hit: 0, chainIdx };
+    if (a.chain && chainIdx === arms.chainMax - 1) this.atk.recover += arms.chainRecover;
+    if (key === arms.spinKey) this.spinReadyAt = this.clock + CONFIG.spinCooldown;
     this.sheathed = false;
     this.idleT = 0;
     this.buffer = null;
@@ -115,6 +138,7 @@ export class Player {
   // Защита во время замаха — отмена удара (финт); после удара — сразу закрыться, не дожидаясь восстановления.
   cancel() {
     if (this.state !== 'attack') return false;
+    if (this.atk.vault && this.t < this.atk.vault) return false;  // в полёте не передумаешь
     if (this.t < this.atk.windup) {
       this.atk = null;
       this.enter('ready');
@@ -127,6 +151,16 @@ export class Player {
       return true;
     }
     return false;
+  }
+
+  // Рапира: прыжок через врага (на targetX) и захлёст сзади. false — ещё перезаряжается.
+  requestVault(targetX) {
+    if (this.weapon !== 'rapier' || this.clock < this.vaultReadyAt || this.state !== 'ready') return false;
+    this.startAttack('vaultFlick');
+    this.atk.from = this.x;
+    this.atk.to = targetX + this.facing * 22;
+    this.vaultReadyAt = this.clock + this.arms.vaultCooldown;
+    return true;
   }
 
   // dir: 'up' — прыжок с ударом, 'down' — кувырок, 'back' — отскок с заслоном, иначе рывок вперёд
@@ -151,6 +185,7 @@ export class Player {
   hurt(dmg, fromX) {
     this.hp = Math.max(0, this.hp - dmg);
     this.atk = null;
+    this.airY = 0;
     this.knock = Math.sign(this.x - fromX) || -this.facing;
     this.enter('hurt');
   }
@@ -170,7 +205,7 @@ export class Player {
   // враг закрылся от удара: рыцаря немного отбрасывает, восстановление дольше
   recoil() {
     if (this.state !== 'attack') return;
-    this.atk.recover += 0.15;
+    this.atk.recover += this.atk.vault ? 0.5 : 0.15;  // прыжок с захлёстом в закрытого врага — долгая отдача
     this.x -= this.facing * 3;
   }
 
@@ -209,8 +244,9 @@ export class Player {
         if (v) forward(v * slow * dt);
         if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * CONFIG.depthSpeed * slow * dt));
         this.walking = !!(v || c.dz);
-        if (!c.engaged && !g && this.idleT > CONFIG.autoSheathe) this.sheathed = true;
-        target = this.broken ? POSES.broken : this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : POSES.idle;
+        if (this.weapon === 'sword' && !c.engaged && !g && this.idleT > CONFIG.autoSheathe) this.sheathed = true;
+        const rest = this.weapon === 'rapier' ? POSES.fence : POSES.idle;
+        target = this.broken ? POSES.broken : this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : rest;
         break;
       }
 
@@ -218,12 +254,24 @@ export class Player {
         const a = this.atk;
         const t = this.t;
         if (a.move) forward((eased(t, a.windup + a.active) - eased(t - dt, a.windup + a.active)) * a.move);
+        if (a.vault) {
+          // перелёт через врага, потом разворот и захлёст в спину
+          if (t < a.vault) {
+            this.x = a.from + (a.to - a.from) * eased(t, a.vault);
+            this.airY = Math.sin(Math.PI * Math.min(1, t / a.vault)) * 28;
+          } else if (!a.turned) {
+            a.turned = true;
+            this.airY = 0;
+            this.facing = -this.facing;
+          }
+        }
         if (t < a.windup) {
-          target = a.key === 'spin' ? POSES.windup_low : a.draw && a.key === 'side' ? POSES.draw : POSES['windup_' + a.pose];
+          target = a.key === 'spin' ? POSES.windup_low : a.vault && t < a.vault ? POSES.vault
+            : a.draw && a.key === 'side' ? POSES.draw : POSES['windup_' + (a.pose === 'eight' ? 'mid' : a.pose)];
         } else if (t < a.windup + a.active) {
           const lt = t - a.windup;
-          if (a.key === 'spin') {
-            this.pose = spinPose(lt / a.active);
+          if (a.hits) {
+            this.pose = a.key === 'spin' ? spinPose(lt / a.active) : eightPose(lt / a.active);
             while (a.hit < a.hits.length && lt >= a.hits[a.hit]) {
               this.events.push({ type: 'strike', atk: a, index: a.hit });
               a.hit++;
@@ -236,11 +284,11 @@ export class Player {
             }
           }
         } else if (t < a.windup + a.active + a.recover) {
-          target = POSES.idle;
+          target = this.weapon === 'rapier' ? POSES.fence : POSES.idle;
         } else {
           this.atk = null;
           this.enter('ready');
-          target = POSES.idle;
+          target = this.weapon === 'rapier' ? POSES.fence : POSES.idle;
         }
         break;
       }

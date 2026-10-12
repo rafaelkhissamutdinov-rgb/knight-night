@@ -143,7 +143,8 @@ class Enemy {
       this.damage(dmg);
       return { out: 'counter', dmg };
     }
-    if (atk.height !== 'any' && this.blocks(atk.height)) {
+    // захлёст огибает защиту, рипост не успеть отбить
+    if (atk.height !== 'any' && !atk.bypass && !atk.pierce && this.blocks(atk.height)) {
       this.guardT = 0.7;
       return { out: 'blocked' };
     }
@@ -327,13 +328,16 @@ class Archer extends Enemy {
 
       case 'idle':
         this.pose = approachPose(this.pose, this.guardHeight ? POSES['guard_' + this.guardHeight] : POSES.aim_mid, dt, 20);
-        if (dist < d.minDist && Math.abs(this.x - this.homeX) < 140) {
+        // загнан к краю: прыгать некуда — уходит вглубь пола с линии рыцаря и стреляет
+        const room = w.roomBehind ? w.roomBehind(this, -this.facing) : 999;
+        if (dist < d.minDist && room < 40) this.steerZ(dt, w.player.z > 22 ? 4 : 40, 26);
+        if (dist < d.minDist && room >= 40 && Math.abs(this.x - this.homeX) < 140) {
           this.hopDir = -this.facing;
           this.enter('hop');
           break;
         }
         if (dist > d.maxDist) this.walk(dt, 30, this.facing);
-        this.steerZ(dt, w.player.z, 18);
+        if (!(dist < d.minDist && room < 40)) this.steerZ(dt, w.player.z, 18);
         if (this.t >= this.waitFor) {
           const shots = this.rng() < d.volleyChance ? 2 : 1;
           this.combo = Array.from({ length: shots }, () => d.heights[Math.floor(this.rng() * d.heights.length)]);
@@ -648,6 +652,11 @@ class Duelist extends Melee {
       case 'yield':
         this.t += dt;
         this.pose = approachPose(this.pose, POSES.kneel, dt, 12);
+        if (!this.disarmed) {
+          // последний удар выбивает рапиру — её можно подобрать
+          this.disarmed = true;
+          w.dropWeapon?.(this, 'rapier');
+        }
         if (this.t >= 1.6) {
           this.facing = w.player.x < this.x ? 1 : -1;  // разворачивается прочь от рыцаря
           this.enter('flee');
