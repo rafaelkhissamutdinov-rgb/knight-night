@@ -593,3 +593,26 @@ test('копейщик: тык-тык — диск, нижних ударов н
   f.guardT = 1;
   assert.equal(f.receiveAttack({ ...WEAPON.attacks.side }).out, 'blocked');
 });
+
+test('предметы: всё, что продаёт Лика и лежит в сундуках, существует; навыки ссылаются на настоящие удары', async () => {
+  const { ITEMS, ROOMS, START_EQUIP, WEAPONS } = await import('../src/config.js');
+  const { SHOPS, ITEM_TEXTS } = await import('../src/story/dialogues.js');
+  for (const it of SHOPS.lika.items) assert.ok(ITEMS[it.id], it.id);
+  for (const r of Object.values(ROOMS)) for (const pr of r.props ?? []) if (pr.item) assert.ok(ITEMS[pr.item], pr.item);
+  for (const id of Object.values(START_EQUIP)) if (id) assert.ok(ITEMS[id], id);
+  for (const [id, item] of Object.entries(ITEMS)) {
+    assert.ok(ITEM_TEXTS[id], `описание ${id}`);
+    if (item.attack) assert.ok(WEAPONS[item.need].attacks[item.attack], item.attack);
+    if (item.learn) assert.ok(ITEMS[item.learn], item.learn);
+    if (item.weapon) assert.ok(WEAPONS[item.weapon], item.weapon);
+  }
+});
+
+test('тройной выпад: три укола за один приём', () => {
+  const p = new Player(0, 'rapier');
+  p.startAttack('tripleLunge');
+  let strikes = 0;
+  tick(p, 1, ev => { if (ev.type === 'strike') strikes++; });
+  assert.equal(strikes, 3);
+  assert.ok(p.x > 10, 'выпад вперёд');
+});

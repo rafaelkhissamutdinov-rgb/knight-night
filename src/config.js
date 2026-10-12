@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.17';
+export const VERSION = 'v0.18';
 
 export const CONFIG = {
   width: 320,
@@ -36,6 +36,7 @@ export const CONFIG = {
   runDelay: 0.35,       // через столько секунд ходьбы
   exploreDepthSpeed: 70,
   enemyMove: 1.4,       // множитель скорости передвижения врагов (не ударов)
+  respawnTime: 150,     // обычные враги возвращаются в комнату через столько секунд после победы (монеты не кончаются)
   backWalkFactor: 0.8,  // пятиться медленнее, чем идти вперёд
   bodyGap: 14,          // ближе бойцы не подходят друг к другу
   autoSheathe: 4,       // через столько секунд без боя меч уходит в ножны
@@ -98,6 +99,8 @@ export const RAPIER = {
     rollCut:    { name: 'Подсечка',           height: 'low',  pose: 'sweep',  windup: 0.1,  active: 0.12, recover: 0.3,  reach: 32, damage: 1 },
     // прыгает через врага и хлещет сзади: много урона, но долгая подготовка; закрылся враг — долгая отдача
     vaultFlick: { name: 'Прыжок с захлёстом', height: 'high', pose: 'flick',  windup: 0.65, active: 0.1,  recover: 0.4,  reach: 30, damage: 4, vault: 0.4 },
+    // навык из свитка: выпад и три молниеносных укола
+    tripleLunge: { name: 'Тройной выпад',     height: 'mid',  pose: 'thrust', windup: 0.06, active: 0.3,  recover: 0.25, reach: 40, damage: 1, move: 18, hits: [0.03, 0.13, 0.23] },
     riposte:    { name: 'Рипост',             height: 'mid',  pose: 'thrust', windup: 0.04, active: 0.06, recover: 0.15, reach: 38, damage: 1, pierce: true },
     figure8:    { name: 'Восьмёрка',          height: 'any',  pose: 'eight',  windup: 0.05, active: 0.9,  recover: 0.2,  reach: 26, damage: 1, hits: [0.15, 0.45, 0.75], weave: true, front: true },
   },
@@ -237,13 +240,31 @@ export const NPC_TYPES = {
   },
 };
 
-// Товары. price — в монетах; effect.heal — сколько сердец вернёт. Монет пока взять негде — источник решит владелец.
+// Предметы. slot — куда надевается (weapon / armor / amulet / spell / skill); use — расходник (heal — сердца);
+// price — цена у Лики; ward — щит амулета (absorb — сколько урона гасит за раз, cooldown — перезарядка, с).
+// Описания — в src/story/dialogues.js (ITEM_TEXTS).
 export const ITEMS = {
-  potion: { name: 'Зелье лечения', price: 10, effect: { heal: 3 } },
-  bandage: { name: 'Бинт', price: 4, effect: { heal: 1 } },
+  sword_old: { name: 'Старый стальной полуторный меч', slot: 'weapon', weapon: 'sword' },
+  rapier: { name: 'Рапира Илиа', slot: 'weapon', weapon: 'rapier' },
+  armor_old: { name: 'Потёртые стальные доспехи', slot: 'armor' },
+  diamond_ace: { name: 'Бубновый туз', slot: 'amulet', price: 30, ward: { absorb: 4, cooldown: 10 } },
+  journal: { name: 'Журнал', price: 15, journal: true },
+  potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
+  bandage: { name: 'Бинт', price: 4, use: { heal: 1 } },
   map: { name: 'Карта замка', price: 25 },
   key_tower: { name: 'Ключ от башни', key: true },
+  spell_bolt: { name: 'Магическая стрела', slot: 'spell' },
+  // навыки — приёмы боя на колесе (вниз); learn — изучается чтением свитка, need — нужное оружие
+  skill_triple: { name: 'Тройной выпад', slot: 'skill', attack: 'tripleLunge', need: 'rapier', cooldown: 5 },
+  scroll_fencing: { name: 'Старый свиток фехтования', price: 25, learn: 'skill_triple' },
+  golden_skull: { name: 'Золотой череп', price: 40, artifact: true },
+  silver_cup: { name: 'Серебряная чаша', artifact: true },
 };
+export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amulet', 'Амулет'], ['spell', 'Заклинание'], ['skill', 'Навык']];
+export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
+
+// Монеты с врагов (тренировочные — без монет)
+export const COINS = { slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, duelist: 10, mage: 15 };
 
 // Мир: комнаты и переходы между ними.
 // edges — выход за край комнаты (left / right): to — комната, x — где рыцарь появится там.

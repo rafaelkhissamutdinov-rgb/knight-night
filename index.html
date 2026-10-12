@@ -18,6 +18,8 @@
           <div class="hearts" id="hearts" aria-label="Здоровье"></div>
           <div class="skill" id="skill-spin" aria-label="Перезарядка приёма на колесе"><span id="skill-name">вихрь</span><b><i id="skill-spin-bar"></i></b></div>
           <div class="weapon" id="weapon" hidden></div>
+          <div class="skill" id="skill-g" hidden><span id="skill-g-name">навык</span><b><i id="skill-g-bar"></i></b></div>
+          <div class="skill ward" id="skill-ward" hidden><span>♦ туз</span><b><i id="skill-ward-bar"></i></b></div>
         </div>
         <div class="foe" id="foe" hidden>
           <span id="foe-name"></span>
@@ -37,6 +39,19 @@
           <div class="talk-choices" id="talk-choices"></div>
           <div class="talk-next" id="talk-next">ЛКМ или Enter — дальше</div>
         </div>
+      </div>
+      <div class="shop equip" id="equip" hidden>
+        <div class="equip-col">
+          <div class="shop-name">Снаряжение</div>
+          <div class="shop-menu" id="equip-slots"></div>
+          <div class="shop-coins" id="equip-coins"></div>
+        </div>
+        <div class="equip-col">
+          <div class="shop-name">Сумка</div>
+          <div class="shop-menu" id="equip-bag"></div>
+        </div>
+        <p class="shop-text equip-desc" id="equip-desc"></p>
+        <div class="shop-keys">клик или 1–9 — надеть / использовать · клик по слоту — снять · I или Esc — закрыть</div>
       </div>
       <div class="shop" id="shop" hidden>
         <div class="shop-left">
@@ -59,11 +74,11 @@
     </div>
 
     <section class="help" aria-label="Управление">
-      <div><kbd>WASD</kbd> ходить вбок и вглубь · курсор выше рыцаря — верх, на уровне груди — середина, ниже пояса — низ</div>
+      <div><kbd>WASD</kbd> ходить вбок и вглубь (вне боя сам переходит на бег) · курсор выше рыцаря — верх, на уровне груди — середина, ниже пояса — низ</div>
       <div><kbd>ЛКМ</kbd> удар на этой высоте · держать <kbd>ПКМ</kbd> — защита на этой высоте · <kbd>Пробел</kbd> рывок (внизу — кувырок, вверху — прыжок с ударом, с «назад» — отскок)</div>
-      <div>прокрутить колесо — вихрь (перезарядка 4 с) · <kbd>Esc</kbd> пауза · <kbd>G</kbd> отладка</div>
-      <div><kbd>W</kbd> у двери — войти · <kbd>E</kbd> — говорить, лавка · игра сохраняется сама; на заставке <kbd>N</kbd> — новая игра</div>
-      <div><b>Рапира</b> (выбей её у Илиа и подбери) · <kbd>Q</kbd> сменить оружие · быстрые клики — до трёх уколов подряд · вверху: щелчок — захлёст, держать <kbd>ЛКМ</kbd> — прыжок через врага с захлёстом · колесо — восьмёрка: слабо ранит и отбивает всё, кроме тяжёлых и диагональных ударов · два блока подряд — рипост</div>
+      <div>колесо вверх — приём оружия (вихрь / восьмёрка) · колесо вниз — навык из слота · <kbd>Q</kbd> сменить оружие</div>
+      <div><kbd>I</kbd> снаряжение и сумка · <kbd>H</kbd> выпить зелье · <kbd>B</kbd> журнал · <kbd>E</kbd> говорить, лавка, сундук · <kbd>W</kbd> у двери — войти · <kbd>Esc</kbd> пауза · <kbd>F3</kbd> отладка</div>
+      <div><b>Рапира</b> (выбей её у Илиа и подбери) · быстрые клики — до трёх уколов · вверху: щелчок — захлёст, держать <kbd>ЛКМ</kbd> — прыжок через врага · два блока подряд — рипост</div>
     </section>
     <p class="rules">Нажал защиту во время замаха — удар отменяется. Диагональные и тяжёлые удары (бликуют оранжевым) сбивают обычный блок: после этого отходи или бей. Захлёст (свист) огибает блок — спасает только идеальное парирование сверху или уклонение. Враг перепрыгнул за спину — развернись к нему. Шаг вглубь (W/S) уводит с линии удара. Бьёт один враг, остальные ждут очереди. Ударил, пока враг замахивается, — урон получат оба, но тебе вдвое больнее. Отбил всю серию идеально — враг открыт, удары по нему вдвое сильнее. Отскок назад спасает только от одного удара: сделал его рано — получишь вдвое. Без мыши: <kbd>J</kbd> — удар, <kbd>K</kbd> или пробел — рывок.</p>
   </main>

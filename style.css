@@ -181,3 +181,14 @@ img.shop-portrait { image-rendering: auto; object-fit: cover; }
 .skill.ready i { background: var(--gold); }
 .weapon { font-size: 1.6cqw; color: var(--gold); }
 .weapon[hidden] { display: none; }
+.weapon.gain { animation: gain 0.6s; }
+@keyframes gain { 0% { color: #fff; transform: scale(1.25); } 100% { transform: scale(1); } }
+.skill[hidden] { display: none; }
+.skill.ward.ready { color: #e8454f; }
+.skill.ward.ready i { background: #e8454f; }
+.shop.equip { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto auto; }
+.equip-col { display: grid; gap: 0.8cqw; align-content: start; }
+.equip-desc { grid-column: 1 / -1; min-height: 3cqw; font-size: 2.1cqw; color: var(--muted); }
+.equip-slot { color: var(--muted); min-width: 11cqw; }
+.equip-act { color: var(--muted); font-size: 1.7cqw; }
+.equip-empty { color: var(--muted); margin: 0; font-size: 2cqw; }

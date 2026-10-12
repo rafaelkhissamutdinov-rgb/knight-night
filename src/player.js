@@ -1,5 +1,5 @@
 import { CONFIG, WEAPON, WEAPONS } from './config.js';
-import { POSES, approachPose, spinPose, eightPose, ease } from './poses.js';
+import { POSES, approachPose, lerpPose, spinPose, eightPose, ease } from './poses.js';
 
 // Какой удар выйдет при нажатии атаки. vert — зажатое направление ('up' | 'down' | null),
 // spin — только что нажато вперёд → назад, state / t — что рыцарь делает сейчас, sinceRoll — сколько прошло после кувырка.
@@ -277,7 +277,11 @@ export class Player {
         } else if (t < a.windup + a.active) {
           const lt = t - a.windup;
           if (a.hits) {
-            this.pose = a.key === 'spin' ? spinPose(lt / a.active) : eightPose(lt / a.active);
+            if (a.pose === 'thrust') {
+              // серия уколов: рука ходит взад-вперёд, удар — в каждой точке hits
+              const k = (lt % 0.1) / 0.1;
+              this.pose = k < 0.5 ? lerpPose(POSES.windup_thrust, POSES.strike_thrust, k * 2) : lerpPose(POSES.strike_thrust, POSES.windup_thrust, (k - 0.5) * 2);
+            } else this.pose = a.key === 'spin' ? spinPose(lt / a.active) : eightPose(lt / a.active);
             while (a.hit < a.hits.length && lt >= a.hits[a.hit]) {
               this.events.push({ type: 'strike', atk: a, index: a.hit });
               a.hit++;
