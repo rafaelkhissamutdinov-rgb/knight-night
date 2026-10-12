@@ -192,3 +192,12 @@ img.shop-portrait { image-rendering: auto; object-fit: cover; }
 .equip-slot { color: var(--muted); min-width: 11cqw; }
 .equip-act { color: var(--muted); font-size: 1.7cqw; }
 .equip-empty { color: var(--muted); margin: 0; font-size: 2cqw; }
+
+/* журнал: список врагов и страница */
+.shop.journal { grid-template-columns: 28cqw 1fr; grid-template-rows: 1fr auto; }
+.journal-page { display: grid; grid-template-columns: 15cqw 1fr; gap: 2cqw; align-content: start; }
+.journal-page[hidden] { display: none; }
+.journal-text p { margin: 0 0 1cqw; font-size: 2cqw; line-height: 1.45; color: var(--fg); }
+.journal-text b { color: var(--gold); font-weight: 500; }
+.journal-text .journal-lore { color: var(--muted); font-style: italic; }
+.shop-menu button.sel { border-color: var(--gold); color: var(--gold); }
