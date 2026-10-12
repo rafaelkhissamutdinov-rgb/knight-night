@@ -35,6 +35,7 @@ export class Player {
     this.atk = null;
     this.ward = null;
     this.dashReadyAt = 0;
+    this.spinReadyAt = 0;
     this.brokenUntil = -1;
     this.rollEnd = -10;
     this.buffer = null;
@@ -78,8 +79,16 @@ export class Player {
     };
   }
 
+  // доля готовности вихря: 1 — готов
+  get spinCharge() { return Math.min(1, 1 - (this.spinReadyAt - this.clock) / CONFIG.spinCooldown); }
+
   requestAttack(vert, spin) {
     if (this.state === 'swallowed' || this.state === 'hurt') return;
+    if (spin && this.clock < this.spinReadyAt) {
+      // вихрь ещё перезаряжается — выйдет обычный удар
+      spin = false;
+      this.events.push({ type: 'spinNotReady' });
+    }
     const sinceRoll = this.state === 'ready' ? this.clock - this.rollEnd : Infinity;
     const key = chooseAttack({ vert, spin, state: this.state, t: this.t, sinceRoll });
     if (key === 'dashCut' || this.state === 'ready') {
@@ -93,6 +102,7 @@ export class Player {
   startAttack(key) {
     const a = WEAPON.attacks[key];
     this.atk = { ...a, key, windup: attackWindup(key, this.sheathed), draw: this.sheathed, hit: 0 };
+    if (key === 'spin') this.spinReadyAt = this.clock + CONFIG.spinCooldown;
     this.sheathed = false;
     this.idleT = 0;
     this.buffer = null;

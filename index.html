@@ -14,7 +14,10 @@
     <div class="game" id="game-box" tabindex="0" aria-label="Игра Knight Night">
       <canvas id="game" width="320" height="180"></canvas>
       <div class="hud">
-        <div class="hearts" id="hearts" aria-label="Здоровье"></div>
+        <div class="hud-left">
+          <div class="hearts" id="hearts" aria-label="Здоровье"></div>
+          <div class="skill" id="skill-spin" aria-label="Перезарядка вихря"><span>вихрь</span><b><i id="skill-spin-bar"></i></b></div>
+        </div>
         <div class="foe" id="foe" hidden>
           <span id="foe-name"></span>
           <div class="bar"><i id="foe-bar"></i></div>

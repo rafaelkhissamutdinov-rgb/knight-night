@@ -58,6 +58,7 @@ const ui = {
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'),
+  skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'),
 };
 ui.reportBtn.addEventListener('pointerdown', e => e.stopPropagation());
 ui.reportBtn.addEventListener('click', copyReport);
@@ -320,6 +321,8 @@ function handlePlayerEvents() {
       playerStrike(ev.atk);
     } else if (ev.type === 'dash' || ev.type === 'roll' || ev.type === 'backdash') {
       sfx.dash();
+    } else if (ev.type === 'spinNotReady') {
+      callout('Вихрь не готов', 'muted');
     } else if (ev.type === 'feint') {
       callout('Отмена', 'muted');
     } else if (ev.type === 'spit') {
@@ -895,6 +898,10 @@ function render() {
     g.globalAlpha = 1;
   }
   if (game.debug) renderDebug(cam);
+  // перезарядка вихря в HUD
+  const charge = game.player.spinCharge;
+  ui.skillSpinBar.style.width = `${Math.round(charge * 100)}%`;
+  ui.skillSpin.classList.toggle('ready', charge >= 1);
 }
 
 function renderEnemy(e, cam) {
