@@ -30,6 +30,7 @@ npm start    # python3 -m http.server 8080 → http://localhost:8080
 - `index.html`, `style.css` — страница; HUD, надписи и окно диалога — DOM поверх canvas.
 - `src/dialogue.js` — движок диалогов; `src/story/dialogues.js` — тексты (черновики) и `SHOPS` — реплики, товары и темы лавок; `docs/story.md` — сюжет владельца.
 - `src/tutorial.js` — шаги обучения у наставницы (чистая логика, есть тесты). `src/save.js` — сохранение в localStorage.
+- `assets/portraits/` — портреты для диалогов от владельца (256×256, JPG): `knight.jpg` — обычный, `knight-tired.jpg` — прищур (`mood: 'tired'` у реплики). Подключаются в `FACES` в `src/main.js`.
 - `src/background.js` — фон комнат (стены, двери, решётки), факелы, портал, бочки, паутина, темнота.
 
 Ветки: `main` — то, что видит тестер (GitHub Pages публикует `main`); `claude/parry-prototype` — старый бой в одной плоскости (v0.4); `claude/depth-prototype` — вариант A, слит в `main` в v0.8. Новые изменения — в ветке от `main`, затем PR в `main`.

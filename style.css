@@ -126,6 +126,9 @@ kbd {
 }
 .talk-portrait { width: 9cqw; height: 9cqw; image-rendering: pixelated; background: #1e1a2b; border: 0.3cqw solid var(--line); flex: none; }
 .talk-portrait[hidden] { display: none; }
+/* нарисованный портрет (рыцарь): крупнее, слева от текста */
+.talk-face { width: 17cqw; height: 17cqw; flex: none; border: 0.3cqw solid var(--line); background: #1e1a2b; object-fit: cover; }
+.talk-face[hidden] { display: none; }
 .talk-body { display: grid; gap: 0.8cqw; min-width: 0; flex: 1; }
 .talk-name { font-family: var(--pixel); font-size: 2.2cqw; color: var(--gold); }
 .talk-text { margin: 0; font-size: 2.3cqw; line-height: 1.45; color: var(--fg); min-height: 3.3cqw; }
