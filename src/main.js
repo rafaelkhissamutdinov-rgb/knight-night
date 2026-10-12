@@ -60,7 +60,11 @@ const ui = {
   overlayTitle: $('overlay-title'), overlayText: $('overlay-text'), overlayPress: $('overlay-press'),
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
+  reportBtn: $('report-btn'), reportText: $('report-text'),
 };
+ui.reportBtn.addEventListener('pointerdown', e => e.stopPropagation());
+ui.reportBtn.addEventListener('click', copyReport);
+ui.reportText.addEventListener('pointerdown', e => e.stopPropagation());
 ui.version.textContent = VERSION;
 
 const input = createInput(window);
@@ -75,7 +79,10 @@ function spawnGroup(i) {
   const enc = LEVEL.encounters[i];
   return enc.enemies.map(d => Object.assign(createEnemy(d.type, enc.x + d.dx, Math.random, d.z), { group: i }));
 }
-function spawnAll() { return LEVEL.encounters.flatMap((_, i) => spawnGroup(i)); }
+function spawnAll() {
+  const dummy = LEVEL.dummy ? [createEnemy('dummy', LEVEL.dummy.x, Math.random, LEVEL.dummy.z)] : [];
+  return dummy.concat(LEVEL.encounters.flatMap((_, i) => spawnGroup(i)));
+}
 
 function newGame() {
   Object.assign(game, {
@@ -107,7 +114,11 @@ function newGame() {
     mouseY: null,
     flags: {},
     talk: null,
-    stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0 },
+    stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0, broken: 0 },
+    deaths: {},
+    killers: {},
+    lastHitBy: '',
+    startedAt: performance.now(),
     debug: game.debug || false,
   });
   renderHearts();
@@ -121,6 +132,7 @@ const world = {
   engage() {},
   // бьёт один враг, остальные ждут своей очереди
   requestToken(e) {
+    if (e.def.practice) return !game.arena;  // чучело не занимает очередь и молчит во время боя
     const t = game.token;
     if (t && t.e === e) return true;
     if (t && t.e.alive) return false;
@@ -139,7 +151,7 @@ const world = {
     }
     // в спину бьют, если рыцарь не успел развернуться к врагу
     const backTurned = Math.sign(e.x - p.x) !== p.facing && Math.abs(e.x - p.x) > 2;
-    return applyImpact(s.guard, e.def.damage * (s.mult ?? 1), e.x, s.breaks, s.bypass, backTurned);
+    return applyImpact(s.guard, e.def.damage * (s.mult ?? 1), e.x, s.breaks, s.bypass, backTurned, e.def.name);
   },
   heavySwing(e) {
     game.waves.push({ x: e.x, z: e.z, dir: e.facing, t: 0 });
@@ -159,10 +171,10 @@ const world = {
       const T = e.def.arcTime, y0 = groundY(e.z) - 32, y1 = clashY('high', pz);
       const vx = (game.player.x - x) / T;
       const vy = (y1 - y0 - 0.5 * ARROW_G * T * T) / T;
-      game.arrows.push({ x, y: y0, z: e.z, vz: (pz - e.z) / T, vx, vy, arc: true, height: 'high', damage: e.def.damage, resolved: false, falling: false, life: 4 });
+      game.arrows.push({ who: e.def.name, x, y: y0, z: e.z, vz: (pz - e.z) / T, vx, vy, arc: true, height: 'high', damage: e.def.damage, resolved: false, falling: false, life: 4 });
       return;
     }
-    game.arrows.push({ x, y: clashY(height, e.z), z: e.z, vz: 0, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3 });
+    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz: 0, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3 });
   },
   swallow(slime) {
     const p = game.player;
@@ -178,6 +190,7 @@ const world = {
     shake(3);
     flash('#7bd88f', 0.35);
     callout(`Проглотил! −${dmg}`, 'hit');
+    game.lastHitBy = slime.def.name;
     game.stats.hit++;
     return true;
   },
@@ -192,7 +205,7 @@ const world = {
 };
 
 // Удар врага или стрела дошли до рыцаря.
-function applyImpact(height, damage, sourceX, breaks = false, bypass = false, backTurned = false) {
+function applyImpact(height, damage, sourceX, breaks = false, bypass = false, backTurned = false, who = '') {
   const p = game.player;
   const { result, mult } = resolveImpact(
     { height, time: game.time, defense: { ...p.defense(), backTurned }, lastPress: game.lastPress, prevPress: game.prevPress, breaks, bypass },
@@ -220,7 +233,7 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
     shake(1);
     callout('Блок', 'block');
   } else if (result === 'broken') {
-    game.stats.block++;
+    game.stats.broken++;
     p.breakGuard(sourceX);
     sparks(x, y, 12, [PAL.flame2, PAL.sparkHot, '#ffffff'], 110);
     sfx.block();
@@ -236,8 +249,13 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
   } else if (result === 'dodged') {
     game.stats.dodged++;
     callout('Уклон', 'muted');
+  } else if (damage === 0) {
+    // тренировка: без урона
+    callout('Пропущен · тренировка', 'muted');
+    sfx.block();
   } else {
     game.stats.hit++;
+    game.lastHitBy = who;
     const dmg = damage * mult;
     p.hurt(dmg, sourceX);
     renderHearts();
@@ -281,7 +299,7 @@ function playerStrike(atk) {
       sfx.enemyHit();
       game.hitstop = Math.max(game.hitstop, CONFIG.hitstop.strike);
       shake(2);
-      callout(`${atk.name}  −${dmg}`, 'block');
+      callout(e.def.practice ? `${atk.name} · ${HEIGHT_NAME[atk.height] ?? 'по кругу'}` : `${atk.name}  −${dmg}`, 'block');
     } else if (out === 'blocked') {
       sparks(x, y, 6, [PAL.sparkHot], 60);
       sfx.block();
@@ -321,7 +339,11 @@ function handlePlayerEvents() {
 
 function die() {
   game.mode = 'dead';
-  showOverlay('Ты пал', 'Враг ещё стоит.', 'R — снова в бой');
+  const a = game.arena ? game.arena.index : -1;
+  game.deaths[a] = (game.deaths[a] ?? 0) + 1;
+  if (game.lastHitBy) game.killers[game.lastHitBy] = (game.killers[game.lastHitBy] ?? 0) + 1;
+  showOverlay('Ты пал', `Тебя одолел: ${game.lastHitBy || 'неизвестно кто'}.`, 'R — снова в бой');
+  ui.reportBtn.hidden = false;
 }
 
 function restartFight() {
@@ -343,8 +365,45 @@ function restartFight() {
   hint(hintWalk());
 }
 
+// Отчёт для тестера: копируется кнопкой и вставляется в сообщение.
+function buildReport() {
+  const s = game.stats;
+  const mins = Math.floor((performance.now() - game.startedAt) / 60000);
+  const secs = Math.floor((performance.now() - game.startedAt) / 1000) % 60;
+  const names = i => i < 0 ? 'коридор' : LEVEL.encounters[i].enemies.map(e => ENEMY_TYPES[e.type].shortName ?? ENEMY_TYPES[e.type].name).join(' + ');
+  const deaths = Object.entries(game.deaths).map(([i, n]) => `  ${Number(i) + 1}. ${names(Number(i))} — ${n}`).join('\n') || '  ни одной';
+  const killers = Object.entries(game.killers).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`).join(', ') || '—';
+  const total = s.perfect + s.block + s.broken + s.hit + s.dodged;
+  const pct = total ? Math.round(s.perfect / total * 100) : 0;
+  return [
+    `Knight Night ${VERSION} — отчёт тестера`,
+    `Схема управления: ${game.scheme === 'mouse' ? 'мышь' : 'колесо'}`,
+    `Время: ${mins}:${String(secs).padStart(2, '0')} · пройдено встреч: ${game.cleared.size} из ${LEVEL.encounters.length}`,
+    `Смерти по встречам:`,
+    deaths,
+    `Кто убивал: ${killers}`,
+    `Удары врагов: идеально ${s.perfect} (${pct}%), блок ${s.block}, сбита защита ${s.broken}, уклон ${s.dodged}, пропущено ${s.hit}`,
+    `Контратак: ${s.counter}`,
+  ].join('\n');
+}
+
+async function copyReport() {
+  const text = buildReport();
+  try {
+    await navigator.clipboard.writeText(text);
+    ui.reportBtn.textContent = 'Скопировано ✓';
+  } catch {
+    // запасной путь: показать текст, чтобы выделить и скопировать вручную
+    ui.reportText.value = text;
+    ui.reportText.hidden = false;
+    ui.reportText.select();
+    ui.reportBtn.textContent = 'Выдели текст и скопируй';
+  }
+}
+
 function finish() {
   game.mode = 'end';
+  ui.reportBtn.hidden = false;
   const s = game.stats;
   showOverlay('Конец прототипа',
     `Идеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter}`,
@@ -372,6 +431,7 @@ function handlePress(code) {
     if (game.mode === 'play') {
       game.mode = 'paused';
       showOverlay('Пауза', 'R — начать встречу заново · C — сменить схему управления · Esc — продолжить', 'Esc — продолжить');
+      ui.reportBtn.hidden = false;
     } else if (game.mode === 'paused') {
       game.mode = 'play';
       hideOverlay();
@@ -605,7 +665,7 @@ function update(dt) {
   updateArrows(dt);
 
   // тела не проходят друг сквозь друга (если стоят на одной линии по глубине)
-  const solids = game.enemies.filter(e => e.solid);
+  const solids = game.enemies.filter(e => e.solid && !e.def.practice);  // сквозь чучело можно пройти
   for (const e of solids) {
     if (p.state === 'swallowed' || Math.abs(e.z - p.z) >= 8) continue;
     const d = e.x - p.x;
@@ -627,7 +687,7 @@ function update(dt) {
   }
 
   if (p.hp <= 0 && p.state !== 'swallowed') die();
-  else if (!game.enemies.some(e => e.alive) && p.x > LEVEL.length - 60) finish();
+  else if (!game.enemies.some(e => e.alive && !e.def.practice) && p.x > LEVEL.length - 60) finish();
 
   const target = game.arena ? game.arena.x - W / 2 : p.x - (p.facing > 0 ? 120 : 200);
   const clamped = Math.max(0, Math.min(LEVEL.length - W, target));
@@ -656,7 +716,7 @@ function updateArrows(dt) {
     const close = Math.abs(a.x - p.x) <= (a.arc ? 6 : 4) && Math.abs(a.z - p.z) <= CONFIG.depthReach - 3 && (!a.arc || a.y >= clashY('high', p.z) - 6);
     if (!a.resolved && close) {
       a.resolved = true;
-      const result = applyImpact(a.height, a.damage, a.x - Math.sign(a.vx) * 20);
+      const result = applyImpact(a.height, a.damage, a.x - Math.sign(a.vx) * 20, false, false, false, a.who);
       if (result === 'perfect' || result === 'block' || result === 'warded') {
         a.falling = true;
         a.arc = false;
@@ -822,7 +882,12 @@ function showOverlay(title, text, press) {
   ui.overlayPress.textContent = press;
   ui.overlay.hidden = false;
 }
-function hideOverlay() { ui.overlay.hidden = true; }
+function hideOverlay() {
+  ui.overlay.hidden = true;
+  ui.reportBtn.hidden = true;
+  ui.reportText.hidden = true;
+  ui.reportBtn.textContent = 'Скопировать отчёт для тестера';
+}
 
 function renderHearts() {
   const p = game.player;
@@ -890,7 +955,7 @@ function renderEnemy(e, cam) {
   if (alpha <= 0) return;
   g.globalAlpha = alpha;
   const GROUND = groundY(e.z);
-  if (CONFIG.enemyBars && e.alive && e.hp < e.def.hp) {
+  if (CONFIG.enemyBars && e.alive && !e.def.practice && e.hp < e.def.hp) {
     const w = 14, fill = Math.max(1, Math.round(w * e.hp / e.def.hp));
     const top = GROUND - (e.kind === 'slime' ? Math.round(14 * e.size) + 5 : 40) - e.airY;
     rect(g, ex - w / 2, top, w, 2, '#2d2838');

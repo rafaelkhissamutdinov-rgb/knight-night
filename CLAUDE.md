@@ -30,7 +30,7 @@ npm start    # python3 -m http.server 8080 → http://localhost:8080
 - `index.html`, `style.css` — страница; HUD, надписи и окно диалога — DOM поверх canvas.
 - `src/dialogue.js` — движок диалогов; `src/story/dialogues.js` — тексты (черновики); `docs/story.md` — сюжет владельца.
 
-Ветки: `claude/parry-prototype` — бой в одной плоскости (v0.4); `claude/depth-prototype` — вариант A с глубиной пола, группами врагов, схемой управления «мышь» и диалогами (v0.6). Активная разработка — в `claude/depth-prototype`.
+Ветки: `main` — то, что видит тестер (GitHub Pages публикует `main`); `claude/parry-prototype` — старый бой в одной плоскости (v0.4); `claude/depth-prototype` — вариант A, слит в `main` в v0.8. Новые изменения — в ветке от `main`, затем PR в `main`.
 
 ## Решения владельца
 

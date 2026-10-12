@@ -136,3 +136,11 @@ kbd {
 }
 .talk-choices button:hover, .talk-choices button:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
 .talk-next { font-family: var(--pixel); font-size: 1.6cqw; color: var(--muted); justify-self: end; }
+
+/* отчёт тестера */
+.report-btn {
+  font-family: var(--pixel); font-size: 2.1cqw; color: var(--gold); cursor: pointer;
+  background: var(--panel); border: 0.3cqw solid var(--gold-dim, #8a6a28); padding: 0.8cqw 2cqw;
+}
+.report-btn:hover, .report-btn:focus-visible { border-color: var(--gold); outline: none; }
+.report-text { width: min(90%, 60ch); font: 1.7cqw ui-monospace, monospace; color: var(--fg); background: var(--bg); border: 0.3cqw solid var(--line); }

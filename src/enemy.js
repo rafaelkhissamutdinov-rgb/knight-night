@@ -78,6 +78,7 @@ class Enemy {
 
   // сдвиг по глубине к нужной линии
   steerZ(dt, targetZ, speed = 30) {
+    if (this.def.practice) return;  // чучело стоит на месте
     const d = targetZ - this.z;
     this.z += Math.sign(d) * Math.min(Math.abs(d), speed * dt);
   }
@@ -188,7 +189,7 @@ class Enemy {
         return true;
       case 'hurt':
         this.pose = approachPose(this.pose, POSES.hurt, dt, 30);
-        this.x -= this.facing * 16 * dt;
+        if (!this.def.practice) this.x -= this.facing * 16 * dt;
         if (this.t >= 0.3) this.rest(0.6);
         return true;
       case 'dead':
@@ -222,7 +223,7 @@ class Melee extends Enemy {
         const turn = this.myTurn(w);
         const want = turn ? d.reach - 4 : d.reach + 18;
         this.steerZ(dt, turn ? w.player.z : this.homeZ);
-        if (dist > want) this.walk(dt, this.speed, this.facing);
+        if (dist > want && this.speed > 0) this.walk(dt, this.speed, this.facing);
         else {
           this.step = 0;
           this.rest();
@@ -234,13 +235,13 @@ class Melee extends Enemy {
         this.pose = approachPose(this.pose, this.restPose(), dt, 25);
         const turn = this.myTurn(w);
         this.steerZ(dt, turn ? w.player.z : this.homeZ);
-        if (dist > (turn ? d.reach + 10 : d.reach + 30)) {
+        if (dist > (turn ? d.reach + 10 : d.reach + 30) && this.speed > 0) {
           this.enter('approach');
           break;
         }
         if (turn && this.decide?.(w, dist)) break;
         if (dist < CONFIG.bodyGap + 2) this.walk(dt, this.speed * 0.6, -this.facing);
-        if (this.t >= this.waitFor && turn && Math.abs(this.z - w.player.z) <= CONFIG.depthReach) {
+        if (this.t >= this.waitFor && turn && dist <= d.reach + 4 && Math.abs(this.z - w.player.z) <= CONFIG.depthReach) {
           this.combo = this.pickCombo();
           this.idx = 0;
           this.allPerfect = true;

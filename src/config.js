@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.7-глубина';
+export const VERSION = 'v0.8';
 
 export const CONFIG = {
   width: 320,
@@ -137,6 +137,14 @@ export const ENEMY_TYPES = {
     guardChance: 0.2, reaction: 0.15, skull: true,
     colors: { ...BONE, blade: '#8a5a3b' },
   },
+  // тренировочное чучело: не умирает, медленно и без урона показывает удары на трёх высотах
+  dummy: {
+    kind: 'melee', practice: true, name: 'Чучело', hp: 9999, damage: 0, aggro: 70, reach: 32, speed: 0, lunge: 0, weapon: 15,
+    windup: 1.1, comboWindup: 0.9, gap: 0.3, recover: 1.2, wait: [1.8, 2.6],
+    combos: [['high'], ['mid'], ['low'], ['mid', 'high']],
+    guardChance: 0, reaction: 0.1,
+    colors: { armor: '#b89a5e', armorDark: '#8a6f3e', tabard: '#6b4532', helm: '#d6be86', visor: '#4a3226', blade: '#8a5a3b', hilt: '#5a3726', boots: '#6b4532' },
+  },
   duelist: {
     kind: 'duelist', name: 'Священный рыцарь — Илиа', shortName: 'Илиа', defeatDialogue: 'ilia_defeat', hp: 14, damage: 1, aggro: 150, reach: 34, speed: [30, 85], lunge: 8, weapon: 22,
     windup: 0.42, comboWindup: 0.22, gap: 0.05, recover: 0.7, wait: [0.4, 0.8],
@@ -170,6 +178,7 @@ export const ENEMY_TYPES = {
 // dx — смещение врага от центра встречи, z — глубина.
 export const LEVEL = {
   length: 2900,
+  dummy: { x: 190, z: 22 },  // чучело у входа — потренироваться до первой встречи
   encounters: [
     { x: 380, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
     { x: 860, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
