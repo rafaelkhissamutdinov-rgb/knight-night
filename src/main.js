@@ -8,6 +8,9 @@ import { drawFigure, drawSlime, drawArrow, flashColors, rect } from './draw.js';
 import { POSES } from './poses.js';
 import { buildBackground, drawTorches } from './background.js';
 import { unlockAudio, sfx } from './audio.js';
+import { DialogueRunner } from './dialogue.js';
+import { DIALOGUES, SPEAKERS } from './story/dialogues.js';
+import { ENEMY_TYPES } from './config.js';
 
 const W = CONFIG.width, H = CONFIG.height;
 const STEP = 1 / 60;
@@ -34,8 +37,12 @@ const ATTACKING = new Set(['windup', 'strike', 'leapIn', 'vault', 'crouch', 'lea
 const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' };
 const RESULT_NAME = { perfect: 'идеально', block: 'блок', broken: 'защита сбита', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
 const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin']);
+const HINT_WALK_MOUSE = 'WASD — ходить · мышь выше / ниже рыцаря — высота · ЛКМ удар · ПКМ защита · пробел рывок';
 const HINT_WALK = 'WASD — ходить по полу · ЛКМ удар · ПКМ рывок';
-const HINT_FIGHT = 'колесо вверх / нажать / вниз — стойка · W/S + ЛКМ — верх / низ · ПКМ рывок';
+const HINT_FIGHT_WHEEL = 'колесо вверх / нажать / вниз — стойка · W/S + ЛКМ — верх / низ · ПКМ рывок · C — схема';
+const HINT_FIGHT_MOUSE = 'мышь — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок · C — схема';
+const hintFight = () => (game.scheme === 'mouse' ? HINT_FIGHT_MOUSE : HINT_FIGHT_WHEEL);
+const hintWalk = () => (game.scheme === 'mouse' ? HINT_WALK_MOUSE : HINT_WALK);
 
 const canvas = document.getElementById('game');
 canvas.width = W;
@@ -51,6 +58,8 @@ const ui = {
   box: $('game-box'), hearts: $('hearts'), foe: $('foe'), foeName: $('foe-name'), foeBar: $('foe-bar'),
   callout: $('callout'), hint: $('hint'), debug: $('debug'), overlay: $('overlay'), version: $('version'),
   overlayTitle: $('overlay-title'), overlayText: $('overlay-text'), overlayPress: $('overlay-press'),
+  talk: $('talk'), talkPortrait: $('talk-portrait'), talkName: $('talk-name'), talkText: $('talk-text'),
+  talkChoices: $('talk-choices'), talkNext: $('talk-next'),
 };
 ui.version.textContent = VERSION;
 
@@ -93,6 +102,11 @@ function newGame() {
     dirHistory: [],
     lastTiming: '',
     stance: null,
+    scheme: game.scheme ?? 'mouse',  // mouse — высота по мыши; wheel — стойки на колесе
+    aim: 'mid',
+    mouseY: null,
+    flags: {},
+    talk: null,
     stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0 },
     debug: game.debug || false,
   });
@@ -248,6 +262,10 @@ function playerStrike(atk) {
     if (!inReach || !near(p, e)) continue;
     touched = true;
     const { out, dmg } = e.receiveAttack(atk);
+    if (e.state === 'yield' && e.def.defeatDialogue && !e.spoke) {
+      e.spoke = true;
+      setTimeout(() => startTalk(e.def.defeatDialogue), 700);  // сначала встаёт на колено
+    }
     const x = e.x - p.facing * 6;
     const y = e.kind === 'slime' ? groundY(e.z) - e.airY - 6 : clashY(atk.height === 'any' ? 'mid' : atk.height, e.z);
     if (out === 'counter') {
@@ -322,7 +340,7 @@ function restartFight() {
   ui.foe.hidden = true;
   renderHearts();
   hideOverlay();
-  hint(HINT_WALK);
+  hint(hintWalk());
 }
 
 function finish() {
@@ -350,6 +368,12 @@ function spinRequested() {
 }
 
 function handlePress(code) {
+  if (code === 'KeyC') {
+    game.scheme = game.scheme === 'mouse' ? 'wheel' : 'mouse';
+    callout(game.scheme === 'mouse' ? 'Схема: высота по мыши' : 'Схема: колесо и W/S', 'muted');
+    if (game.mode === 'play') hint(game.arena ? hintFight() : hintWalk());
+    return;
+  }
   if (code === 'KeyG') {
     game.debug = !game.debug;
     ui.debug.hidden = !game.debug;
@@ -359,7 +383,13 @@ function handlePress(code) {
     unlockAudio();
     game.mode = 'play';
     hideOverlay();
-    hint(HINT_WALK);
+    hint(hintWalk());
+    startTalk('intro');
+    return;
+  }
+  if (game.mode === 'talk') {
+    if (/^Digit[1-9]$/.test(code)) chooseTalk(Number(code.slice(5)) - 1);
+    else if (is(code, 'attack') || code === 'Enter' || code === 'KeyE') advanceTalk();
     return;
   }
   if (game.mode === 'dead') {
@@ -371,7 +401,7 @@ function handlePress(code) {
       newGame();
       game.mode = 'play';
       hideOverlay();
-      hint(HINT_WALK);
+      hint(hintWalk());
     }
     return;
   }
@@ -380,6 +410,21 @@ function handlePress(code) {
   const engaged = !!game.current?.alive;
   const fwdKeys = p.facing > 0 ? KEYS.right : KEYS.left;
   const backKeys = p.facing > 0 ? KEYS.left : KEYS.right;
+
+  if (game.scheme === 'mouse') {
+    // высота — по мыши: ЛКМ бьёт, ПКМ защищает, пробел — рывок на этой высоте
+    if (backKeys.includes(code)) game.dirHistory.push({ d: 'back', t: game.time });
+    if (fwdKeys.includes(code)) game.dirHistory.push({ d: 'fwd', t: game.time });
+    if (game.dirHistory.length > 4) game.dirHistory.shift();
+    const vert = game.aim === 'high' ? 'up' : game.aim === 'low' ? 'down' : null;
+    if (code === 'Mouse2') { recordGuard(game.aim); p.cancel(); }
+    if (code === 'Mouse0' || code === 'KeyJ') p.requestAttack(vert, spinRequested());
+    if (code === 'Space' || code === 'KeyK' || code === 'ShiftLeft') {
+      const back = backKeys.some(input.isDown);
+      p.requestDash(vert ?? (back && engaged ? 'back' : null));
+    }
+    return;
+  }
 
   // колесо и средняя кнопка ставят стойку, которая держится до смены, удара или рывка
   if (is(code, 'high')) { recordGuard('high'); p.cancel(); if (code.startsWith('Wheel')) game.stance = 'high'; }
@@ -416,13 +461,26 @@ function controls() {
     fwd: p.facing > 0 ? R : L,
     back: engaged && (p.facing > 0 ? L : R) && !(p.facing > 0 ? R : L),
     dz,
-    guard: input.latest(map) ?? game.stance ?? null,
+    guard: game.scheme === 'mouse' ? (input.isDown('Mouse2') ? game.aim : null) : (input.latest(map) ?? game.stance ?? null),
     engaged,
     anyInput: L || R || dz !== 0,
   };
 }
 
 // ---------- обновление ----------
+
+// Высота по мыши: курсор выше груди рыцаря — верх, ниже пояса — низ, между — середина.
+// Перевёл мышь, держа ПКМ, — это тоже нажатие защиты (можно поймать идеальное парирование).
+function updateAim() {
+  if (game.scheme !== 'mouse' || game.mouseY == null) return;
+  const p = game.player;
+  const dy = game.mouseY - (groundY(p.z) - 22);
+  const aim = dy < -9 ? 'high' : dy > 8 ? 'low' : 'mid';
+  if (aim !== game.aim) {
+    game.aim = aim;
+    if (input.isDown('Mouse2')) { recordGuard(aim); p.cancel(); }
+  }
+}
 
 // Встреча начинается, когда рыцарь подходит; коридор закрыт, пока группа жива.
 function updateArena() {
@@ -434,7 +492,9 @@ function updateArena() {
     game.checkpoint = Math.max(40, LEVEL.encounters[i].x - 140);
     for (const e of game.enemies) if (e.group === i) e.awake = true;
     ui.foe.hidden = false;
-    hint(HINT_FIGHT);
+    hint(hintFight());
+    const before = LEVEL.encounters[i].before;
+    if (before && !game.flags['seen_' + before]) startTalk(before);
     return;
   }
   const alive = game.enemies.some(e => e.group === game.arena.index && (e.alive || e.state === 'yield'));
@@ -444,7 +504,7 @@ function updateArena() {
     game.current = null;
     game.token = null;
     ui.foe.hidden = true;
-    hint(HINT_WALK);
+    hint(hintWalk());
   }
 }
 
@@ -484,6 +544,7 @@ function update(dt) {
 
   game.time += dt;
   const p = game.player;
+  updateAim();
   updateArena();
   updateToken();
   pickTarget();
@@ -599,8 +660,95 @@ function updateFx(dt) {
 
 function step(dt) {
   updateFx(dt);
+  if (game.mode === 'talk') {
+    for (const code of input.take()) handlePress(code);
+    tickTalk(dt);
+    return;
+  }
   if (game.hitstop > 0) { game.hitstop -= dt; return; }
   update(dt);
+}
+
+// ---------- диалоги ----------
+
+const portraitCtx = ui.talkPortrait.getContext('2d');
+const PORTRAITS = {
+  knight: { colors: KNIGHT_COLORS, plume: true },
+  ilia: { colors: ENEMY_TYPES.duelist.colors, face: true, rapier: true, robe: true },
+};
+
+function startTalk(id) {
+  if (!DIALOGUES[id]) return;
+  game.flags['seen_' + id] = true;
+  game.talk = new DialogueRunner(DIALOGUES, game.flags);
+  game.talk.start(id);
+  game.talkShown = 0;
+  game.resumeMode = game.mode === 'talk' ? game.resumeMode : game.mode;
+  game.mode = 'talk';
+  showLine();
+}
+
+function showLine() {
+  const line = game.talk?.current;
+  if (!line) {
+    ui.talk.hidden = true;
+    game.talk = null;
+    game.mode = game.resumeMode === 'title' ? 'play' : (game.resumeMode ?? 'play');
+    return;
+  }
+  const who = SPEAKERS[line.who] ?? SPEAKERS.narrator;
+  ui.talk.hidden = false;
+  ui.talkName.textContent = who.name;
+  ui.talkPortrait.hidden = !who.portrait;
+  if (who.portrait) {
+    portraitCtx.clearRect(0, 0, 16, 16);
+    portraitCtx.fillStyle = '#1e1a2b';
+    portraitCtx.fillRect(0, 0, 16, 16);
+    drawFigure(portraitCtx, { x: 7, ground: 40, facing: 1, pose: POSES.idle, bladeHidden: true, ...PORTRAITS[who.portrait] });
+  }
+  game.talkShown = 0;
+  ui.talkText.textContent = '';
+  ui.talkChoices.innerHTML = '';
+  ui.talkNext.hidden = !!line.choices;
+  if (line.choices) {
+    line.choices.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = `${i + 1}. ${c.text}`;
+      b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); chooseTalk(i); });
+      ui.talkChoices.appendChild(b);
+    });
+  }
+}
+
+// текст печатается по буквам; нажатие во время печати показывает строку целиком
+function tickTalk(dt) {
+  const line = game.talk?.current;
+  if (!line || !line.text) return;
+  if (game.talkShown < line.text.length) {
+    game.talkShown = Math.min(line.text.length, game.talkShown + dt * 45);
+    ui.talkText.textContent = line.text.slice(0, Math.floor(game.talkShown));
+  }
+}
+
+function advanceTalk() {
+  const line = game.talk?.current;
+  if (!line) return;
+  if (line.choices) return;
+  if (line.text && game.talkShown < line.text.length) {
+    game.talkShown = line.text.length;
+    ui.talkText.textContent = line.text;
+    return;
+  }
+  game.talk.advance();
+  showLine();
+}
+
+function chooseTalk(i) {
+  const line = game.talk?.current;
+  if (!line?.choices?.[i]) return;
+  game.talk.choose(i);
+  showLine();
 }
 
 // ---------- эффекты ----------
@@ -730,6 +878,7 @@ function renderEnemy(e, cam) {
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe,
     });
+    if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 44 - e.airY);
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
       // удар, который сбивает защиту, бликует оранжевым
       const c = e.strike?.breaks || e.strike?.bypass ? PAL.flame2 : PAL.spark;
@@ -775,12 +924,33 @@ function renderPlayer(cam) {
     if (p.trail.length > (spinning ? 6 : 3)) p.trail.shift();
   } else p.trail = [];
 
+  if (game.scheme === 'mouse') {
+    // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
+    const c = input.isDown('Mouse2') ? '#8fd3ff' : '#9f97b0';
+    heightIcon(game.aim, px - p.facing * 13, GROUND - 26, c);
+  }
   if (p.state === 'backdash' && p.wardActive) {
     // мерцающий заслон перед рыцарем
     g.globalAlpha = 0.5 + 0.3 * Math.sin(p.t * 40);
     for (let a = -1.1; a <= 1.1; a += 0.14) rect(g, px + p.facing * (6 + Math.cos(a) * 9), GROUND - 22 + Math.sin(a) * 14, 1, 1, '#8fd3ff');
     g.globalAlpha = 1;
   }
+}
+
+// значок высоты удара над головой врага во время замаха
+function windupHint(e, x, y) {
+  const h = e.kind === 'archer' ? (e.height === 'arc' ? 'high' : e.height) : e.strike?.guard;
+  if (!h) return;
+  const c = e.strike?.breaks || e.strike?.bypass || e.height === 'arc' ? PAL.flame2 : '#fff4c2';
+  heightIcon(h, x, y, c);
+}
+
+// ▲ верх, ━ середина, ▼ низ
+function heightIcon(h, x, y, c) {
+  x = Math.round(x);
+  y = Math.round(y);
+  if (h === 'mid') rect(g, x - 3, y + 2, 7, 2, c);
+  else for (let i = 0; i < 4; i++) rect(g, x - i, h === 'high' ? y + i : y + 3 - i, i * 2 + 1, 1, c);
 }
 
 // бледный диск от кругового удара
@@ -848,8 +1018,13 @@ ui.box.addEventListener('pointerdown', e => {
   e.preventDefault();
   if (game.mode === 'title') { input.press('Enter'); return; }
   if (e.button === 0) input.press('Mouse0');
-  else if (e.button === 2) input.press('Mouse2');
+  else if (e.button === 2) input.setHeld('Mouse2', true);
   else if (e.button === 1) input.press('Mouse1');
+});
+window.addEventListener('pointerup', e => { if (e.button === 2) input.setHeld('Mouse2', false); });
+ui.box.addEventListener('pointermove', e => {
+  const r = canvas.getBoundingClientRect();
+  game.mouseY = (e.clientY - r.top) / r.height * H;
 });
 ui.box.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });  // без автопрокрутки
 ui.box.addEventListener('auxclick', e => e.preventDefault());

@@ -305,3 +305,32 @@ test('Илиа перепрыгивает через рыцаря и хлеще�
   run(e, w, x => w.impacts.includes('flickBack'), 3);
   assert.ok(e.x < 110, 'приземлился по другую сторону от рыцаря');
 });
+
+// ---------- диалоги ----------
+
+test('диалог: условия, флаги и выбор с переходом', async () => {
+  const { DialogueRunner } = await import('../src/dialogue.js');
+  const { DIALOGUES } = await import('../src/story/dialogues.js');
+  const flags = {};
+  const d = new DialogueRunner(DIALOGUES, flags);
+  assert.equal(d.start('ilia_meet').who, 'ilia');
+  assert.ok(d.advance().choices);
+  assert.equal(d.choose(0).text.includes('Илиа'), true);
+  assert.equal(flags.asked_ilia_name, true);
+  assert.equal(d.advance(), null);
+  d.start('ilia_defeat');
+  const lines = [d.current.text];
+  while (d.advance()) lines.push(d.current.text);
+  assert.equal(lines.length, 2, 'одна из двух прощальных реплик выпала по условию');
+  assert.ok(lines[1].includes('имя'));
+});
+
+test('во всех диалогах переходы ведут на существующие диалоги', async () => {
+  const { DIALOGUES, SPEAKERS } = await import('../src/story/dialogues.js');
+  for (const [id, lines] of Object.entries(DIALOGUES)) {
+    for (const l of lines) {
+      assert.ok(SPEAKERS[l.who], `${id}: неизвестный говорящий ${l.who}`);
+      for (const c of l.choices ?? []) if (c.goto) assert.ok(DIALOGUES[c.goto], `${id}: нет диалога ${c.goto}`);
+    }
+  }
+});

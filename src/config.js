@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.5-глубина';
+export const VERSION = 'v0.6-глубина';
 
 export const CONFIG = {
   width: 320,
@@ -41,6 +41,7 @@ export const CONFIG = {
   // Ощущения
   hitstop: { perfect: 0.07, hit: 0.1, counter: 0.12, strike: 0.04 },
   glint: true,          // блик в момент, когда пора жать защиту
+  windupHints: true,    // значок высоты удара над врагом во время замаха: ▲ верх, ━ середина, ▼ низ (оранжевый — сбивает или огибает защиту)
   audioCues: true,      // короткий звук на замахе: верх звучит выше, низ ниже
 };
 
@@ -134,7 +135,7 @@ export const ENEMY_TYPES = {
     colors: { ...BONE, blade: '#8a5a3b' },
   },
   duelist: {
-    kind: 'duelist', name: 'Священный рыцарь — Илиа', shortName: 'Илиа', hp: 14, damage: 1, aggro: 150, reach: 34, speed: [30, 85], lunge: 8, weapon: 22,
+    kind: 'duelist', name: 'Священный рыцарь — Илиа', shortName: 'Илиа', defeatDialogue: 'ilia_defeat', hp: 14, damage: 1, aggro: 150, reach: 34, speed: [30, 85], lunge: 8, weapon: 22,
     windup: 0.42, comboWindup: 0.22, gap: 0.05, recover: 0.7, wait: [0.4, 0.8],
     combos: [
       ['thrust', 'thrust', 'thrust'], ['low', 'high'], ['low', 'mid'], ['whirl', 'whirl'],
@@ -171,6 +172,6 @@ export const LEVEL = {
     { x: 860, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
     { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
     { x: 1900, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
-    { x: 2500, enemies: [{ type: 'duelist', dx: 80, z: 22 }] },
+    { x: 2500, before: 'ilia_meet', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // before — диалог перед боем
   ],
 };

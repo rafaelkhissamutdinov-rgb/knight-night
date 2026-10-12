@@ -27,7 +27,10 @@ npm start    # python3 -m http.server 8080 → http://localhost:8080
 - `src/draw.js` — пиксельные примитивы и фигура бойца-заглушки.
 - `src/background.js`, `src/palette.js` — коридор и цвета.
 - `src/main.js` — цикл (фиксированный шаг 1/60 с), режимы title / play / dead / end, ввод (направления относительно взгляда рыцаря), объект `world` для врагов, стрелы, столкновения тел, эффекты, HUD.
-- `index.html`, `style.css` — страница; HUD и надписи — DOM поверх canvas.
+- `index.html`, `style.css` — страница; HUD, надписи и окно диалога — DOM поверх canvas.
+- `src/dialogue.js` — движок диалогов; `src/story/dialogues.js` — тексты (черновики); `docs/story.md` — сюжет владельца.
+
+Ветки: `claude/parry-prototype` — бой в одной плоскости (v0.4); `claude/depth-prototype` — вариант A с глубиной пола, группами врагов, схемой управления «мышь» и диалогами (v0.6). Активная разработка — в `claude/depth-prototype`.
 
 ## Решения владельца
 
