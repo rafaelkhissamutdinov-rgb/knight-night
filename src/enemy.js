@@ -262,6 +262,7 @@ class Melee extends Enemy {
         if (this.t >= T) {
           if (s.heavy) w.heavySwing(this);
           const result = w.impact(this, this.height);
+          this.lastResult = result;
           if (result !== 'perfect') this.allPerfect = false;
           this.enter('strike');
         }
@@ -274,7 +275,8 @@ class Melee extends Enemy {
         if (this.t >= 0.1 + d.gap) {
           this.idx++;
           if (this.idx < this.combo.length) {
-            this.enter('windup');
+            // идеально отбитый удар выбивает из ритма: пауза, в которую можно ударить
+            this.enter(this.lastResult === 'perfect' ? 'reel' : 'windup');
           } else {
             this.combo = null;
             if (this.allPerfect) {
@@ -285,6 +287,11 @@ class Melee extends Enemy {
             }
           }
         }
+        break;
+
+      case 'reel':
+        this.pose = approachPose(this.pose, POSES.stagger, dt, 20);
+        if (this.t >= CONFIG.reelTime) this.enter('windup');
         break;
     }
   }

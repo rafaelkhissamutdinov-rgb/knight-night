@@ -351,3 +351,21 @@ test('вихрь перезаряжается: второй сразу не вы
   p.requestAttack(null, true);
   assert.equal(p.atk.key, 'spin');
 });
+
+test('идеальное парирование посреди серии выбивает врага из ритма', () => {
+  const e = createEnemy('merc', 100, () => 0.99);  // серия из трёх ударов
+  const w = world(30);
+  const states = new Set();
+  let n = 0;
+  w.answer = () => (n++ === 0 ? 'perfect' : 'block');
+  const dt = 1 / 60;
+  for (let t = 0; t < 20 && e.state !== 'recover'; t += dt) { e.update(dt, w); states.add(e.state); }
+  assert.ok(states.has('reel'), 'после идеального — пауза');
+  assert.equal(e.state, 'recover');
+  // удар в паузу прерывает серию
+  const f = createEnemy('merc', 100, () => 0.99);
+  f.combo = ['mid', 'high']; f.idx = 1; f.enter('reel');
+  f.receiveAttack(WEAPON.attacks.side);
+  assert.equal(f.state, 'hurt');
+  assert.equal(f.combo, null);
+});
