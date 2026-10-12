@@ -5,6 +5,7 @@
 export const POSES = {
   idle:        { hx: 6,  hy: 6,   angle: -45,  lean: 0,  crouch: 0 },
   sheathed:    { hx: 1,  hy: 9,   angle: 160,  lean: 0,  crouch: 0 },
+  fence:       { hx: 11, hy: 3,   angle: -12,  lean: 1,  crouch: 2 },  // стойка рапириста: клинок вперёд, вторая рука за спиной
 
   // защита
   guard_high:  { hx: 4,  hy: -9,  angle: -10,  lean: 0,  crouch: 0 },
@@ -67,6 +68,12 @@ export function spinPose(k) {
   const angle = -90 + 720 * k;
   const r = angle * Math.PI / 180;
   return { hx: Math.cos(r) * 9, hy: Math.sin(r) * 7 + 2, angle, lean: 0, crouch: 2 };
+}
+
+// «Восьмёрка» рапирой перед собой: клинок ходит по диагоналям вверх-вниз. k — от 0 до 1.
+export function eightPose(k) {
+  const a = k * Math.PI * 4;
+  return { hx: 9 + Math.sin(a) * 2, hy: 2 + Math.sin(a / 2) * 6, angle: -20 + Math.sin(a) * 55, lean: 2, crouch: 2 };
 }
 
 const KEYS = ['hx', 'hy', 'angle', 'lean', 'crouch'];

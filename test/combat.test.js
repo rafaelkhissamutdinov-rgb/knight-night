@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONFIG, WEAPON } from '../src/config.js';
+import { CONFIG, WEAPON, RAPIER } from '../src/config.js';
 import { resolveImpact, slimeZone } from '../src/combat.js';
 import { createEnemy } from '../src/enemy.js';
 import { chooseAttack, attackWindup, Player } from '../src/player.js';
@@ -394,4 +394,108 @@ test('после удара защита сразу отменяет восст�
   while (p.phase === 'windup') p.update(1 / 60, c);
   assert.equal(p.phase, 'active');
   assert.equal(p.cancel(), false, 'сам удар отменить нельзя');
+});
+
+// ---------- v0.12: рапира, загнанный лучник ----------
+
+const idle = { fwd: false, back: false, guard: null, engaged: true, anyInput: false };
+function tick(p, sec, onEvent = () => {}) {
+  for (let t = 0; t < sec; t += 1 / 60) {
+    p.update(1 / 60, idle);
+    for (const ev of p.events.splice(0)) onEvent(ev);
+  }
+}
+
+test('Илиа выбивают рапиру: она падает на пол', () => {
+  const e = createEnemy('duelist', 100);
+  const w = world(60);
+  w.heavySwing = () => {};
+  w.defeated = () => {};
+  const drops = [];
+  w.dropWeapon = (who, kind) => drops.push(kind);
+  e.enter('idle');
+  e.receiveAttack({ ...WEAPON.attacks.overhead, damage: 99 });
+  run(e, w, x => x.disarmed, 3);
+  assert.deepEqual(drops, ['rapier']);
+});
+
+test('рапира: быстрые клики — до трёх уколов, после третьего пауза', () => {
+  const p = new Player(0, 'rapier');
+  let strikes = 0;
+  const count = ev => { if (ev.type === 'strike') strikes++; };
+  p.requestAttack(null, false);
+  tick(p, RAPIER.attacks.side.windup + 0.02, count);
+  p.requestAttack(null, false);
+  tick(p, RAPIER.attacks.side.windup + 0.02, count);
+  p.requestAttack(null, false);
+  assert.equal(p.atk.chainIdx, 2);
+  assert.ok(p.atk.recover > RAPIER.attacks.side.recover, 'после серии — задержка');
+  tick(p, 0.03, count);
+  p.requestAttack(null, false);   // четвёртый клик серию не продлевает
+  assert.equal(p.atk.chainIdx, 2);
+  tick(p, 1, count);
+  assert.equal(strikes, 3);
+  assert.equal(p.state, 'ready');
+});
+
+test('рапира: колесо — восьмёрка, бьёт трижды и отбивает лёгкие удары, но не тяжёлые', () => {
+  const p = new Player(0, 'rapier');
+  p.requestAttack(null, true);
+  assert.equal(p.atk.key, 'figure8');
+  let strikes = 0, weave = false;
+  tick(p, 0.3, ev => { if (ev.type === 'strike') strikes++; });
+  weave = p.defense().weave;
+  assert.ok(weave);
+  const d = { ...p.defense() };
+  assert.equal(resolveImpact({ height: 'mid', time: 5, defense: d, breaks: false }, CONFIG).result, 'block');
+  assert.equal(resolveImpact({ height: 'high', time: 5, defense: d, breaks: false, bypass: false }, CONFIG).result, 'block');
+  assert.equal(resolveImpact({ height: 'mid', time: 5, defense: d, breaks: true }, CONFIG).result, 'hit');
+  tick(p, 1.2, ev => { if (ev.type === 'strike') strikes++; });
+  assert.equal(strikes, RAPIER.attacks.figure8.hits.length);
+});
+
+test('рапира: прыжок через врага — приземляется за спиной и разворачивается', () => {
+  const p = new Player(0, 'rapier');
+  assert.ok(p.requestVault(40));
+  assert.equal(p.cancel(), false, 'в полёте не отменить');
+  let top = 0, strikes = 0;
+  for (let t = 0; t < 1.5; t += 1 / 60) {
+    p.update(1 / 60, idle);
+    top = Math.max(top, p.airY);
+    strikes += p.events.splice(0).filter(e => e.type === 'strike').length;
+  }
+  assert.ok(top > 20);
+  assert.equal(p.airY, 0);
+  assert.ok(p.x > 40, 'за спиной врага');
+  assert.equal(p.facing, -1);
+  assert.equal(strikes, 1);
+  assert.equal(p.requestVault(40), false, 'перезарядка');
+  const s = new Player(0);
+  assert.equal(s.requestVault(40), false, 'с мечом прыжка нет');
+});
+
+test('захлёст и рипост рапиры проходят сквозь защиту врага', () => {
+  for (const atk of [RAPIER.attacks.overhead, RAPIER.attacks.riposte]) {
+    const e = createEnemy('skelShield', 100);
+    e.enter('idle');
+    e.guardHeight = atk.height;
+    const { out } = e.receiveAttack({ ...atk });
+    assert.notEqual(out, 'blocked', atk.name);
+  }
+});
+
+test('лучник, прижатый к краю, не прыгает в стену, а уходит вглубь', () => {
+  const a = createEnemy('skelArcher', 100, () => 0.5);
+  const w = world(80);
+  w.roomBehind = () => 5;
+  a.rest?.();
+  a.awake = true;
+  const z0 = a.z;
+  let hopped = false;
+  for (let t = 0; t < 2; t += 1 / 60) {
+    a.update(1 / 60, w);
+    if (a.state === 'hop') hopped = true;
+  }
+  assert.equal(hopped, false);
+  assert.notEqual(a.z, z0);
 });

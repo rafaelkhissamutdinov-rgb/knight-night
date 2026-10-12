@@ -36,6 +36,7 @@ export function drawFigure(g, o) {
     x, ground, facing: f, pose, colors, step = 0, plume = false, weaponLen = 17,
     bladeHidden = false, scabbard = false, shield = false, skull = false,
     bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false, robe = false,
+    offhandBack = false,
   } = o;
   const gy = ground - airY;
   const hipX = x;
@@ -60,6 +61,13 @@ export function drawFigure(g, o) {
       rect(g, f > 0 ? hipX + half - 1 : hipX - half, y, 1, 1, colors.robeDark);
     }
     rect(g, hipX + (f > 0 ? 1 : -2), top, 1, bottom - top, colors.robeDark);
+  }
+
+  // стойка фехтовальщика: свободная рука заложена за спину — видно отставленный локоть
+  if (offhandBack) {
+    const elX = shX - 5 * f, elY = shY + 6;
+    thick(g, shX - f, shY + 2, elX, elY, 2, colors.armorDark);
+    thick(g, elX, elY, hipX - f, hipY - 3, 2, colors.armorDark);
   }
 
   // корпус и табард (у скелета — тёмные просветы между рёбрами)
@@ -179,6 +187,16 @@ export function drawArrow(g, x, y, vx, vy, stuck = false) {
   rect(g, x, y, 1, 1, '#e6e1d0');
   rect(g, x - ux * 7 - uy, y - uy * 7 + ux, 1, 1, '#e8454f');
   rect(g, x - ux * 7 + uy, y - uy * 7 - ux, 1, 1, '#e8454f');
+}
+
+// Оружие на полу (выбитая рапира): клинок вдоль пола, чашка гарды, блик бежит по клинку.
+export function drawPickup(g, x, ground, t) {
+  const y = Math.round(ground - 2 - Math.max(0, Math.sin(t * 3)) * 1);
+  thick(g, x - 9, y, x + 12, y - 1, 1, '#d6dde6');
+  rect(g, x - 11, y - 1, 3, 3, '#c9a24a');
+  rect(g, x - 13, y, 2, 1, '#6b4532');
+  const k = (t * 0.8) % 1;
+  if (k < 0.5) rect(g, Math.round(x - 9 + k * 2 * 21), y - 1, 1, 1, '#ffffff');
 }
 
 // Те же цвета, но всё белое — вспышка при попадании.
