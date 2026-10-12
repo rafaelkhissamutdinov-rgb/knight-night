@@ -34,6 +34,7 @@ export class Player {
     this.atk = null;
     this.ward = null;
     this.dashReadyAt = 0;
+    this.brokenUntil = -1;
     this.rollEnd = -10;
     this.buffer = null;
     this.knock = 0;
@@ -59,12 +60,15 @@ export class Player {
     return 'recover';
   }
 
+  get broken() { return this.clock < this.brokenUntil; }
+
   get wardActive() { return !!this.ward && !this.ward.used && this.clock <= this.ward.until; }
 
   defense() {
     const r = WEAPON.roll.iframes;
     return {
       guard: this.state === 'ready' ? this.guard : null,
+      broken: this.broken,
       dodge: (this.state === 'roll' && this.t >= r[0] && this.t <= r[1]) || this.state === 'swallowed',
       ward: this.state === 'backdash' && this.wardActive,
       attacking: this.state === 'attack',
@@ -133,6 +137,12 @@ export class Player {
     this.enter('hurt');
   }
 
+  // защиту сбили: рыцаря отбрасывает, какое-то время он не может закрыться — только отходить или бить
+  breakGuard(fromX) {
+    this.brokenUntil = this.clock + CONFIG.guardBreakTime;
+    this.x += (Math.sign(this.x - fromX) || -this.facing) * 10;
+  }
+
   swallowedBy(slime) {
     this.atk = null;
     this.swallower = slime;
@@ -168,7 +178,7 @@ export class Player {
             if (this.state !== 'ready') break;
           }
         }
-        const g = c.guard;
+        const g = this.broken ? null : c.guard;
         this.guard = g;
         if (g || c.anyInput) this.idleT = 0;
         if (g) this.sheathed = false;
@@ -181,7 +191,7 @@ export class Player {
           this.walking = true;
         }
         if (!c.engaged && !g && this.idleT > CONFIG.autoSheathe) this.sheathed = true;
-        target = this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : POSES.idle;
+        target = this.broken ? POSES.broken : this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : POSES.idle;
         break;
       }
 

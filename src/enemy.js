@@ -1,14 +1,16 @@
-import { CONFIG, ENEMY_TYPES } from './config.js';
+import { CONFIG, ENEMY_TYPES, STRIKES } from './config.js';
 import { POSES, lerpPose, approachPose, ease } from './poses.js';
 import { slimeZone } from './combat.js';
 
-// world — то, что враг знает о мире: world.player (x, …), world.engage(e), world.impact(e, height) → результат,
-// world.spawnArrow(e, height), world.swallow(e) → получилось ли, world.cue(height), world.staggered(e).
+// world — то, что враг знает о мире: world.player (x, …), world.engage(e), world.impact(e, strikeType) → результат,
+// world.spawnArrow(e, height), world.swallow(e) → получилось ли, world.cue(height), world.staggered(e),
+// world.heavySwing(e) — эффект тяжёлого взмаха, world.defeated(e) — мини-босс отступил.
 
 export function createEnemy(type, x, rng = Math.random) {
   const kind = ENEMY_TYPES[type].kind;
   if (kind === 'slime') return new Slime(type, x, rng);
   if (kind === 'archer') return new Archer(type, x, rng);
+  if (kind === 'duelist') return new Duelist(type, x, rng);
   return new Melee(type, x, rng);
 }
 
@@ -50,6 +52,7 @@ class Enemy {
   get canGuard() { return this.alive && (this.state === 'idle' || this.state === 'approach' || this.state === 'dormant'); }
   get windupTime() { return this.idx === 0 ? this.def.windup : this.def.comboWindup; }
   get height() { return this.combo ? this.combo[this.idx] : null; }
+  get strike() { return STRIKES[this.height] ?? STRIKES.mid; }
   get glint() { return this.state === 'windup' && this.t >= this.windupTime - CONFIG.perfectWindow; }
 
   dist(w) { return Math.abs(w.player.x - this.x); }
@@ -57,6 +60,17 @@ class Enemy {
   walk(dt, speed, dir) {
     this.x += dir * speed * dt;
     this.step += dt * 10;
+  }
+
+  // скорость шага: у кого-то задана диапазоном — тогда каждый раз своя
+  get speed() {
+    const s = this.def.speed;
+    if (!Array.isArray(s)) return s;
+    if (this.state !== this.speedFor) {
+      this.speedFor = this.state;
+      this.curSpeed = s[0] + this.rng() * (s[1] - s[0]);
+    }
+    return this.curSpeed;
   }
 
   rest(scale = 1) {
@@ -192,7 +206,7 @@ class Melee extends Enemy {
 
       case 'approach':
         this.pose = approachPose(this.pose, this.restPose(), dt, 20);
-        if (dist > d.reach - 4) this.walk(dt, d.speed, this.facing);
+        if (dist > d.reach - 4) this.walk(dt, this.speed, this.facing);
         else {
           this.step = 0;
           this.rest();
@@ -205,7 +219,8 @@ class Melee extends Enemy {
           this.enter('approach');
           break;
         }
-        if (dist < CONFIG.bodyGap + 2) this.walk(dt, d.speed * 0.6, -this.facing);
+        if (this.decide?.(w, dist)) break;
+        if (dist < CONFIG.bodyGap + 2) this.walk(dt, this.speed * 0.6, -this.facing);
         if (this.t >= this.waitFor) {
           this.combo = this.pickCombo();
           this.idx = 0;
@@ -216,15 +231,16 @@ class Melee extends Enemy {
 
       case 'windup': {
         const T = this.windupTime;
-        const h = this.height;
+        const s = this.strike;
         // быстро принимает позу замаха и замирает — эта пауза и есть подсказка
-        this.pose = lerpPose(this.from, POSES['windup_' + h], ease(Math.min(1, this.t / (T * 0.55))));
+        this.pose = lerpPose(this.from, POSES['windup_' + s.pose], ease(Math.min(1, this.t / (T * 0.55))));
         if (!this.cued && this.t >= T * 0.55) {
           this.cued = true;
-          w.cue(h);
+          w.cue(s.guard);
         }
         if (this.t >= T) {
-          const result = w.impact(this, h);
+          if (s.heavy) w.heavySwing(this);
+          const result = w.impact(this, this.height);
           if (result !== 'perfect') this.allPerfect = false;
           this.enter('strike');
         }
@@ -232,7 +248,7 @@ class Melee extends Enemy {
       }
 
       case 'strike':
-        this.pose = lerpPose(this.from, POSES['strike_' + this.height], ease(Math.min(1, this.t / 0.07)));
+        this.pose = lerpPose(this.from, POSES['strike_' + this.strike.pose], ease(Math.min(1, this.t / 0.07)));
         if (this.t < 0.1) this.x += this.facing * d.lunge * dt / 0.1;
         if (this.t >= 0.1 + d.gap) {
           this.idx++;
@@ -311,10 +327,11 @@ class Archer extends Enemy {
         const T = this.windupTime;
         const h = this.height;
         this.pose = lerpPose(this.from, POSES['aim_' + h], ease(Math.min(1, this.t / (T * 0.4))));
+        // навесную стрелу отбивают верхней защитой
         this.bowDraw = Math.min(1, this.t / (T * 0.7));
         if (!this.cued && this.t >= T * 0.55) {
           this.cued = true;
-          w.cue(h);
+          w.cue(h === 'arc' ? 'high' : h);
         }
         if (this.t >= T) {
           w.spawnArrow(this, h);
@@ -497,5 +514,96 @@ class Slime extends Enemy {
         shrink();
         break;
     }
+  }
+}
+
+// Мини-босс с рапирой. Самый богатый набор ударов, отпрыгивает и врывается, меняет скорость шага.
+// Побеждённый не умирает: встаёт на колено, смотрит вверх и убегает — он ещё появится.
+class Duelist extends Melee {
+  get solid() { return this.alive && this.airY < 6; }
+
+  damage(dmg) {
+    this.hp = Math.max(0, this.hp - dmg);
+    this.flashT = 0.1;
+    if (this.hp <= 0) {
+      this.alive = false;
+      this.combo = null;
+      this.airY = 0;
+      this.enter('yield');
+      return;
+    }
+    if (this.state === 'windup' || this.state === 'strike' || this.state === 'leapIn') return;
+    this.combo = null;
+    this.enter('hurt');
+  }
+
+  // решение в паузе между сериями: отпрыгнуть, ворваться или ждать серию
+  decide(w, dist) {
+    if (this.t < this.waitFor) return false;
+    const r = this.rng();
+    const d = this.def;
+    if (r < d.leapBackChance && dist < d.reach + 6) {
+      this.leapDir = -this.facing;
+      this.enter('leapBack');
+      return true;
+    }
+    if (r < d.leapBackChance + d.leapInChance && dist > 24) {
+      this.leapDir = this.facing;
+      this.enter('leapIn');
+      return true;
+    }
+    return false;
+  }
+
+  update(dt, w) {
+    const d = this.def;
+    if (this.state === 'yield' || this.state === 'flee') this.flashT = Math.max(0, this.flashT - dt);
+    switch (this.state) {
+      case 'leapBack':
+      case 'leapIn': {
+        this.t += dt;
+        this.flashT = Math.max(0, this.flashT - dt);
+        const T = this.state === 'leapBack' ? 0.4 : 0.35;
+        const k = Math.min(1, this.t / T);
+        const dist = this.dist(w);
+        const travel = this.state === 'leapIn' ? Math.max(0, dist - d.reach + 6) : d.leapDistance;
+        this.x += this.leapDir * travel * (ease(k) - ease(Math.max(0, (this.t - dt) / T)));
+        this.airY = Math.sin(Math.PI * k) * (this.state === 'leapBack' ? 14 : 10);
+        this.pose = approachPose(this.pose, this.state === 'leapIn' ? POSES.windup_thrust : POSES.guard_mid, dt, 25);
+        if (this.t >= T) {
+          this.airY = 0;
+          if (this.state === 'leapIn') {
+            // врывается и сразу колет
+            this.combo = ['thrust', 'thrust', 'thrust'];
+            this.idx = 1;
+            this.allPerfect = true;
+            this.enter('windup');
+          } else this.rest(0.5);
+        }
+        return;
+      }
+
+      case 'yield':
+        this.t += dt;
+        this.pose = approachPose(this.pose, POSES.kneel, dt, 12);
+        if (this.t >= 1.6) {
+          this.facing = w.player.x < this.x ? 1 : -1;  // разворачивается прочь от рыцаря
+          this.enter('flee');
+          w.defeated?.(this);
+        }
+        return;
+
+      case 'flee':
+        this.t += dt;
+        this.pose = approachPose(this.pose, POSES.idle, dt, 15);
+        this.x += this.facing * 190 * dt;
+        this.step += dt * 18;
+        if (this.t >= 2.5) this.enter('gone');
+        return;
+
+      case 'gone':
+        return;
+    }
+    super.update(dt, w);
   }
 }

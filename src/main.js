@@ -1,15 +1,17 @@
-import { CONFIG, LEVEL, VERSION } from './config.js';
+import { CONFIG, LEVEL, VERSION, STRIKES, WEAPON } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
-import { drawFigure, drawBall, drawSlime, drawArrow, flashColors, rect } from './draw.js';
+import { drawFigure, drawSlime, drawArrow, flashColors, rect } from './draw.js';
+import { POSES } from './poses.js';
 import { buildBackground, drawTorches } from './background.js';
 import { unlockAudio, sfx } from './audio.js';
 
 const W = CONFIG.width, H = CONFIG.height, GROUND = CONFIG.ground;
 const STEP = 1 / 60;
+const ARROW_G = 300;
 
 const KEYS = {
   left: ['ArrowLeft', 'KeyA'],
@@ -18,18 +20,23 @@ const KEYS = {
   down: ['ArrowDown', 'KeyS'],
   attack: ['Mouse0', 'KeyJ', 'KeyZ'],
   dash: ['Mouse2', 'KeyK', 'KeyX', 'Space', 'ShiftLeft'],
+  mid: ['Mouse1', 'Wheel', 'KeyE'],
 };
 const CLASH_Y = { high: GROUND - 34, mid: GROUND - 22, low: GROUND - 9 };
 const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' };
-const RESULT_NAME = { perfect: 'идеально', block: 'блок', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
+const RESULT_NAME = { perfect: 'идеально', block: 'блок', broken: 'защита сбита', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
+const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin']);
 const HINT_WALK = '← → идти · ЛКМ удар · ПКМ рывок';
-const HINT_FIGHT = '↑ ↓ или назад — защита · ЛКМ удар · ПКМ рывок · всё управление под игрой';
+const HINT_FIGHT = '↑ ↓ колёсико — защита · ЛКМ удар · ПКМ рывок';
 
 const canvas = document.getElementById('game');
 canvas.width = W;
 canvas.height = H;
 const g = canvas.getContext('2d');
 g.imageSmoothingEnabled = false;
+const rollCanvas = document.createElement('canvas');
+rollCanvas.width = rollCanvas.height = 48;
+const rollCtx = rollCanvas.getContext('2d');
 
 const $ = id => document.getElementById(id);
 const ui = {
@@ -58,6 +65,7 @@ function newGame() {
     camX: 0,
     particles: [],
     arrows: [],
+    waves: [],
     enemies: LEVEL.enemies.map(e => createEnemy(e.type, e.x)),
     current: null,
     checkpoint: 40,
@@ -85,19 +93,38 @@ const world = {
     renderFoe();
     hint(HINT_FIGHT);
   },
-  impact(e, height) {
+  impact(e, type) {
     const p = game.player;
+    const s = STRIKES[type] ?? STRIKES.mid;
     if (Math.abs(p.x - e.x) > e.def.reach + 2) {
-      game.lastTiming = `${HEIGHT_NAME[height]}: мимо — рыцарь вне досягаемости`;
+      game.lastTiming = `${HEIGHT_NAME[s.guard]}: мимо — рыцарь вне досягаемости`;
       callout('Мимо', 'muted');
       sfx.swish();
       return 'miss';
     }
-    return applyImpact(height, e.def.damage, e.x);
+    return applyImpact(s.guard, e.def.damage * (s.mult ?? 1), e.x, s.breaks);
+  },
+  heavySwing(e) {
+    game.waves.push({ x: e.x, dir: e.facing, t: 0 });
+    sfx.heavy();
+    shake(2);
+  },
+  defeated(e) {
+    callout(`${e.def.name} отступил`, 'counter');
+    game.stats.counter++;
   },
   spawnArrow(e, height) {
     sfx.bow();
-    game.arrows.push({ x: e.x + e.facing * 8, y: CLASH_Y[height], vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3 });
+    const x = e.x + e.facing * 8;
+    if (height === 'arc') {
+      // навесная: летит дугой и падает туда, где рыцарь стоял в момент выстрела
+      const T = e.def.arcTime, y0 = GROUND - 32, y1 = CLASH_Y.high;
+      const vx = (game.player.x - x) / T;
+      const vy = (y1 - y0 - 0.5 * ARROW_G * T * T) / T;
+      game.arrows.push({ x, y: y0, vx, vy, arc: true, height: 'high', damage: e.def.damage, resolved: false, falling: false, life: 4 });
+      return;
+    }
+    game.arrows.push({ x, y: CLASH_Y[height], vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3 });
   },
   swallow(slime) {
     const p = game.player;
@@ -124,10 +151,10 @@ const world = {
 };
 
 // Удар врага или стрела дошли до рыцаря.
-function applyImpact(height, damage, sourceX) {
+function applyImpact(height, damage, sourceX, breaks = false) {
   const p = game.player;
   const { result, mult } = resolveImpact(
-    { height, time: game.time, defense: p.defense(), lastPress: game.lastPress, prevPress: game.prevPress },
+    { height, time: game.time, defense: p.defense(), lastPress: game.lastPress, prevPress: game.prevPress, breaks },
     CONFIG,
   );
   const lp = game.lastPress;
@@ -151,6 +178,14 @@ function applyImpact(height, damage, sourceX) {
     sfx.block();
     shake(1);
     callout('Блок', 'block');
+  } else if (result === 'broken') {
+    game.stats.block++;
+    p.breakGuard(sourceX);
+    sparks(x, y, 12, [PAL.flame2, PAL.sparkHot, '#ffffff'], 110);
+    sfx.block();
+    sfx.heavy();
+    shake(2.5);
+    callout('Защита сбита!', 'hit');
   } else if (result === 'warded') {
     p.ward.used = true;
     game.stats.block++;
@@ -221,7 +256,9 @@ function handlePlayerEvents() {
   for (const ev of p.events.splice(0)) {
     if (ev.type === 'attackStart') {
       for (const e of game.enemies) if (e.alive && Math.abs(e.x - p.x) < 150) e.notifyAttack(ev.atk);
+      if (SPECIAL.has(ev.atk.key)) callout(ev.atk.name, 'muted');
     } else if (ev.type === 'strike') {
+      if (ev.atk.height === 'low') dust(p.x + p.facing * 22, p.facing);
       playerStrike(ev.atk);
     } else if (ev.type === 'dash' || ev.type === 'roll' || ev.type === 'backdash') {
       sfx.dash();
@@ -315,10 +352,8 @@ function handlePress(code) {
 
   if (is(code, 'up')) { recordGuard('high'); p.cancel(); }
   if (is(code, 'down')) { recordGuard('low'); p.cancel(); }
-  if (backKeys.includes(code)) {
-    game.dirHistory.push({ d: 'back', t: game.time });
-    if (engaged) { recordGuard('mid'); p.cancel(); }
-  }
+  if (is(code, 'mid')) { recordGuard('mid'); p.cancel(); }
+  if (backKeys.includes(code)) game.dirHistory.push({ d: 'back', t: game.time });
   if (fwdKeys.includes(code)) game.dirHistory.push({ d: 'fwd', t: game.time });
   if (game.dirHistory.length > 4) game.dirHistory.shift();
 
@@ -340,10 +375,10 @@ function controls() {
   const map = {};
   for (const c of KEYS.up) map[c] = 'high';
   for (const c of KEYS.down) map[c] = 'low';
-  if (engaged) for (const c of (p.facing > 0 ? KEYS.left : KEYS.right)) map[c] = 'mid';
+  for (const c of KEYS.mid) map[c] = 'mid';
   return {
     fwd: p.facing > 0 ? R : L,
-    back: engaged && (p.facing > 0 ? L : R),
+    back: engaged && (p.facing > 0 ? L : R) && !(p.facing > 0 ? R : L),
     guard: input.latest(map),
     engaged,
     anyInput: L || R || held('up') || held('down'),
@@ -372,7 +407,7 @@ function update(dt) {
   handlePlayerEvents();
 
   for (const e of game.enemies) {
-    if (e.state === 'dead' && e.t > 2) continue;
+    if ((e.state === 'dead' && e.t > 2) || e.state === 'gone') continue;
     e.update(dt, world);
   }
   updateArrows(dt);
@@ -385,7 +420,7 @@ function update(dt) {
   }
   p.x = Math.max(16, Math.min(LEVEL.length - 16, p.x));
 
-  if (game.current && !game.current.alive && game.current.t > 0.8) {
+  if (game.current && !game.current.alive && game.current.state !== 'yield' && game.current.t > 0.8) {
     game.current = null;
     ui.foe.hidden = true;
     hint(HINT_WALK);
@@ -407,17 +442,27 @@ function updateArrows(dt) {
   const p = game.player;
   for (const a of game.arrows) {
     a.life -= dt;
+    if (a.stuck) continue;
     a.x += a.vx * dt;
-    if (a.falling) {
-      a.vy += 300 * dt;
+    if (a.falling || a.arc) {
+      a.vy += ARROW_G * dt;
       a.y += a.vy * dt;
-      continue;
+      if (a.y >= GROUND - 1) {
+        // воткнулась в пол
+        a.y = GROUND - 1;
+        a.stuck = true;
+        a.life = Math.min(a.life, 1);
+        continue;
+      }
+      if (a.falling) continue;
     }
-    if (!a.resolved && Math.abs(a.x - p.x) <= 4) {
+    const near = Math.abs(a.x - p.x) <= (a.arc ? 6 : 4) && (!a.arc || a.y >= CLASH_Y.high - 6);
+    if (!a.resolved && near) {
       a.resolved = true;
       const result = applyImpact(a.height, a.damage, a.x - Math.sign(a.vx) * 20);
       if (result === 'perfect' || result === 'block' || result === 'warded') {
         a.falling = true;
+        a.arc = false;
         a.vx = -a.vx * 0.3;
         a.vy = -60;
       } else if (result === 'hit') {
@@ -426,6 +471,8 @@ function updateArrows(dt) {
     }
   }
   game.arrows = game.arrows.filter(a => a.life > 0 && a.y < H);
+  for (const w of game.waves) w.t += dt;
+  game.waves = game.waves.filter(w => w.t < 0.35);
 }
 
 function updateFx(dt) {
@@ -455,6 +502,16 @@ function sparks(x, y, n, colors, speed) {
     game.particles.push({
       x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40,
       life: 0.2 + Math.random() * 0.25, color: colors[i % colors.length],
+    });
+  }
+}
+
+function dust(x, dir) {
+  for (let i = 0; i < 8; i++) {
+    game.particles.push({
+      x: x + (Math.random() - 0.5) * 10, y: GROUND - 1,
+      vx: dir * (20 + Math.random() * 50), vy: -20 - Math.random() * 40,
+      life: 0.25 + Math.random() * 0.2, color: i % 2 ? '#6b6377' : '#4f4868',
     });
   }
 }
@@ -511,7 +568,8 @@ function render() {
 
   for (const e of game.enemies) renderEnemy(e, cam);
   renderPlayer(cam);
-  for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, Math.sign(a.vx) || 1);
+  for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck);
+  for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
 
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -525,6 +583,7 @@ function render() {
 }
 
 function renderEnemy(e, cam) {
+  if (e.state === 'gone') return;
   const ex = e.x - cam;
   if (ex < -50 || ex > W + 50) return;
   let alpha = 1;
@@ -537,14 +596,19 @@ function renderEnemy(e, cam) {
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) rect(g, ex - 1, GROUND - e.airY - 16, 3, 3, PAL.spark);
   } else {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
+    const whirl = e.state === 'strike' && e.strike?.pose === 'whirl';
+    if (whirl) disc(ex, GROUND - 27 - e.airY, 20);
     const tip = drawFigure(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
+      face: e.kind === 'duelist', rapier: e.kind === 'duelist',
     });
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
-      rect(g, tip.tipX - 2, tip.tipY, 5, 1, PAL.spark);
-      rect(g, tip.tipX, tip.tipY - 2, 1, 5, PAL.spark);
+      // удар, который сбивает защиту, бликует оранжевым
+      const c = e.strike?.breaks ? PAL.flame2 : PAL.spark;
+      rect(g, tip.tipX - 2, tip.tipY, 5, 1, c);
+      rect(g, tip.tipX, tip.tipY - 2, 1, 5, c);
     }
   }
   g.globalAlpha = 1;
@@ -556,7 +620,15 @@ function renderPlayer(cam) {
   const px = p.x - cam;
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   if (p.state === 'roll') {
-    drawBall(g, px, GROUND, p.t, colors);
+    // кувырок: сгруппированный рыцарь делает полный оборот
+    rollCtx.clearRect(0, 0, 48, 48);
+    drawFigure(rollCtx, { x: 24, ground: 44, facing: p.facing, pose: POSES.tuck, colors, plume: true, weaponLen: 17, scabbard: true });
+    const k = Math.min(1, p.t / WEAPON.roll.time);
+    g.save();
+    g.translate(Math.round(px), GROUND - 12);
+    g.rotate(p.facing * k * Math.PI * 2);
+    g.drawImage(rollCanvas, -24, -30);
+    g.restore();
     return;
   }
   const spinning = p.state === 'attack' && p.atk.key === 'spin' && p.phase === 'active';
@@ -565,21 +637,15 @@ function renderPlayer(cam) {
   const active = p.phase === 'active';
   const drawing = p.state === 'attack' && p.atk.draw && p.phase === 'windup';
 
-  if (spinning) {
-    // диск от вихря
-    g.globalAlpha = 0.3;
-    const cy = GROUND - 27;
-    for (let a = 0; a < Math.PI * 2; a += 0.12) rect(g, px + Math.cos(a) * 19, cy + Math.sin(a) * 15, 1, 1, '#ffffff');
-    g.globalAlpha = 1;
-  }
+  if (spinning) disc(px, GROUND - 27, 19);
   const tip = drawFigure(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true,
     weaponLen: 17, scabbard: true, bladeHidden: p.sheathed || drawing,
-    trail: active && !spinning ? p.trail : null,
+    trail: active ? p.trail : null,
   });
-  if (active && !spinning) {
+  if (active) {
     p.trail.push({ tipX: tip.tipX, tipY: tip.tipY });
-    if (p.trail.length > 3) p.trail.shift();
+    if (p.trail.length > (spinning ? 6 : 3)) p.trail.shift();
   } else p.trail = [];
 
   if (p.state === 'backdash' && p.wardActive) {
@@ -588,6 +654,26 @@ function renderPlayer(cam) {
     for (let a = -1.1; a <= 1.1; a += 0.14) rect(g, px + p.facing * (6 + Math.cos(a) * 9), GROUND - 22 + Math.sin(a) * 14, 1, 1, '#8fd3ff');
     g.globalAlpha = 1;
   }
+}
+
+// бледный диск от кругового удара
+function disc(x, cy, r) {
+  g.globalAlpha = 0.22;
+  for (let a = 0; a < Math.PI * 2; a += 0.1) rect(g, x + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8, 1, 1, '#ffffff');
+  g.globalAlpha = 1;
+}
+
+// тяжёлый взмах двуручника: дуга в воздухе и волна пыли по полу
+function renderWave(w, cam) {
+  const k = w.t / 0.35;
+  const x = w.x - cam;
+  g.globalAlpha = 1 - k;
+  for (let a = -1.4; a <= 0.9; a += 0.08) {
+    const r = 30 + k * 10;
+    rect(g, x + w.dir * Math.cos(a) * r, GROUND - 27 + Math.sin(a) * r * 0.8, 2, 1, '#e6e1d0');
+  }
+  for (let i = 0; i < 10; i++) rect(g, x + w.dir * (14 + k * 44 + i * 2), GROUND - 1 - (i % 3), 2, 1, '#6b6377');
+  g.globalAlpha = 1;
 }
 
 // G — отладка: полоса замаха, окно идеального парирования, защита врага.
@@ -600,11 +686,12 @@ function renderDebug(cam) {
     rect(g, x0 + w * Math.min(1, e.t / T), 166, 1, 8, '#ffffff');
   }
   const p = game.player;
-  let extra = `рыцарь: ${p.state}${p.atk ? ' · ' + p.atk.name + ' · ' + p.phase : ''}`;
+  let extra = `рыцарь: ${p.state}${p.atk ? ' · ' + p.atk.name + ' · ' + p.phase : ''}${p.broken ? ' · защита сбита' : ''}`;
   if (e) {
     extra += ` · враг: ${e.state}`;
     if (e.kind === 'slime') extra += ` · бить: ${HEIGHT_NAME[e.zone] ?? 'любой'}`;
     else if (e.guardHeight) extra += ` · закрыт: ${HEIGHT_NAME[e.guardHeight]}`;
+    if (e.state === 'windup') extra += ` · удар: ${e.height} → защита ${HEIGHT_NAME[e.strike.guard]}${e.strike.breaks ? ', сбивает' : ''}`;
     if (e.def.shield) extra += ' · щит: верх и середина';
     rect(g, e.x - cam - 1, GROUND + 4, 2, 2, '#7bd88f');
   }
@@ -627,14 +714,28 @@ function frame(now) {
 }
 
 // ЛКМ — удар, ПКМ — рывок; на заставке клик запускает игру
+// ЛКМ — удар, ПКМ — рывок, средняя кнопка (зажать) или прокрутка колёсика — средняя защита
 ui.box.addEventListener('pointerdown', e => {
   ui.box.focus();
-  if (e.button !== 0 && e.button !== 2) return;
   e.preventDefault();
-  if (game.mode === 'title') input.press('Enter');
-  else input.press(e.button === 0 ? 'Mouse0' : 'Mouse2');
+  if (game.mode === 'title') { input.press('Enter'); return; }
+  if (e.button === 0) input.press('Mouse0');
+  else if (e.button === 2) input.press('Mouse2');
+  else if (e.button === 1) input.setHeld('Mouse1', true);
 });
+window.addEventListener('pointerup', e => { if (e.button === 1) input.setHeld('Mouse1', false); });
+ui.box.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });  // без автопрокрутки
+ui.box.addEventListener('auxclick', e => e.preventDefault());
 ui.box.addEventListener('contextmenu', e => e.preventDefault());
+let wheelTimer = null;
+ui.box.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (game.mode !== 'play') return;
+  // одна прокрутка — одно нажатие защиты, пока она держится
+  if (!wheelTimer) input.setHeld('Wheel', true);
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(() => { wheelTimer = null; input.setHeld('Wheel', false); }, CONFIG.wheelGuard * 1000);
+}, { passive: false });
 
 newGame();
 ui.debug.hidden = true;

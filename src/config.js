@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.2';
+export const VERSION = 'v0.3';
 
 export const CONFIG = {
   width: 320,
@@ -12,6 +12,8 @@ export const CONFIG = {
   perfectWindow: 0.16,  // нажал защиту не раньше чем за столько до удара → идеальное парирование
   mashLockout: 0.3,     // если перед этим жал защиту чаще, идеального не будет (защита от «спама»)
   counterWindow: 1.3,   // сколько враг ошеломлён после идеально отбитой серии
+  guardBreakTime: 0.7,  // сколько нельзя защищаться после сбитой защиты
+  wheelGuard: 0.3,      // прокрутка колёсика держит среднюю защиту столько секунд
 
   // Урон
   counterMult: 2,       // во сколько раз больнее бьёшь ошеломлённого врага
@@ -20,7 +22,7 @@ export const CONFIG = {
 
   // Передвижение
   walkSpeed: 64,
-  backWalkFactor: 0.6,  // пятиться в средней защите медленнее
+  backWalkFactor: 0.8,  // пятиться медленнее, чем идти вперёд
   bodyGap: 14,          // ближе бойцы не подходят друг к другу
   autoSheathe: 4,       // через столько секунд без боя меч уходит в ножны
 
@@ -48,7 +50,7 @@ export const WEAPON = {
     low:      { name: 'Нижний',           height: 'low',  pose: 'low',  windup: 0.18, active: 0.08, recover: 0.24, reach: 30, damage: 1 },
     dashCut:  { name: 'Удар в рывке',     height: 'mid',  pose: 'mid',  windup: 0.05, active: 0.1,  recover: 0.28, reach: 32, damage: 2, move: 10 },
     leap:     { name: 'Прыжок с ударом',  height: 'high', pose: 'high', windup: 0.26, active: 0.1,  recover: 0.34, reach: 30, damage: 3, move: 26 },
-    rollCut:  { name: 'Подсечка',         height: 'low',  pose: 'low',  windup: 0.08, active: 0.08, recover: 0.26, reach: 30, damage: 2 },
+    rollCut:  { name: 'Подсечка',         height: 'low',  pose: 'sweep', windup: 0.1, active: 0.12, recover: 0.3, reach: 32, damage: 2 },
     spin:     { name: 'Вихрь',            height: 'any',  pose: 'spin', windup: 0.1,  active: 0.6,  recover: 0.32, reach: 34, damage: 1, hits: [0.2, 0.5] },
   },
   dash:     { distance: 28, time: 0.2, cooldown: 0.45 },
@@ -56,7 +58,23 @@ export const WEAPON = {
   roll:     { distance: 34, time: 0.38, iframes: [0.04, 0.32], strikeWindow: 0.3 },
 };
 
+// Удары врагов. guard — какой защитой отбивать; pose — поза замаха и удара;
+// breaks — сбивает защиту, если отбить обычным блоком (идеальное парирование спасает); mult — множитель урона.
+export const STRIKES = {
+  high:      { guard: 'high', pose: 'high' },
+  mid:       { guard: 'mid',  pose: 'mid' },
+  low:       { guard: 'low',  pose: 'low' },
+  thrust:    { guard: 'mid',  pose: 'thrust' },
+  whirl:     { guard: 'mid',  pose: 'whirl' },
+  diagUp:    { guard: 'mid',  pose: 'diagUp',   breaks: true, mult: 2 },  // снизу вверх по диагонали — выглядит не как верх и не как низ
+  diagDown:  { guard: 'mid',  pose: 'diagDown', breaks: true, mult: 2 },  // сверху вниз по диагонали
+  heavyHigh: { guard: 'high', pose: 'high', breaks: true, mult: 1.5, heavy: true },
+  heavyMid:  { guard: 'mid',  pose: 'mid',  breaks: true, mult: 1.5, heavy: true },
+  heavyLow:  { guard: 'low',  pose: 'low',  breaks: true, mult: 1.5, heavy: true },
+};
+
 const BONE = { armor: '#d9d4c3', armorDark: '#a39d8a', tabard: '#2b2633', helm: '#e6e1d0', visor: '#14101e', boots: '#a39d8a', blade: '#b9c2cc', hilt: '#6b4532', shield: '#5a3726' };
+const BONE_LEATHER = { ...BONE, tabard: '#6b4532', armorDark: '#7a5a3a' };  // скелет в кожаной броне
 
 // Враги. kind: melee — ближний бой, archer — лучник, slime — слизень.
 // aggro — с какого расстояния замечает; reach — дальность удара; windup / comboWindup — замах первого и следующих
@@ -84,11 +102,11 @@ export const ENEMY_TYPES = {
     colors: BONE,
   },
   skelLong: {
-    kind: 'melee', name: 'Скелет с длинным мечом', hp: 4, damage: 2, aggro: 140, reach: 40, speed: 35, lunge: 8, weapon: 25, skull: true,
-    windup: 0.85, comboWindup: 0.6, gap: 0.12, recover: 1.2, wait: [1, 1.5],
-    combos: [['high'], ['mid'], ['high', 'low'], ['mid', 'high']],
-    guardChance: 0.5, reaction: 0.14,
-    colors: BONE,
+    kind: 'melee', name: 'Скелет с двуручником', hp: 6, damage: 2, aggro: 150, reach: 50, speed: 32, lunge: 10, weapon: 28, skull: true,
+    windup: 0.95, comboWindup: 0.7, gap: 0.15, recover: 1.2, wait: [1, 1.4],
+    combos: [['heavyHigh'], ['heavyMid'], ['heavyHigh', 'heavyMid'], ['heavyMid', 'heavyLow']],  // первый сбивает защиту — второй уже не отбить
+    guardChance: 0.35, reaction: 0.14,
+    colors: { ...BONE_LEATHER },
   },
   skelShield: {
     kind: 'melee', name: 'Скелет со щитом', hp: 4, damage: 1, aggro: 130, reach: 26, speed: 40, lunge: 4, weapon: 13, skull: true, shield: true,
@@ -100,9 +118,20 @@ export const ENEMY_TYPES = {
   skelArcher: {
     kind: 'archer', name: 'Скелет-лучник', hp: 2, damage: 1, aggro: 190,
     windup: 0.9, comboWindup: 0.55, recover: 0.7, wait: [0.6, 1.1],
-    heights: ['high', 'mid', 'low'], volleyChance: 0.4, minDist: 70, maxDist: 160, arrowSpeed: 150,
+    heights: ['high', 'mid', 'low', 'arc'], volleyChance: 0.4, arcTime: 1.1, minDist: 70, maxDist: 160, arrowSpeed: 150,  // arc — навесная стрела, падает на голову
     guardChance: 0.2, reaction: 0.15, skull: true,
     colors: { ...BONE, blade: '#8a5a3b' },
+  },
+  duelist: {
+    kind: 'duelist', name: 'Незнакомец с рапирой', hp: 14, damage: 1, aggro: 150, reach: 34, speed: [30, 85], lunge: 8, weapon: 22,
+    windup: 0.42, comboWindup: 0.22, gap: 0.05, recover: 0.7, wait: [0.4, 0.8],
+    combos: [
+      ['thrust', 'thrust', 'thrust'], ['low', 'high'], ['low', 'mid'], ['whirl', 'whirl'],
+      ['diagUp'], ['diagDown'], ['thrust', 'diagDown'], ['mid', 'diagUp'],
+    ],
+    leapBackChance: 0.18, leapInChance: 0.25, leapDistance: 64,
+    guardChance: 0.6, reaction: 0.08,
+    colors: { armor: '#3a2a3a', armorDark: '#24182a', tabard: '#e6e1d0', helm: '#d9a87e', visor: '#14101e', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#1c1828', hair: '#14101e' },
   },
   // из первого прототипа, пока не на уровне
   guard: {
@@ -123,7 +152,7 @@ export const ENEMY_TYPES = {
 
 // Коридор прототипа: длина и враги по порядку.
 export const LEVEL = {
-  length: 2300,
+  length: 2750,
   enemies: [
     { type: 'slime', x: 340 },
     { type: 'merc', x: 650 },
@@ -131,5 +160,6 @@ export const LEVEL = {
     { type: 'skelArcher', x: 1300 },
     { type: 'skelShield', x: 1620 },
     { type: 'skelLong', x: 1950 },
+    { type: 'duelist', x: 2400 },  // мини-босс: не умирает, а отступает
   ],
 };

@@ -19,6 +19,21 @@ export const POSES = {
   windup_low:  { hx: -6, hy: 11,  angle: 150,  lean: 3,  crouch: 5 },
   strike_low:  { hx: 11, hy: 12,  angle: 15,   lean: 4,  crouch: 5 },
 
+  // укол рапирой: клинок горизонтально у груди, рука взведена → выпад
+  windup_thrust: { hx: -2, hy: 3,  angle: 0,    lean: -1, crouch: 1 },
+  strike_thrust: { hx: 15, hy: 3,  angle: 0,    lean: 7,  crouch: 3 },
+  // вихрь врага: клинок уходит вниз, затем круговой удар
+  windup_whirl:  { hx: -6, hy: 11, angle: 150,  lean: 3,  crouch: 5 },
+  strike_whirl:  { hx: 10, hy: 2,  angle: 10,   lean: 2,  crouch: 2 },
+  // диагонали: клинок явно под 45°, не похоже ни на верх, ни на низ
+  windup_diagUp:   { hx: 2,  hy: 9,  angle: 135,  lean: 1, crouch: 3 },
+  strike_diagUp:   { hx: 11, hy: -4, angle: -45,  lean: 5, crouch: 0 },
+  windup_diagDown: { hx: 2,  hy: -2, angle: -135, lean: 0, crouch: 0 },
+  strike_diagDown: { hx: 11, hy: 8,  angle: 45,   lean: 5, crouch: 2 },
+  // подсечка после кувырка: низко, клинок идёт вдоль пола
+  windup_sweep:  { hx: -6, hy: 13, angle: 178,  lean: 3,  crouch: 8 },
+  strike_sweep:  { hx: 13, hy: 14, angle: 4,    lean: 5,  crouch: 8 },
+
   // удар прямо из ножен: рука у пояса, затем рывок вперёд с наклоном
   draw:        { hx: 0,  hy: 9,   angle: 165,  lean: 3,  crouch: 1 },
   strike_draw: { hx: 13, hy: 5,   angle: 5,    lean: 6,  crouch: 2 },
@@ -31,6 +46,11 @@ export const POSES = {
   aim_high:    { hx: 8,  hy: -3,  angle: -25,  lean: 0,  crouch: 0 },
   aim_mid:     { hx: 9,  hy: 2,   angle: 0,    lean: 1,  crouch: 0 },
   aim_low:     { hx: 9,  hy: 4,   angle: 12,   lean: 2,  crouch: 6 },
+  aim_arc:     { hx: 6,  hy: -6,  angle: -60,  lean: -2, crouch: 1 },
+
+  broken:      { hx: 2,  hy: -4,  angle: -130, lean: -4, crouch: 1 },  // защиту сбили: меч отброшен
+  tuck:        { hx: 4,  hy: 4,   angle: -60,  lean: 4,  crouch: 8 },  // сгруппировался в кувырке
+  kneel:       { hx: 5,  hy: 10,  angle: 90,   lean: 1,  crouch: 9 },  // на одном колене, меч упёрт в пол
 
   hurt:        { hx: 4,  hy: 8,   angle: 50,   lean: -3, crouch: 0 },
   stagger:     { hx: 1,  hy: -3,  angle: -115, lean: -4, crouch: 0 },

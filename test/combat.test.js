@@ -216,3 +216,67 @@ test('лучник отпрыгивает, если подойти близко,
   b.rest();
   run(b, far, () => far.impacts.some(i => i.startsWith('arrow')));
 });
+
+// ---------- v0.3: сбитая защита, диагонали, мини-босс ----------
+
+test('тяжёлый и диагональный удар сбивают защиту при обычном блоке', () => {
+  const r = resolveImpact({ height: 'mid', time: 5, defense: def({ guard: 'mid' }), lastPress: at('mid', 4.5), breaks: true }, CONFIG);
+  assert.equal(r.result, 'broken');
+  const perfect = resolveImpact({ height: 'mid', time: 5, defense: def({ guard: 'mid' }), lastPress: at('mid', 4.9), breaks: true }, CONFIG);
+  assert.equal(perfect.result, 'perfect');
+});
+
+test('со сбитой защитой следующий удар проходит', () => {
+  assert.equal(impact('high', 5, { guard: 'high', broken: true }, at('high', 4.9)).result, 'hit');
+  const p = new Player(0);
+  p.sheathed = false;
+  p.breakGuard(20);
+  const c = { fwd: false, back: false, guard: 'high', engaged: true, anyInput: true };
+  p.update(1 / 60, c);
+  assert.equal(p.defense().guard, null);
+  assert.equal(p.defense().broken, true);
+});
+
+test('диагонали отбиваются средней защитой', async () => {
+  const { STRIKES } = await import('../src/config.js');
+  assert.equal(STRIKES.diagUp.guard, 'mid');
+  assert.equal(STRIKES.diagDown.guard, 'mid');
+  assert.ok(STRIKES.diagUp.breaks && STRIKES.heavyHigh.breaks);
+});
+
+test('двуручник: после сбитой защиты второй удар серии не отбить', () => {
+  const e = createEnemy('skelLong', 100, () => 0.99); // серия heavyMid → heavyLow
+  const w = world(60);
+  w.heavySwing = () => {};
+  let broken = false;
+  w.answer = () => {
+    if (!broken) { broken = true; return 'broken'; }
+    return 'hit';
+  };
+  run(e, w, x => x.state === 'recover');
+  assert.equal(w.impacts.length, 2);
+});
+
+test('мини-босс не умирает, а встаёт на колено и убегает', () => {
+  const e = createEnemy('duelist', 100);
+  const w = world(60);
+  w.heavySwing = () => {};
+  let fled = false;
+  w.defeated = () => (fled = true);
+  e.enter('idle');
+  e.receiveAttack({ ...WEAPON.attacks.overhead, damage: 99 });
+  assert.equal(e.state, 'yield');
+  assert.equal(e.alive, false);
+  run(e, w, x => x.state === 'gone', 6);
+  assert.ok(fled);
+  assert.ok(e.x > 100, 'убегает прочь от рыцаря');
+});
+
+test('мини-босс врывается прыжком и сразу колет', () => {
+  const e = createEnemy('duelist', 200, () => 0.3);  // 0.3 → прыжок вперёд
+  const w = world(100);
+  w.heavySwing = () => {};
+  e.rest();
+  run(e, w, x => x.state === 'leapIn', 5);
+  run(e, w, x => w.impacts.includes('thrust'), 5);
+});

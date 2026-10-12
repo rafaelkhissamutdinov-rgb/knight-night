@@ -35,7 +35,7 @@ export function drawFigure(g, o) {
   const {
     x, ground, facing: f, pose, colors, step = 0, plume = false, weaponLen = 17,
     bladeHidden = false, scabbard = false, shield = false, skull = false,
-    bow = false, bowDraw = 0, airY = 0, trail = null,
+    bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false,
   } = o;
   const gy = ground - airY;
   const hipX = x;
@@ -66,7 +66,17 @@ export function drawFigure(g, o) {
   // голова
   const headX = shX - 3 + f;
   const headY = shY - 9;
-  if (skull) {
+  if (face) {
+    // лицо без шлема: длинные чёрные волосы ниже плеч, щетина, тонкие усы и бородка
+    const back = f > 0 ? headX : headX + 5;
+    rect(g, back, headY + 1, 2, 12, colors.hair);
+    rect(g, headX, headY, 7, 7, colors.helm);
+    rect(g, headX, headY - 1, 7, 2, colors.hair);
+    rect(g, back, headY + 1, 2, 4, colors.hair);
+    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 2, 1, 1, colors.visor);
+    rect(g, f > 0 ? headX + 4 : headX + 1, headY + 4, 2, 1, colors.hair);
+    rect(g, f > 0 ? headX + 3 : headX + 1, headY + 6, 3, 1, colors.hair);
+  } else if (skull) {
     rect(g, headX, headY + 1, 7, 6, colors.helm);
     rect(g, f > 0 ? headX + 4 : headX + 1, headY + 3, 2, 2, colors.visor);
     rect(g, f > 0 ? headX + 3 : headX + 1, headY + 6, 3, 1, colors.armorDark);
@@ -114,26 +124,15 @@ export function drawFigure(g, o) {
     }
     thick(g, handX + dx * 2, handY + dy * 2, tipX, tipY, 1, colors.blade);
     const gx = handX + dx * 2, gyy = handY + dy * 2;
-    thick(g, gx - dy * 2, gyy + dx * 2, gx + dy * 2, gyy - dx * 2, 1, colors.hilt);
+    if (rapier) {
+      // чашка гарды вокруг кисти
+      rect(g, handX - 1, handY - 1, 3, 3, colors.hilt);
+    } else {
+      thick(g, gx - dy * 2, gyy + dx * 2, gx + dy * 2, gyy - dx * 2, 1, colors.hilt);
+    }
     rect(g, handX - dx * 2, handY - dy * 2, 1, 1, colors.hilt);
   }
   return { tipX, tipY, handX, handY };
-}
-
-// Кувырок: рыцарь свернулся в клубок.
-export function drawBall(g, x, ground, t, colors) {
-  const r = 7, cx = Math.round(x), cy = ground - 8;
-  for (let dy = -r; dy <= r; dy++) {
-    for (let dx = -r; dx <= r; dx++) {
-      const d = dx * dx + dy * dy;
-      if (d > r * r) continue;
-      g.fillStyle = d > (r - 2) * (r - 2) ? colors.armorDark : colors.armor;
-      g.fillRect(cx + dx, cy + dy, 1, 1);
-    }
-  }
-  const a = t * 18;
-  rect(g, cx + Math.cos(a) * 4 - 1, cy + Math.sin(a) * 4 - 1, 3, 3, colors.plume);
-  rect(g, cx - Math.cos(a) * 4, cy - Math.sin(a) * 4, 2, 2, colors.tabard);
 }
 
 export function drawSlime(g, { x, ground, airY, size, squash, colors, facing, holding }) {
@@ -159,11 +158,14 @@ export function drawSlime(g, { x, ground, airY, size, squash, colors, facing, ho
   rect(g, ex + 2, base - h * 0.55, 1, 2, colors.eye);
 }
 
-export function drawArrow(g, x, y, dir) {
-  thick(g, x - dir * 7, y, x, y, 1, '#a39d8a');
+// Стрела по направлению полёта; воткнувшаяся — наклонно в полу.
+export function drawArrow(g, x, y, vx, vy, stuck = false) {
+  const len = Math.hypot(vx, vy) || 1;
+  const ux = stuck ? 0.6 : vx / len, uy = stuck ? 0.8 : vy / len;
+  thick(g, x - ux * 7, y - uy * 7, x, y, 1, '#a39d8a');
   rect(g, x, y, 1, 1, '#e6e1d0');
-  rect(g, x - dir * 7, y - 1, 1, 1, '#e8454f');
-  rect(g, x - dir * 7, y + 1, 1, 1, '#e8454f');
+  rect(g, x - ux * 7 - uy, y - uy * 7 + ux, 1, 1, '#e8454f');
+  rect(g, x - ux * 7 + uy, y - uy * 7 - ux, 1, 1, '#e8454f');
 }
 
 // Те же цвета, но всё белое — вспышка при попадании.

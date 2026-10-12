@@ -28,5 +28,14 @@ export function createInput(target = window) {
     },
     take: () => queue.splice(0),
     press: code => queue.push(code),
+    // кнопки мыши: зажатие и отпускание приходят не с клавиатуры
+    setHeld(code, down) {
+      const i = order.indexOf(code);
+      if (i >= 0) order.splice(i, 1);
+      if (down) {
+        order.push(code);
+        queue.push(code);
+      }
+    },
   };
 }
