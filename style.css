@@ -137,6 +137,28 @@ kbd {
 .talk-choices button:hover, .talk-choices button:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
 .talk-next { font-family: var(--pixel); font-size: 1.6cqw; color: var(--muted); justify-self: end; }
 
+/* лавка: как в Undertale — продавец, его реплика и меню */
+.shop {
+  position: absolute; inset: 4cqw 5cqw;
+  display: grid; grid-template-columns: 16cqw 1fr 31cqw; grid-template-rows: 1fr auto; gap: 1.5cqw 2.5cqw;
+  background: rgba(13, 11, 20, 0.96); border: 0.4cqw solid var(--line); padding: 2.2cqw;
+}
+.shop[hidden] { display: none; }
+.shop-left { display: grid; gap: 0.8cqw; align-content: start; justify-items: center; }
+.shop-portrait { width: 15cqw; height: 15cqw; image-rendering: pixelated; background: #1e1a2b; border: 0.3cqw solid var(--line); }
+.shop-name { font-family: var(--pixel); font-size: 2.4cqw; color: var(--gold); }
+.shop-coins { font-family: var(--pixel); font-size: 1.8cqw; color: var(--muted); }
+.shop-text { margin: 0; font-size: 2.4cqw; line-height: 1.5; color: var(--fg); }
+.shop-menu { display: grid; gap: 0.7cqw; align-content: start; }
+.shop-menu button {
+  font: inherit; font-size: 2.1cqw; text-align: left; color: var(--fg); cursor: pointer;
+  display: flex; justify-content: space-between; gap: 1cqw; white-space: nowrap;
+  background: var(--panel); border: 0.3cqw solid var(--line); padding: 0.6cqw 1cqw;
+}
+.shop-menu button:hover, .shop-menu button:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
+.shop-menu button.muted { color: var(--muted); }
+.shop-keys { grid-column: 1 / -1; font-family: var(--pixel); font-size: 1.6cqw; color: var(--muted); justify-self: end; }
+
 /* отчёт тестера */
 .report-btn {
   font-family: var(--pixel); font-size: 2.1cqw; color: var(--gold); cursor: pointer;

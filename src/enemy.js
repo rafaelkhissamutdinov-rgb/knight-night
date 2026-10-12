@@ -10,7 +10,7 @@ import { slimeZone } from './combat.js';
 
 export function createEnemy(type, x, rng = Math.random, z = 22) {
   const kind = ENEMY_TYPES[type].kind;
-  const Cls = kind === 'slime' ? Slime : kind === 'archer' ? Archer : kind === 'duelist' ? Duelist : Melee;
+  const Cls = kind === 'slime' ? Slime : kind === 'archer' ? Archer : kind === 'duelist' ? Duelist : kind === 'trainer' ? Trainer : Melee;
   const e = new Cls(type, x, rng);
   e.z = e.homeZ = z;
   return e;
@@ -674,6 +674,70 @@ class Duelist extends Melee {
 
       case 'gone':
         return;
+    }
+    super.update(dt, w);
+  }
+}
+
+// Наставница: бьёт только так, как велит текущий шаг обучения (plan), урона не наносит.
+// plan: null — стоит и принимает удары; { combos, windup, comboWindup, wait } — показывает удары.
+// После обучения уходит (leave → gone).
+class Trainer extends Melee {
+  constructor(type, x, rng) {
+    super(type, x, rng);
+    this.plan = null;
+  }
+
+  // план меняется посреди удара (шаг засчитан этим же ударом) — серия обрывается в следующем кадре
+  setPlan(plan) {
+    this.plan = plan;
+    this.lastCombo = -1;
+  }
+
+  get windupTime() {
+    const p = this.plan ?? {};
+    return this.windupOverride ?? (this.idx === 0 ? p.windup ?? this.def.windup : p.comboWindup ?? p.windup ?? this.def.comboWindup);
+  }
+
+  myTurn() { return !!this.plan; }
+
+  pickCombo() {
+    const combos = this.plan?.combos ?? this.def.combos;
+    let i = Math.floor(this.rng() * combos.length);
+    if (combos.length > 1 && i === this.lastCombo) i = (i + 1) % combos.length;
+    this.lastCombo = i;
+    return combos[i];
+  }
+
+  rest(scale = 1) {
+    const [a, b] = this.plan?.wait ?? this.def.wait;
+    this.waitFor = (a + this.rng() * (b - a)) * scale;
+    this.enter('idle');
+  }
+
+  leave() {
+    this.plan = null;
+    this.combo = null;
+    this.alive = false;
+    this.facing = 1;
+    this.enter('leave');
+  }
+
+  update(dt, w) {
+    if (this.state === 'leave') {
+      this.t += dt;
+      this.pose = approachPose(this.pose, POSES.idle, dt, 12);
+      this.x += 70 * dt;
+      this.step += dt * 10;
+      this.z += (this.homeZ - this.z) * Math.min(1, dt * 2);
+      if (this.t >= 7) this.enter('gone');
+      return;
+    }
+    if (this.state === 'gone') return;
+    const midCombo = this.state === 'windup' || this.state === 'reel' || this.state === 'strike';
+    if (!this.plan && midCombo && this.state !== 'strike') {
+      this.combo = null;
+      this.rest(0.5);
     }
     super.update(dt, w);
   }

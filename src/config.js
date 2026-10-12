@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.12';
+export const VERSION = 'v0.13';
 
 export const CONFIG = {
   width: 320,
@@ -42,7 +42,7 @@ export const CONFIG = {
   // Ощущения
   hitstop: { perfect: 0.07, hit: 0.1, counter: 0.12, strike: 0.04 },
   glint: true,          // блик в момент, когда пора жать защиту
-  dialogues: false,     // диалоги в игре (решение владельца: пока рано, движок готов)
+  dialogues: true,      // диалоги в игре (тексты — черновики, пишет владелец)
   restHeal: 3,          // сколько здоровья возвращает отдых после победы над группой
   enemyBars: true,      // полоски здоровья над врагами
   windupHints: true,    // значок высоты удара над врагом во время замаха: ▲ верх, ━ середина, ▼ низ (оранжевый — сбивает или огибает защиту)
@@ -187,6 +187,15 @@ export const ENEMY_TYPES = {
     robe: true,  // длинное бежевое одеяние до пят, вроде джедайского
     colors: { armor: '#c8b48a', armorDark: '#9c8762', tabard: '#ece2c8', robe: '#b9a47a', robeDark: '#8f7c58', belt: '#5a4632', helm: '#d9a87e', visor: '#14101e', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#4a3a2a', hair: '#14101e' },
   },
+  // наставница в фэнтезийно-арабском одеянии: вместо чучела учит драться, урона не наносит
+  trainer: {
+    kind: 'trainer', practice: true, name: 'Незнакомка', hp: 9999, damage: 0, aggro: 0, reach: 30, speed: 45, lunge: 3, weapon: 16,
+    windup: 1.1, comboWindup: 0.9, gap: 0.3, recover: 1.0, wait: [1.2, 1.7],
+    combos: [['mid']],
+    guardChance: 0, reaction: 0.1,
+    robe: true, wrap: true, curved: true, slim: true,
+    colors: { armor: '#3f7a7f', armorDark: '#2a5458', tabard: '#b8323a', robe: '#2f5d62', robeDark: '#1e3f43', belt: '#e0b04a', helm: '#b7794f', visor: '#14101e', wrap: '#ead9b0', wrapDark: '#bfa97c', blade: '#e6edf3', hilt: '#e0b04a', boots: '#5a3a22' },
+  },
   // из первого прототипа, пока не на уровне
   guard: {
     kind: 'melee', name: 'Стражник', hp: 3, damage: 1, aggro: 130, reach: 30, speed: 40, lunge: 4, weapon: 17,
@@ -204,16 +213,78 @@ export const ENEMY_TYPES = {
   },
 };
 
-// Коридор прототипа: встречи с группами врагов. Пока группа жива, коридор закрыт с обеих сторон.
-// dx — смещение врага от центра встречи, z — глубина.
-export const LEVEL = {
-  length: 2900,
-  dummy: { x: 190, z: 22 },  // чучело у входа — потренироваться до первой встречи
-  encounters: [
-    { x: 380, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
-    { x: 860, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
-    { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
-    { x: 1900, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
-    { x: 2500, before: 'ilia_meet', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // before — диалог перед боем
-  ],
+// Неигровые персонажи: стоят на месте, E — заговорить (shop — открыть лавку).
+export const NPC_TYPES = {
+  // Лика — торговка: невысокая, современный японский стиль, короткий плащ на две пуговицы, чёрное каре с чёлкой
+  lika: {
+    name: 'Лика', shop: 'lika', short: true, bob: true, coat: true,
+    colors: { armor: '#2b2d42', armorDark: '#1b1c2b', tabard: '#e8e6f0', belt: '#e0b04a', helm: '#efcfb0', visor: '#14101e', hair: '#141018', hairLight: '#3a3450', blush: '#e39a9a', boots: '#e8e6f0', blade: '#b9c2cc', hilt: '#6b4532' },
+  },
+};
+
+// Товары. price — в монетах; effect.heal — сколько сердец вернёт. Монет пока взять негде — источник решит владелец.
+export const ITEMS = {
+  potion: { name: 'Зелье лечения', price: 10, effect: { heal: 3 } },
+  bandage: { name: 'Бинт', price: 4, effect: { heal: 1 } },
+  map: { name: 'Карта замка', price: 25 },
+};
+
+// Мир: комнаты и переходы между ними.
+// edges — выход за край комнаты (left / right): to — комната, x — где рыцарь появится там.
+// doors — двери в задней стене (W у двери — войти): x — центр, kind — wood | bars | iron,
+//   to / toDoor — куда ведёт; locked — заперта (текст подсказки).
+// encounters — встречи: пока группа жива, проход закрыт. dx — смещение врага от центра встречи, z — глубина.
+// trainer — где ждёт наставница; npcs — персонажи; props — бочки и ящики; portal — знак портала на полу.
+// dark — тёмная комната (свет только от портала и выхода); gate — решётка камеры с открытой дверью (left / right).
+export const START = { room: 'cell', x: 112, z: 26 };
+
+export const ROOMS = {
+  cell: {
+    name: 'Камера с порталом', length: 320, dark: true, torches: [], columns: false, cobwebs: true, gate: 'right',
+    portal: { x: 112, z: 26 },
+    props: [
+      { type: 'barrel', x: 30, z: 2 }, { type: 'barrel', x: 44, z: 6 }, { type: 'crate', x: 22, z: 16 },
+      { type: 'barrel', x: 224, z: 2 }, { type: 'bones', x: 196, z: 38 },
+    ],
+    edges: { right: { to: 'hall', x: 44 } },
+  },
+  hall: {
+    name: 'Темница', length: 3320, gate: 'left', finish: true,
+    torches: [150, 330, 760, 920, 1240, 1400, 1760, 1920, 2240, 2400, 2780, 2940, 3180],
+    edges: { left: { to: 'cell', x: 276 } },
+    doors: [
+      { id: 'cellA', x: 470, kind: 'bars', locked: 'Пустая камера' },
+      { id: 'shop', x: 600, kind: 'wood', to: 'shop', toDoor: 'out', name: 'Лавка' },
+      { id: 'cellB', x: 1060, kind: 'bars', locked: 'Пустая камера', bones: true },
+      { id: 'guard', x: 1580, kind: 'wood', to: 'guardroom', toDoor: 'out', name: 'Караульная' },
+      { id: 'cellC', x: 2090, kind: 'bars', locked: 'Пустая камера' },
+      { id: 'iron', x: 2620, kind: 'iron', locked: 'Заперто. Нужен ключ' },
+    ],
+    trainer: { x: 300, z: 22 },
+    props: [{ type: 'barrel', x: 680, z: 2 }, { type: 'crate', x: 1500, z: 3 }, { type: 'bones', x: 2180, z: 30 }],
+    encounters: [
+      { x: 800, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
+      { x: 1280, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
+      { x: 1800, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
+      { x: 2320, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
+      { x: 2920, before: 'ilia_meet', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // before — диалог перед боем
+    ],
+  },
+  shop: {
+    name: 'Лавка Лики', length: 320, columns: false, torches: [160],
+    doors: [{ id: 'out', x: 64, kind: 'wood', to: 'hall', toDoor: 'shop', name: 'Темница' }],
+    npcs: [{ type: 'lika', x: 214, z: 12 }],
+    props: [
+      { type: 'crate', x: 252, z: 2 }, { type: 'crate', x: 264, z: 10 }, { type: 'barrel', x: 282, z: 3 },
+      { type: 'barrel', x: 120, z: 2 }, { type: 'sack', x: 236, z: 4 },
+    ],
+  },
+  guardroom: {
+    name: 'Караульная', length: 480, columns: false, torches: [120, 360],
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'guard', name: 'Темница' }],
+    props: [{ type: 'crate', x: 440, z: 2 }, { type: 'barrel', x: 456, z: 12 }, { type: 'bones', x: 300, z: 36 }],
+    encounters: [
+      { x: 300, enemies: [{ type: 'skelShort', dx: 40, z: 18 }, { type: 'slime', dx: 100, z: 32 }] },
+    ],
+  },
 };
