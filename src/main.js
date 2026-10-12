@@ -4,7 +4,7 @@ import { createInput } from './input.js';
 import { createEnemy } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
-import { drawFigure, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
+import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
@@ -2013,13 +2013,13 @@ function renderEnemy(e, cam) {
   }
   if (e.kind === 'slime') {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
-    drawSlime(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
+    drawSlimeOutlined(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) rect(g, ex - 1, GROUND - e.airY - 16, 3, 3, PAL.spark);
   } else {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
     const whirl = e.state === 'strike' && e.strike?.pose === 'whirl';
     if (whirl) disc(ex, GROUND - 27 - e.airY, 20);
-    const tip = drawFigure(g, {
+    const tip = drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
@@ -2056,7 +2056,7 @@ function renderPlayer(cam) {
   if (p.state === 'roll') {
     // кувырок: сгруппированный рыцарь делает полный оборот
     rollCtx.clearRect(0, 0, 48, 48);
-    drawFigure(rollCtx, { x: 24, ground: 44, facing: p.facing, pose: POSES.tuck, colors, plume: true, weaponLen: p.arms.length ?? 17, scabbard: p.weapon === 'sword', rapier: p.weapon === 'rapier' });
+    drawFigureOutlined(rollCtx, { x: 24, ground: 44, facing: p.facing, pose: POSES.tuck, colors, plume: true, weaponLen: p.arms.length ?? 17, scabbard: p.weapon === 'sword', rapier: p.weapon === 'rapier' });
     const k = Math.min(1, p.t / WEAPON.roll.time);
     g.save();
     g.translate(Math.round(px), GROUND - 12);
@@ -2082,12 +2082,12 @@ function renderPlayer(cam) {
   if (view !== 'side') {
     if (alpha <= 0) return;
     g.globalAlpha = alpha;
-    drawFigureFront(g, { x: Math.round(px), ground: GROUND, colors, back: view === 'back', step: p.step, weapon: p.weapon, squash });
+    drawFigureFrontOutlined(g, { x: Math.round(px), ground: GROUND, colors, back: view === 'back', step: p.step, weapon: p.weapon, squash });
     g.globalAlpha = 1;
     return;
   }
   if (game.cutscene && game.cutscene.t < WAKE.kneel) {
-    drawFigure(g, { x: px, ground: GROUND, facing: p.facing, pose: p.pose, colors, plume: true, sit: true, weaponLen: 17, scabbard: true });
+    drawFigureOutlined(g, { x: px, ground: GROUND, facing: p.facing, pose: p.pose, colors, plume: true, sit: true, weaponLen: 17, scabbard: true });
     return;
   }
   const spinning = p.state === 'attack' && p.atk.key === 'spin' && p.phase === 'active';
@@ -2104,7 +2104,7 @@ function renderPlayer(cam) {
     const k = Math.min(1, (game.time - game.charge.t) / WEAPONS.rapier.chargeTime);
     rect(g, px - 6, GROUND + 3, Math.round(12 * k), 1, PAL.gold);
   }
-  const tip = drawFigure(g, {
+  const tip = drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY,
     weaponLen: p.arms.length ?? 17, scabbard: !rapier, rapier, offhandBack: rapier && p.state !== 'hurt',
     bladeHidden: p.sheathed || drawing,
@@ -2139,7 +2139,7 @@ function renderNpc(n, cam) {
   const x = n.x - cam;
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
-  drawFigure(g, {
+  drawFigureOutlined(g, {
     x, ground: groundY(n.z), facing: n.facing, pose: { ...POSES.idle, hy: 8, angle: 80, crouch: breathe },
     colors: n.def.colors, robe: n.def.robe, hood: n.def.hood, pack: n.def.pack, bladeHidden: true,
     short: n.def.short, bob: n.def.bob, coat: n.def.coat,
