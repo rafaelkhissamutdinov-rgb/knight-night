@@ -12,7 +12,7 @@ const W = CONFIG.width, H = CONFIG.height, GROUND = CONFIG.ground;
 const STEP = 1 / 60;
 
 const GUARD_KEYS = { ArrowUp: 'high', KeyW: 'high', ArrowRight: 'mid', KeyD: 'mid', ArrowDown: 'low', KeyS: 'low' };
-const ATTACK_KEYS = new Set(['KeyZ', 'KeyJ', 'KeyX', 'Space']);
+const ATTACK_KEYS = new Set(['Mouse0', 'KeyZ', 'KeyJ', 'KeyX', 'Space']);
 const LEFT_KEYS = ['ArrowLeft', 'KeyA'];
 const RIGHT_KEYS = ['ArrowRight', 'KeyD'];
 const CLASH_Y = { high: GROUND - 34, mid: GROUND - 22, low: GROUND - 9 };
@@ -109,7 +109,7 @@ function onImpact(height) {
 
 function onStaggered() {
   sfx.stagger();
-  callout('Z — выпад!', 'counter');
+  callout('Выпад!', 'counter');
 }
 
 function onPlayerStrike(kind) {
@@ -157,8 +157,8 @@ function startDuel(enemy) {
   ui.foe.hidden = false;
   renderFoe();
   hint(game.duels === 1
-    ? '↑ → ↓ — защита сверху, по корпусу, снизу. Жми в момент удара. Вся серия идеально → Z — выпад'
-    : '↑ → ↓ — защита · Z — удар, когда враг раскрылся');
+    ? '↑ → ↓ — защита сверху, по корпусу, снизу. Жми в момент удара. Вся серия идеально → ЛКМ — выпад'
+    : '↑ → ↓ — защита · ЛКМ — удар, когда враг раскрылся');
 }
 
 function die() {
@@ -399,10 +399,14 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-ui.box.addEventListener('pointerdown', () => {
+// левая кнопка мыши — удар; на заставке клик запускает игру
+ui.box.addEventListener('pointerdown', e => {
   ui.box.focus();
-  if (game.mode === 'title') input.press('Enter');
+  if (e.button !== 0) return;
+  e.preventDefault();
+  input.press(game.mode === 'title' ? 'Enter' : 'Mouse0');
 });
+ui.box.addEventListener('contextmenu', e => e.preventDefault());
 
 newGame();
 ui.debug.hidden = true;
