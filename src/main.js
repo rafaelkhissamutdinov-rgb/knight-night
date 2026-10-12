@@ -377,7 +377,7 @@ function buildReport() {
   const mins = Math.floor((performance.now() - game.startedAt) / 60000);
   const secs = Math.floor((performance.now() - game.startedAt) / 1000) % 60;
   const names = i => i < 0 ? 'коридор' : LEVEL.encounters[i].enemies.map(e => ENEMY_TYPES[e.type].shortName ?? ENEMY_TYPES[e.type].name).join(' + ');
-  const deaths = Object.entries(game.deaths).map(([i, n]) => `  ${Number(i) + 1}. ${names(Number(i))} — ${n}`).join('\n') || '  ни одной';
+  const deaths = Object.entries(game.deaths).map(([i, n]) => Number(i) < 0 ? `  вне встреч — ${n}` : `  ${Number(i) + 1}. ${names(Number(i))} — ${n}`).join('\n') || '  ни одной';
   const killers = Object.entries(game.killers).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`).join(', ') || '—';
   const total = s.perfect + s.block + s.broken + s.hit + s.dodged;
   const pct = total ? Math.round(s.perfect / total * 100) : 0;

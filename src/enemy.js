@@ -6,6 +6,7 @@ import { slimeZone } from './combat.js';
 // world.spawnArrow(e, height), world.swallow(e) → получилось ли, world.cue(height), world.staggered(e),
 // world.heavySwing(e) — эффект тяжёлого взмаха, world.defeated(e) — мини-босс отступил,
 // world.requestToken(e) — можно ли сейчас атаковать (бьёт один враг, остальные ждут; нет функции — можно всегда).
+// Враг из группы встречи (group) просыпается только вместе с ней (awake), а не по расстоянию.
 
 export function createEnemy(type, x, rng = Math.random, z = 22) {
   const kind = ENEMY_TYPES[type].kind;
@@ -211,7 +212,7 @@ class Melee extends Enemy {
     switch (this.state) {
       case 'dormant':
         this.pose = approachPose(this.pose, this.restPose(), dt, 20);
-        if (dist < d.aggro || this.awake) {
+        if (this.awake || (this.group === undefined && dist < d.aggro)) {
           w.engage(this);
           this.enter('approach');
         }
@@ -318,7 +319,7 @@ class Archer extends Enemy {
     switch (this.state) {
       case 'dormant':
         this.pose = approachPose(this.pose, POSES.aim_mid, dt, 20);
-        if (dist < d.aggro || this.awake) {
+        if (this.awake || (this.group === undefined && dist < d.aggro)) {
           w.engage(this);
           this.rest();
         }
@@ -436,7 +437,7 @@ class Slime extends Enemy {
 
     switch (this.state) {
       case 'dormant':
-        if (dist < d.aggro || this.awake) {
+        if (this.awake || (this.group === undefined && dist < d.aggro)) {
           w.engage(this);
           this.enter('hop');
         }

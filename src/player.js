@@ -112,11 +112,18 @@ export class Player {
   }
 
   // отмена удара, пока идёт замах
+  // Защита во время замаха — отмена удара (финт); после удара — сразу закрыться, не дожидаясь восстановления.
   cancel() {
-    if (this.state === 'attack' && this.t < this.atk.windup) {
+    if (this.state !== 'attack') return false;
+    if (this.t < this.atk.windup) {
       this.atk = null;
       this.enter('ready');
       this.events.push({ type: 'feint' });
+      return true;
+    }
+    if (this.phase === 'recover') {
+      this.atk = null;
+      this.enter('ready');
       return true;
     }
     return false;

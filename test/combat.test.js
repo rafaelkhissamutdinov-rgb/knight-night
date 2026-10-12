@@ -369,3 +369,29 @@ test('идеальное парирование посреди серии выб
   assert.equal(f.state, 'hurt');
   assert.equal(f.combo, null);
 });
+
+test('враг из группы не просыпается раньше своей встречи', () => {
+  const e = createEnemy('skelShort', 100);
+  e.group = 1;
+  const w = world(90);
+  for (let i = 0; i < 30; i++) e.update(1 / 60, w);
+  assert.equal(e.state, 'dormant');
+  e.awake = true;
+  e.update(1 / 60, w);
+  assert.notEqual(e.state, 'dormant');
+});
+
+test('после удара защита сразу отменяет восстановление, а не только замах', () => {
+  const p = new Player(0);
+  p.sheathed = false;
+  const c = { fwd: false, back: false, guard: null, engaged: true, anyInput: false };
+  p.requestAttack(null, false);
+  while (p.phase !== 'recover') p.update(1 / 60, c);
+  assert.ok(p.cancel());
+  assert.equal(p.state, 'ready');
+  p.requestAttack(null, false);
+  p.update(1 / 60, c);
+  while (p.phase === 'windup') p.update(1 / 60, c);
+  assert.equal(p.phase, 'active');
+  assert.equal(p.cancel(), false, 'сам удар отменить нельзя');
+});
