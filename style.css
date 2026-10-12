@@ -84,6 +84,11 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
   position: absolute; left: 2.5cqw; top: 6cqw;
   font-family: ui-monospace, monospace; font-size: 1.6cqw; color: #7bd88f;
   background: rgba(0, 0, 0, 0.6); padding: 0.5cqw 1cqw;
+  pointer-events: none; white-space: pre-line;
+}
+.version {
+  position: absolute; right: 1.5cqw; bottom: 1cqw;
+  font-family: var(--pixel); font-size: 1.5cqw; color: var(--muted); opacity: 0.6;
   pointer-events: none;
 }
 
@@ -102,7 +107,7 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
 }
 
 .help {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; max-width: 980px;
   font-size: 0.92rem; color: var(--muted);
 }
 .rules { margin: 0; max-width: 72ch; text-align: center; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }

@@ -23,22 +23,28 @@
       <div class="callout" id="callout" aria-live="polite"></div>
       <div class="hint" id="hint" hidden></div>
       <div class="debug" id="debug" hidden></div>
+      <div class="version" id="version"></div>
       <div class="overlay" id="overlay">
         <h1 id="overlay-title">Knight Night</h1>
-        <p id="overlay-text">Прототип механики парирования. Враг показывает удар замахом: сверху, по корпусу или снизу. Поставь нужную защиту в момент удара.</p>
+        <p id="overlay-text">Прототип боя. Враг показывает удар замахом: сверху, по корпусу или снизу. Поставь нужную защиту в момент удара — или ударь первым.</p>
         <p class="press" id="overlay-press">Нажми любую клавишу</p>
       </div>
     </div>
 
     <section class="help" aria-label="Управление">
       <div><kbd>←</kbd> <kbd>→</kbd> идти</div>
-      <div><kbd>↑</kbd> верхняя защита</div>
-      <div><kbd>→</kbd> средняя защита</div>
-      <div><kbd>↓</kbd> нижняя защита</div>
-      <div><kbd>ЛКМ</kbd> или <kbd>Z</kbd> удар / выпад</div>
-      <div><kbd>G</kbd> отладка таймингов</div>
+      <div><kbd>↑</kbd> / <kbd>↓</kbd> защита сверху / снизу</div>
+      <div>назад от врага — защита по корпусу</div>
+      <div><kbd>ЛКМ</kbd> удар сбоку · <kbd>↑</kbd>+<kbd>ЛКМ</kbd> сверху · <kbd>↓</kbd>+<kbd>ЛКМ</kbd> снизу</div>
+      <div><kbd>ПКМ</kbd> рывок</div>
+      <div>назад+<kbd>ПКМ</kbd> отскок с заслоном</div>
+      <div><kbd>↓</kbd>+<kbd>ПКМ</kbd> кувырок, затем <kbd>ЛКМ</kbd> — подсечка</div>
+      <div><kbd>↑</kbd>+<kbd>ПКМ</kbd> прыжок с ударом</div>
+      <div><kbd>ПКМ</kbd>, сразу <kbd>ЛКМ</kbd> — удар в рывке</div>
+      <div>вперёд, назад, <kbd>ЛКМ</kbd> быстро — вихрь</div>
+      <div><kbd>G</kbd> отладка</div>
     </section>
-    <p class="rules">Держишь нужную защиту — блок. Нажал её прямо перед ударом — идеальное парирование. Отбил идеально всю серию — враг ошеломлён: жми <kbd>ЛКМ</kbd>, выпад наносит тройной урон. После обычной серии враг ненадолго открыт для простого удара.</p>
+    <p class="rules">Нажал защиту во время замаха — удар отменяется. Ударил, пока враг замахивается, — урон получат оба, но тебе вдвое больнее. Отбил всю серию идеально — враг открыт, удары по нему вдвое сильнее. Отскок назад спасает только от одного удара: сделал его рано — получишь вдвое. Без мыши: <kbd>J</kbd> — удар, <kbd>K</kbd> или пробел — рывок.</p>
   </main>
   <script type="module" src="src/main.js"></script>
 </body>

@@ -29,4 +29,5 @@ export const KNIGHT_COLORS = {
   blade: '#f4f8ff',
   hilt: '#e0a437',
   boots: '#6b4532',
+  scabbard: '#4a3226',
 };

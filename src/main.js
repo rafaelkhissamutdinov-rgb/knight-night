@@ -1,22 +1,29 @@
-import { CONFIG, LEVEL } from './config.js';
+import { CONFIG, LEVEL, VERSION } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
-import { Enemy } from './enemy.js';
+import { createEnemy } from './enemy.js';
 import { Player } from './player.js';
-import { resolveImpact, attackOutcome } from './combat.js';
-import { drawFigure, flashColors, rect } from './draw.js';
+import { resolveImpact } from './combat.js';
+import { drawFigure, drawBall, drawSlime, drawArrow, flashColors, rect } from './draw.js';
 import { buildBackground, drawTorches } from './background.js';
 import { unlockAudio, sfx } from './audio.js';
 
 const W = CONFIG.width, H = CONFIG.height, GROUND = CONFIG.ground;
 const STEP = 1 / 60;
 
-const GUARD_KEYS = { ArrowUp: 'high', KeyW: 'high', ArrowRight: 'mid', KeyD: 'mid', ArrowDown: 'low', KeyS: 'low' };
-const ATTACK_KEYS = new Set(['Mouse0', 'KeyZ', 'KeyJ', 'KeyX', 'Space']);
-const LEFT_KEYS = ['ArrowLeft', 'KeyA'];
-const RIGHT_KEYS = ['ArrowRight', 'KeyD'];
+const KEYS = {
+  left: ['ArrowLeft', 'KeyA'],
+  right: ['ArrowRight', 'KeyD'],
+  up: ['ArrowUp', 'KeyW'],
+  down: ['ArrowDown', 'KeyS'],
+  attack: ['Mouse0', 'KeyJ', 'KeyZ'],
+  dash: ['Mouse2', 'KeyK', 'KeyX', 'Space', 'ShiftLeft'],
+};
 const CLASH_Y = { high: GROUND - 34, mid: GROUND - 22, low: GROUND - 9 };
 const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' };
+const RESULT_NAME = { perfect: 'идеально', block: 'блок', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
+const HINT_WALK = '← → идти · ЛКМ удар · ПКМ рывок';
+const HINT_FIGHT = '↑ ↓ или назад — защита · ЛКМ удар · ПКМ рывок · всё управление под игрой';
 
 const canvas = document.getElementById('game');
 canvas.width = W;
@@ -27,13 +34,16 @@ g.imageSmoothingEnabled = false;
 const $ = id => document.getElementById(id);
 const ui = {
   box: $('game-box'), hearts: $('hearts'), foe: $('foe'), foeName: $('foe-name'), foeBar: $('foe-bar'),
-  callout: $('callout'), hint: $('hint'), debug: $('debug'), overlay: $('overlay'),
+  callout: $('callout'), hint: $('hint'), debug: $('debug'), overlay: $('overlay'), version: $('version'),
   overlayTitle: $('overlay-title'), overlayText: $('overlay-text'), overlayPress: $('overlay-press'),
 };
+ui.version.textContent = VERSION;
 
 const input = createInput(window);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const background = buildBackground(LEVEL.length, H, GROUND);
+const held = group => KEYS[group].some(input.isDown);
+const is = (code, group) => KEYS[group].includes(code);
 
 const game = {};
 
@@ -47,36 +57,85 @@ function newGame() {
     flashColor: '#fff',
     camX: 0,
     particles: [],
-    enemies: LEVEL.enemies.map(e => new Enemy(e.type, e.x)),
+    arrows: [],
+    enemies: LEVEL.enemies.map(e => createEnemy(e.type, e.x)),
     current: null,
+    checkpoint: 40,
     player: new Player(40),
     lastPress: null,
     prevPress: null,
+    dirHistory: [],
     lastTiming: '',
-    duels: 0,
-    stats: { perfect: 0, block: 0, hit: 0, counter: 0 },
+    stats: { perfect: 0, block: 0, hit: 0, counter: 0, dodged: 0 },
     debug: game.debug || false,
   });
   renderHearts();
   ui.foe.hidden = true;
 }
 
-// ---------- события боя ----------
+// ---------- мир для врагов ----------
 
-function onImpact(height) {
+const world = {
+  get player() { return game.player; },
+  engage(e) {
+    if (game.current?.alive) return;
+    game.current = e;
+    game.checkpoint = Math.max(40, game.player.x - 30);
+    ui.foe.hidden = false;
+    renderFoe();
+    hint(HINT_FIGHT);
+  },
+  impact(e, height) {
+    const p = game.player;
+    if (Math.abs(p.x - e.x) > e.def.reach + 2) {
+      game.lastTiming = `${HEIGHT_NAME[height]}: мимо — рыцарь вне досягаемости`;
+      callout('Мимо', 'muted');
+      sfx.swish();
+      return 'miss';
+    }
+    return applyImpact(height, e.def.damage, e.x);
+  },
+  spawnArrow(e, height) {
+    sfx.bow();
+    game.arrows.push({ x: e.x + e.facing * 8, y: CLASH_Y[height], vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3 });
+  },
+  swallow(slime) {
+    const p = game.player;
+    if (p.defense().dodge) {
+      callout('Уклон', 'muted');
+      return false;
+    }
+    const dmg = Math.ceil(CONFIG.playerHp / 2);
+    p.hp = Math.max(0, p.hp - dmg);
+    p.swallowedBy(slime);
+    renderHearts();
+    sfx.gulp();
+    shake(3);
+    flash('#7bd88f', 0.35);
+    callout(`Проглотил! −${dmg}`, 'hit');
+    game.stats.hit++;
+    return true;
+  },
+  cue(height) { if (CONFIG.audioCues) sfx.cue(height); },
+  staggered() {
+    sfx.stagger();
+    callout('Враг открыт!', 'counter');
+  },
+};
+
+// Удар врага или стрела дошли до рыцаря.
+function applyImpact(height, damage, sourceX) {
   const p = game.player;
-  const result = resolveImpact(
-    { height, time: game.time, guard: p.guard, lastPress: game.lastPress, prevPress: game.prevPress },
+  const { result, mult } = resolveImpact(
+    { height, time: game.time, defense: p.defense(), lastPress: game.lastPress, prevPress: game.prevPress },
     CONFIG,
   );
-  const x = (p.x + game.current.x) / 2;
+  const lp = game.lastPress;
+  game.lastTiming = lp
+    ? `${HEIGHT_NAME[height]}: нажал ${HEIGHT_NAME[lp.height]} за ${Math.round((game.time - lp.time) * 1000)} мс до удара → ${RESULT_NAME[result]}`
+    : `${HEIGHT_NAME[height]}: защиту не нажимал → ${RESULT_NAME[result]}`;
+  const x = (p.x + sourceX) / 2;
   const y = CLASH_Y[height];
-  if (game.lastPress) {
-    const ms = Math.round((game.time - game.lastPress.time) * 1000);
-    game.lastTiming = `${HEIGHT_NAME[height]}: нажал ${HEIGHT_NAME[game.lastPress.height]} за ${ms} мс до удара → ${result}`;
-  } else {
-    game.lastTiming = `${HEIGHT_NAME[height]}: защиту не нажимал → ${result}`;
-  }
 
   if (result === 'perfect') {
     game.stats.perfect++;
@@ -92,74 +151,91 @@ function onImpact(height) {
     sfx.block();
     shake(1);
     callout('Блок', 'block');
+  } else if (result === 'warded') {
+    p.ward.used = true;
+    game.stats.block++;
+    sparks(p.x + p.facing * 10, y, 12, ['#8fd3ff', '#ffffff'], 100);
+    sfx.ward();
+    callout('Заслон', 'perfect');
+  } else if (result === 'dodged') {
+    game.stats.dodged++;
+    callout('Уклон', 'muted');
   } else {
     game.stats.hit++;
-    p.hurt();
+    const dmg = damage * mult;
+    p.hurt(dmg, sourceX);
     renderHearts();
     sparks(p.x + 2, y, 10, [PAL.blood, '#9e2648'], 80);
     sfx.hit();
     game.hitstop = CONFIG.hitstop.hit;
-    shake(3);
+    shake(mult > 1 ? 4 : 3);
     flash('#e8454f', 0.3);
-    callout('Пропущен', 'hit');
-    if (p.hp <= 0) die();
+    callout(mult > 1 ? `Пропущен ×${mult}  −${dmg}` : `Пропущен  −${dmg}`, 'hit');
   }
   return result;
 }
 
-function onStaggered() {
-  sfx.stagger();
-  callout('Выпад!', 'counter');
-}
-
-function onPlayerStrike(kind) {
-  const e = game.current;
-  if (!e || !e.alive) return;
-  const out = attackOutcome(e.state);
-  const x = e.x - 6, y = GROUND - 24;
-  if (out === 'counter') {
-    game.stats.counter++;
-    e.takeHit(CONFIG.counterDamage);
-    sparks(x, y, 22, [PAL.blood, PAL.spark, PAL.sparkHot], 150);
-    sfx.counter();
-    game.hitstop = CONFIG.hitstop.counter;
-    shake(4);
-    flash('#ffffff', 0.4);
-    callout(`Выпад! −${CONFIG.counterDamage}`, 'counter');
-  } else if (out === 'hit') {
-    e.takeHit(CONFIG.attackDamage);
-    sparks(x, y, 8, [PAL.blood, '#9e2648'], 90);
-    sfx.enemyHit();
-    shake(2);
-    callout(`−${CONFIG.attackDamage}`, 'block');
-  } else {
-    sparks(x, y, 5, [PAL.sparkHot], 60);
-    sfx.deflected();
-    callout('Отбил', 'muted');
+// Клинок рыцаря дошёл до цели.
+function playerStrike(atk) {
+  const p = game.player;
+  let touched = false;
+  for (const e of game.enemies) {
+    if (!e.alive) continue;
+    const dx = (e.x - p.x) * p.facing;
+    const inReach = atk.height === 'any' ? Math.abs(dx) <= atk.reach : dx >= -6 && dx <= atk.reach;
+    if (!inReach) continue;
+    touched = true;
+    const { out, dmg } = e.receiveAttack(atk);
+    const x = e.x - p.facing * 6;
+    const y = e.kind === 'slime' ? GROUND - e.airY - 6 : CLASH_Y[atk.height === 'any' ? 'mid' : atk.height];
+    if (out === 'counter') {
+      game.stats.counter++;
+      sparks(x, y, 22, [PAL.blood, PAL.spark, PAL.sparkHot], 150);
+      sfx.counter();
+      game.hitstop = CONFIG.hitstop.counter;
+      shake(4);
+      flash('#ffffff', 0.4);
+      callout(`Контратака! −${dmg}`, 'counter');
+    } else if (out === 'hit') {
+      sparks(x, y, 8, e.kind === 'slime' ? ['#7bd88f', '#d4ffd9'] : [PAL.blood, '#9e2648'], 90);
+      sfx.enemyHit();
+      game.hitstop = Math.max(game.hitstop, CONFIG.hitstop.strike);
+      shake(2);
+      callout(`${atk.name}  −${dmg}`, 'block');
+    } else if (out === 'blocked') {
+      sparks(x, y, 6, [PAL.sparkHot], 60);
+      sfx.block();
+      p.recoil();
+      callout('Враг закрылся', 'muted');
+    } else if (out === 'miss') {
+      sfx.swish();
+      callout('Мимо', 'muted');
+    }
   }
+  if (!touched) sfx.swish();
   renderFoe();
 }
 
-function onCue(height) {
-  if (CONFIG.audioCues) sfx.cue(height);
+function handlePlayerEvents() {
+  const p = game.player;
+  for (const ev of p.events.splice(0)) {
+    if (ev.type === 'attackStart') {
+      for (const e of game.enemies) if (e.alive && Math.abs(e.x - p.x) < 150) e.notifyAttack(ev.atk);
+    } else if (ev.type === 'strike') {
+      playerStrike(ev.atk);
+    } else if (ev.type === 'dash' || ev.type === 'roll' || ev.type === 'backdash') {
+      sfx.dash();
+    } else if (ev.type === 'feint') {
+      callout('Отмена', 'muted');
+    } else if (ev.type === 'spit') {
+      ev.slime.release();
+      sfx.spit();
+      shake(2);
+    }
+  }
 }
-
-const hooks = { impact: onImpact, staggered: onStaggered, cue: onCue };
 
 // ---------- режимы ----------
-
-function startDuel(enemy) {
-  game.mode = 'duel';
-  game.current = enemy;
-  game.player.walking = false;
-  enemy.engage(game.player.x + CONFIG.duelGap);
-  game.duels++;
-  ui.foe.hidden = false;
-  renderFoe();
-  hint(game.duels === 1
-    ? '↑ → ↓ — защита сверху, по корпусу, снизу. Жми в момент удара. Вся серия идеально → ЛКМ — выпад'
-    : '↑ → ↓ — защита · ЛКМ — удар, когда враг раскрылся');
-}
 
 function die() {
   game.mode = 'dead';
@@ -168,28 +244,42 @@ function die() {
 
 function restartFight() {
   const e = game.current;
-  const fresh = new Enemy(e.type, e.homeX);
-  game.enemies[game.enemies.indexOf(e)] = fresh;
+  if (e) game.enemies[game.enemies.indexOf(e)] = createEnemy(e.type, e.homeX);
   game.current = null;
-  const p = new Player(e.homeX - CONFIG.engageDistance - 30);
-  game.player = p;
+  game.arrows = [];
+  game.player = new Player(game.checkpoint);
+  game.player.sheathed = false;
   game.lastPress = game.prevPress = null;
-  game.mode = 'explore';
+  game.mode = 'play';
   ui.foe.hidden = true;
   renderHearts();
   hideOverlay();
-  hint('← → — идти');
+  hint(HINT_WALK);
 }
 
 function finish() {
   game.mode = 'end';
   const s = game.stats;
   showOverlay('Конец прототипа',
-    `Идеальных парирований: ${s.perfect} · блоков: ${s.block} · пропущено: ${s.hit} · выпадов: ${s.counter}`,
+    `Идеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter}`,
     'R — пройти заново');
 }
 
 // ---------- ввод ----------
+
+function recordGuard(height) {
+  game.prevPress = game.lastPress;
+  game.lastPress = { height, time: game.time };
+}
+
+function spinRequested() {
+  const h = game.dirHistory;
+  if (h.length < 2) return false;
+  const [a, b] = h.slice(-2);
+  const ok = a.d === 'fwd' && b.d === 'back' && game.time - a.t <= CONFIG.spinWindow;
+  if (ok) game.dirHistory = [];
+  return ok;
+}
 
 function handlePress(code) {
   if (code === 'KeyG') {
@@ -199,9 +289,9 @@ function handlePress(code) {
   }
   if (game.mode === 'title') {
     unlockAudio();
-    game.mode = 'explore';
+    game.mode = 'play';
     hideOverlay();
-    hint('← → — идти');
+    hint(HINT_WALK);
     return;
   }
   if (game.mode === 'dead') {
@@ -209,54 +299,133 @@ function handlePress(code) {
     return;
   }
   if (game.mode === 'end') {
-    if (code === 'KeyR' || code === 'Enter') { newGame(); game.mode = 'explore'; hideOverlay(); hint('← → — идти'); }
+    if (code === 'KeyR' || code === 'Enter') {
+      newGame();
+      game.mode = 'play';
+      hideOverlay();
+      hint(HINT_WALK);
+    }
     return;
   }
-  if (game.mode !== 'duel') return;
-  if (code in GUARD_KEYS) {
-    game.prevPress = game.lastPress;
-    game.lastPress = { height: GUARD_KEYS[code], time: game.time };
-  } else if (ATTACK_KEYS.has(code) && game.player.ready && game.current?.alive) {
-    game.player.startAttack(game.current.state === 'stagger' ? 'lunge' : 'attack');
+
+  const p = game.player;
+  const engaged = !!game.current?.alive;
+  const fwdKeys = p.facing > 0 ? KEYS.right : KEYS.left;
+  const backKeys = p.facing > 0 ? KEYS.left : KEYS.right;
+
+  if (is(code, 'up')) { recordGuard('high'); p.cancel(); }
+  if (is(code, 'down')) { recordGuard('low'); p.cancel(); }
+  if (backKeys.includes(code)) {
+    game.dirHistory.push({ d: 'back', t: game.time });
+    if (engaged) { recordGuard('mid'); p.cancel(); }
   }
+  if (fwdKeys.includes(code)) game.dirHistory.push({ d: 'fwd', t: game.time });
+  if (game.dirHistory.length > 4) game.dirHistory.shift();
+
+  if (is(code, 'attack')) {
+    const vert = held('up') ? 'up' : held('down') ? 'down' : null;
+    p.requestAttack(vert, spinRequested());
+  }
+  if (is(code, 'dash')) {
+    const back = backKeys.some(input.isDown);
+    const dir = held('up') ? 'up' : held('down') ? 'down' : back && engaged ? 'back' : null;
+    p.requestDash(dir);
+  }
+}
+
+function controls() {
+  const p = game.player;
+  const engaged = !!game.current?.alive;
+  const L = held('left'), R = held('right');
+  const map = {};
+  for (const c of KEYS.up) map[c] = 'high';
+  for (const c of KEYS.down) map[c] = 'low';
+  if (engaged) for (const c of (p.facing > 0 ? KEYS.left : KEYS.right)) map[c] = 'mid';
+  return {
+    fwd: p.facing > 0 ? R : L,
+    back: engaged && (p.facing > 0 ? L : R),
+    guard: input.latest(map),
+    engaged,
+    anyInput: L || R || held('up') || held('down'),
+  };
 }
 
 // ---------- обновление ----------
 
 function update(dt) {
   for (const code of input.take()) handlePress(code);
-  if (game.mode === 'title' || game.mode === 'dead' || game.mode === 'end') return;
+  if (game.mode !== 'play') return;
 
   game.time += dt;
   const p = game.player;
-  const guard = game.mode === 'duel' ? input.latest(GUARD_KEYS) : null;
-  const strike = p.update(dt, guard);
-  if (strike) onPlayerStrike(strike);
+  const cur = game.current?.alive ? game.current : null;
 
-  if (game.mode === 'explore') {
-    const dir = (RIGHT_KEYS.some(input.isDown) ? 1 : 0) - (LEFT_KEYS.some(input.isDown) ? 1 : 0);
-    p.walking = dir !== 0;
-    p.x = Math.max(16, Math.min(LEVEL.length - 16, p.x + dir * CONFIG.walkSpeed * dt));
-    const next = game.enemies.find(e => e.alive);
-    if (next && next.x - p.x < CONFIG.engageDistance) startDuel(next);
-    else if (!next && p.x > LEVEL.length - 60) finish();
-    game.camTarget = p.x - 120;
-  } else if (game.mode === 'duel') {
-    const e = game.current;
-    e.update(dt, hooks);
-    if (!e.alive && e.t > 1) {
-      game.mode = 'explore';
-      game.current = null;
-      ui.foe.hidden = true;
-      hint('← → — идти');
-    }
-    game.camTarget = (p.x + e.x) / 2 - W / 2;
+  // куда смотрит рыцарь: в бою — на врага, иначе — куда идёт
+  const free = p.state === 'ready';
+  if (cur && free) p.facing = Math.sign(cur.x - p.x) || p.facing;
+  else if (!cur && free) {
+    if (held('left') && !held('right')) p.facing = -1;
+    else if (held('right') && !held('left')) p.facing = 1;
   }
-  for (const e of game.enemies) if (e !== game.current && e.state === 'dead') e.update(dt, hooks);
 
-  const maxCam = LEVEL.length - W;
-  const target = Math.max(0, Math.min(maxCam, game.camTarget ?? 0));
-  game.camX += (target - game.camX) * Math.min(1, dt * 6);
+  p.update(dt, controls());
+  handlePlayerEvents();
+
+  for (const e of game.enemies) {
+    if (e.state === 'dead' && e.t > 2) continue;
+    e.update(dt, world);
+  }
+  updateArrows(dt);
+
+  // тела не проходят друг сквозь друга
+  for (const e of game.enemies) {
+    if (!e.solid || p.state === 'swallowed') continue;
+    const d = e.x - p.x;
+    if (Math.abs(d) < CONFIG.bodyGap) p.x = e.x - (Math.sign(d) || p.facing) * CONFIG.bodyGap;
+  }
+  p.x = Math.max(16, Math.min(LEVEL.length - 16, p.x));
+
+  if (game.current && !game.current.alive && game.current.t > 0.8) {
+    game.current = null;
+    ui.foe.hidden = true;
+    hint(HINT_WALK);
+  }
+  // враг, который уже проснулся, становится текущим, когда предыдущий пал
+  if (!game.current) {
+    const next = game.enemies.find(e => e.alive && e.state !== 'dormant' && Math.abs(e.x - p.x) < 260);
+    if (next) world.engage(next);
+  }
+  if (p.hp <= 0 && p.state !== 'swallowed') die();
+  else if (!game.enemies.some(e => e.alive) && p.x > LEVEL.length - 60) finish();
+
+  const target = cur ? (p.x + cur.x) / 2 - W / 2 : p.x - (p.facing > 0 ? 120 : 200);
+  const clamped = Math.max(0, Math.min(LEVEL.length - W, target));
+  game.camX += (clamped - game.camX) * Math.min(1, dt * 5);
+}
+
+function updateArrows(dt) {
+  const p = game.player;
+  for (const a of game.arrows) {
+    a.life -= dt;
+    a.x += a.vx * dt;
+    if (a.falling) {
+      a.vy += 300 * dt;
+      a.y += a.vy * dt;
+      continue;
+    }
+    if (!a.resolved && Math.abs(a.x - p.x) <= 4) {
+      a.resolved = true;
+      const result = applyImpact(a.height, a.damage, a.x - Math.sign(a.vx) * 20);
+      if (result === 'perfect' || result === 'block' || result === 'warded') {
+        a.falling = true;
+        a.vx = -a.vx * 0.3;
+        a.vy = -60;
+      } else if (result === 'hit') {
+        a.life = 0;
+      }
+    }
+  }
+  game.arrows = game.arrows.filter(a => a.life > 0 && a.y < H);
 }
 
 function updateFx(dt) {
@@ -340,26 +509,9 @@ function render() {
   g.drawImage(background, cam, 0, W, H, 0, 0, W, H);
   drawTorches(g, cam, game.time, W);
 
-  for (const e of game.enemies) {
-    const ex = e.x + e.offset - cam;
-    if (ex < -40 || ex > W + 40) continue;
-    let alpha = 1;
-    if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
-    if (alpha <= 0) continue;
-    g.globalAlpha = alpha;
-    const colors = e.state === 'hurt' && e.t < 0.08 ? flashColors(e.def.colors) : e.def.colors;
-    const tip = drawFigure(g, { x: ex, ground: GROUND, facing: -1, pose: e.pose, colors, step: e.step });
-    g.globalAlpha = 1;
-    if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
-      rect(g, tip.tipX - 2, tip.tipY, 5, 1, PAL.spark);
-      rect(g, tip.tipX, tip.tipY - 2, 1, 5, PAL.spark);
-    }
-  }
-
-  const p = game.player;
-  const pc = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : { ...KNIGHT_COLORS };
-  drawFigure(g, { x: p.x + p.offset - cam, ground: GROUND, facing: 1, pose: p.pose, colors: pc, step: p.step, plume: true });
-
+  for (const e of game.enemies) renderEnemy(e, cam);
+  renderPlayer(cam);
+  for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, Math.sign(a.vx) || 1);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
 
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -369,11 +521,77 @@ function render() {
     g.fillRect(0, 0, W, H);
     g.globalAlpha = 1;
   }
-  if (game.debug) renderDebug();
+  if (game.debug) renderDebug(cam);
 }
 
-// G — отладка: полоса замаха и зелёное окно идеального парирования.
-function renderDebug() {
+function renderEnemy(e, cam) {
+  const ex = e.x - cam;
+  if (ex < -50 || ex > W + 50) return;
+  let alpha = 1;
+  if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
+  if (alpha <= 0) return;
+  g.globalAlpha = alpha;
+  if (e.kind === 'slime') {
+    const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
+    drawSlime(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
+    if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) rect(g, ex - 1, GROUND - e.airY - 16, 3, 3, PAL.spark);
+  } else {
+    const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
+    const tip = drawFigure(g, {
+      x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
+      weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
+      bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
+    });
+    if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
+      rect(g, tip.tipX - 2, tip.tipY, 5, 1, PAL.spark);
+      rect(g, tip.tipX, tip.tipY - 2, 1, 5, PAL.spark);
+    }
+  }
+  g.globalAlpha = 1;
+}
+
+function renderPlayer(cam) {
+  const p = game.player;
+  if (p.state === 'swallowed') return;
+  const px = p.x - cam;
+  const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
+  if (p.state === 'roll') {
+    drawBall(g, px, GROUND, p.t, colors);
+    return;
+  }
+  const spinning = p.state === 'attack' && p.atk.key === 'spin' && p.phase === 'active';
+  const k = spinning ? (p.t - p.atk.windup) / p.atk.active : 0;
+  const facing = spinning && k > 0.5 ? -p.facing : p.facing;
+  const active = p.phase === 'active';
+  const drawing = p.state === 'attack' && p.atk.draw && p.phase === 'windup';
+
+  if (spinning) {
+    // диск от вихря
+    g.globalAlpha = 0.3;
+    const cy = GROUND - 27;
+    for (let a = 0; a < Math.PI * 2; a += 0.12) rect(g, px + Math.cos(a) * 19, cy + Math.sin(a) * 15, 1, 1, '#ffffff');
+    g.globalAlpha = 1;
+  }
+  const tip = drawFigure(g, {
+    x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true,
+    weaponLen: 17, scabbard: true, bladeHidden: p.sheathed || drawing,
+    trail: active && !spinning ? p.trail : null,
+  });
+  if (active && !spinning) {
+    p.trail.push({ tipX: tip.tipX, tipY: tip.tipY });
+    if (p.trail.length > 3) p.trail.shift();
+  } else p.trail = [];
+
+  if (p.state === 'backdash' && p.wardActive) {
+    // мерцающий заслон перед рыцарем
+    g.globalAlpha = 0.5 + 0.3 * Math.sin(p.t * 40);
+    for (let a = -1.1; a <= 1.1; a += 0.14) rect(g, px + p.facing * (6 + Math.cos(a) * 9), GROUND - 22 + Math.sin(a) * 14, 1, 1, '#8fd3ff');
+    g.globalAlpha = 1;
+  }
+}
+
+// G — отладка: полоса замаха, окно идеального парирования, защита врага.
+function renderDebug(cam) {
   const e = game.current;
   if (e && e.state === 'windup') {
     const T = e.windupTime, x0 = 60, w = 200;
@@ -381,7 +599,16 @@ function renderDebug() {
     rect(g, x0 + w * (1 - CONFIG.perfectWindow / T), 168, Math.ceil(w * CONFIG.perfectWindow / T), 4, '#3c9a5f');
     rect(g, x0 + w * Math.min(1, e.t / T), 166, 1, 8, '#ffffff');
   }
-  ui.debug.textContent = game.lastTiming || 'G — отладка. Здесь появится тайминг последнего удара.';
+  const p = game.player;
+  let extra = `рыцарь: ${p.state}${p.atk ? ' · ' + p.atk.name + ' · ' + p.phase : ''}`;
+  if (e) {
+    extra += ` · враг: ${e.state}`;
+    if (e.kind === 'slime') extra += ` · бить: ${HEIGHT_NAME[e.zone] ?? 'любой'}`;
+    else if (e.guardHeight) extra += ` · закрыт: ${HEIGHT_NAME[e.guardHeight]}`;
+    if (e.def.shield) extra += ' · щит: верх и середина';
+    rect(g, e.x - cam - 1, GROUND + 4, 2, 2, '#7bd88f');
+  }
+  ui.debug.textContent = (game.lastTiming || 'G — отладка') + '\n' + extra;
 }
 
 // ---------- цикл ----------
@@ -399,12 +626,13 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// левая кнопка мыши — удар; на заставке клик запускает игру
+// ЛКМ — удар, ПКМ — рывок; на заставке клик запускает игру
 ui.box.addEventListener('pointerdown', e => {
   ui.box.focus();
-  if (e.button !== 0) return;
+  if (e.button !== 0 && e.button !== 2) return;
   e.preventDefault();
-  input.press(game.mode === 'title' ? 'Enter' : 'Mouse0');
+  if (game.mode === 'title') input.press('Enter');
+  else input.press(e.button === 0 ? 'Mouse0' : 'Mouse2');
 });
 ui.box.addEventListener('contextmenu', e => e.preventDefault());
 

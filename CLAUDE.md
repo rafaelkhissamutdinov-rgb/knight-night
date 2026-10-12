@@ -19,14 +19,14 @@ npm start    # python3 -m http.server 8080 → http://localhost:8080
 
 ## Структура
 
-- `src/config.js` — **все числа баланса**: окно парирования, урон, тайминги врагов, серии ударов, уровень. Правки баланса — сюда.
-- `src/combat.js` — чистые правила: исход удара врага (perfect / block / hit) и атаки рыцаря.
-- `src/enemy.js` — машина состояний врага: wait → approach → idle → windup → strike → (recover | stagger) → hurt → dead.
-- `src/player.js` — рыцарь: защита, атака, выпад, получение урона.
+- `src/config.js` — **все числа баланса**: окно парирования, урон, `WEAPON` (удары и перемещения рыцаря), `ENEMY_TYPES`, уровень, `VERSION`. Правки баланса — сюда. При заметном изменении поднимать `VERSION`.
+- `src/combat.js` — чистые правила: исход удара врага или стрелы (dodged / warded / perfect / block / hit + множитель урона), зона попадания по слизню.
+- `src/enemy.js` — враги: `createEnemy(type, x)`. Классы Melee (dormant → approach → idle → windup → strike → recover | stagger), Archer (держит дистанцию, hop, стрелы), Slime (hop, crouch → leap, retreat → inflate → suck). Враги закрываются от ударов рыцаря (`notifyAttack`, `guardChance`), удар во время их замаха — размен.
+- `src/player.js` — рыцарь: ready / attack (windup → active → recover) / dash / backdash / roll / hurt / swallowed. `chooseAttack` выбирает удар по вводу, ножны, отмена замаха, буфер ввода.
 - `src/poses.js` — позы (кисть, угол клинка, наклон, присед). Замах должен читаться по силуэту.
 - `src/draw.js` — пиксельные примитивы и фигура бойца-заглушки.
 - `src/background.js`, `src/palette.js` — коридор и цвета.
-- `src/main.js` — цикл (фиксированный шаг 1/60 с), режимы title / explore / duel / dead / end, эффекты (хитстоп, тряска, искры), HUD.
+- `src/main.js` — цикл (фиксированный шаг 1/60 с), режимы title / play / dead / end, ввод (направления относительно взгляда рыцаря), объект `world` для врагов, стрелы, столкновения тел, эффекты, HUD.
 - `index.html`, `style.css` — страница; HUD и надписи — DOM поверх canvas.
 
 ## Решения владельца
