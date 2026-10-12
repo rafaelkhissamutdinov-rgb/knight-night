@@ -74,7 +74,8 @@ export function buildRoom(room, height, floorTop) {
   }
   for (const d of doors) drawDoor(g, d, floorTop);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
-  if (room.stairs) drawStairs(g, room.stairs === 'right' ? length - 70 : length / 2 - 40, floorTop);
+  if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop);
+  if (room.balcony) drawBalcony(g, length, height, floorTop, rand);
   if (room.magic) {
     // вершина башни: стены в лиловом отсвете, на стене знаки
     g.fillStyle = 'rgba(120,60,170,0.18)';
@@ -86,6 +87,7 @@ export function buildRoom(room, height, floorTop) {
 
 // Дверь в задней стене: деревянная, решётчатая (камера) или железная.
 export function drawDoor(g, d, floorTop) {
+  if (d.kind === 'none') return;  // проход без двери (например, у подножия лестницы)
   const x0 = Math.round(d.x - DOOR_W / 2), top = floorTop - DOOR_H;
   // каменный проём с аркой
   rect(g, x0 - 3, top - 2, DOOR_W + 6, DOOR_H + 2, PAL.wallDark);
@@ -138,6 +140,75 @@ function drawStairs(g, x0, floorTop) {
   for (let i = 0; i < steps; i++) {
     const x = x0 + i * sw;
     for (let k = 0; k < sw; k++) rect(g, x + k, floorTop - i * sh - 14 - Math.round(k * sh / sw), 1, 1, '#6d6a7a');
+  }
+}
+
+// Обрушенный балкон: вместо стены — закат, горы, лес, поля, деревня с дымом; каменная балюстрада с проломами,
+// справа пол обрывается в пропасть.
+function drawBalcony(g, length, height, floorTop, rand) {
+  const sky = g.createLinearGradient(0, 0, 0, floorTop);
+  sky.addColorStop(0, '#2b2f5a');
+  sky.addColorStop(0.55, '#8a6a9a');
+  sky.addColorStop(1, '#e8a77a');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, length, floorTop);
+  // солнце у горизонта
+  for (let r = 14; r > 0; r -= 2) {
+    g.fillStyle = `rgba(255,${200 + r * 3},${140 + r * 4},${0.08 + (14 - r) * 0.04})`;
+    g.beginPath(); g.arc(length * 0.7, floorTop - 46, r, 0, Math.PI * 2); g.fill();
+  }
+  // облака
+  for (let i = 0; i < 6; i++) {
+    const cx = rand() * length, cy = 14 + rand() * 30, w = 30 + rand() * 50;
+    rect(g, cx, cy, w, 3, 'rgba(255,220,220,0.25)');
+    rect(g, cx + 6, cy - 2, w * 0.6, 2, 'rgba(255,220,220,0.18)');
+  }
+  // горы: два слоя, дальние светлее
+  const ridge = (base, amp, color, step) => {
+    g.fillStyle = color;
+    let y = base;
+    for (let x = 0; x < length; x += step) {
+      y = Math.max(base - amp, Math.min(base, y + (rand() - 0.5) * amp * 0.5));
+      g.fillRect(x, y, step, floorTop - y);
+    }
+  };
+  ridge(floorTop - 40, 26, '#6a6a9a', 3);
+  ridge(floorTop - 26, 18, '#4f5a7a', 2);
+  // лес, поля, река
+  ridge(floorTop - 16, 6, '#2f4a3a', 2);
+  const fields = ['#7a8a3e', '#a39a4a', '#5f7a3a', '#8a7a3a'];
+  for (let x = 0; x < length; x += 22) rect(g, x, floorTop - 10, 22, 4, fields[Math.floor(rand() * fields.length)]);
+  rect(g, 0, floorTop - 6, length, 6, '#3f5a36');
+  for (let x = 0; x < length; x += 2) rect(g, x, floorTop - 8 + Math.round(Math.sin(x / 23) * 1.5), 2, 1, '#8ab0c8');
+  // деревня: домики с крышами и дымом
+  for (let i = 0; i < 7; i++) {
+    const hx = Math.round(length * 0.25 + i * 13 + rand() * 6), hy = floorTop - 14;
+    rect(g, hx, hy, 8, 5, '#d8c8a8');
+    for (let k = 0; k < 4; k++) rect(g, hx - 1 + k, hy - 1 - k, 10 - k * 2, 1, '#8a3a2e');
+    rect(g, hx + 3, hy + 2, 2, 3, '#4a3226');
+    if (i % 2 === 0) for (let k = 0; k < 6; k++) rect(g, hx + 6 + Math.round(Math.sin(k) * 1.5), hy - 6 - k * 3, 2, 2, 'rgba(220,220,230,0.35)');
+  }
+  rect(g, Math.round(length * 0.25) + 40, floorTop - 22, 3, 9, '#d8c8a8');  // колокольня
+  for (let k = 0; k < 3; k++) rect(g, Math.round(length * 0.25) + 39 + k, floorTop - 23 - k, 5 - k * 2, 1, '#8a3a2e');
+  // балюстрада: столбики и перила, местами обрушены
+  for (let x = 4; x < length - 50; x += 7) {
+    if (Math.floor(x / 7) % 9 === 4 || Math.floor(x / 7) % 9 === 5) continue;  // пролом
+    rect(g, x, floorTop - 12, 3, 12, '#8a8494');
+    rect(g, x, floorTop - 12, 1, 12, '#b8b2c2');
+  }
+  for (let x = 0; x < length - 50; x += 3) if (Math.floor(x / 7) % 9 !== 4 && Math.floor(x / 7) % 9 !== 5) rect(g, x, floorTop - 14, 3, 2, '#a39daf');
+  // справа пол обрывается: пропасть и неровный край
+  const edge = length - 44;
+  const abyss = g.createLinearGradient(0, floorTop, 0, height);
+  abyss.addColorStop(0, '#8a8aa8');  // дымка над долиной
+  abyss.addColorStop(0.4, '#3f5a50');
+  abyss.addColorStop(1, '#16201e');
+  for (let y = floorTop; y < height; y++) {
+    const w = 44 - Math.round(((y - floorTop) / (height - floorTop)) * 18 + Math.sin(y * 0.7) * 3);
+    g.fillStyle = abyss;
+    g.fillRect(edge + (44 - w), y, w, 1);
+    if (y % 5 === 0) rect(g, edge + (44 - w) + 4 + (y % 3) * 6, y, 3, 1, '#2a4038');  // верхушки леса далеко внизу
+    rect(g, edge + (44 - w) - 1, y, 2, 1, '#2a2538');
   }
 }
 
@@ -297,7 +368,7 @@ export function drawPortal(g, cx, cy, time, lit = 1, glow = 0.5) {
 }
 
 // Бочки, ящики, мешки и кости — стоят на полу и сортируются по глубине вместе с бойцами.
-export function drawProp(g, type, x, gy, opened = false) {
+export function drawProp(g, type, x, gy, opened = false, time = 0) {
   x = Math.round(x);
   if (type === 'barrel') {
     rect(g, x - 5, gy - 13, 10, 13, '#6b4532');
@@ -331,6 +402,33 @@ export function drawProp(g, type, x, gy, opened = false) {
       rect(g, x - 1, gy - 9, 3, 3, PAL.gold);
       rect(g, x, gy - 8, 1, 1, '#3b2a1e');
     }
+  } else if (type === 'table') {
+    // длинный стол со скатертью и свечами
+    rect(g, x - 40, gy - 14, 80, 4, '#6b4532');
+    rect(g, x - 40, gy - 14, 80, 1, '#8a5a3b');
+    rect(g, x - 36, gy - 10, 3, 10, '#4a3226');
+    rect(g, x + 33, gy - 10, 3, 10, '#4a3226');
+    rect(g, x - 30, gy - 14, 60, 2, '#d8d0c0');
+    for (const cx of [-24, -8, 10, 26]) {
+      rect(g, x + cx, gy - 19, 2, 5, '#ece4d0');
+      rect(g, x + cx, gy - 21 - (Math.floor(time * 8 + cx) % 2), 2, 2, PAL.flame1);
+      rect(g, x + cx, gy - 21, 1, 1, PAL.flame0);
+    }
+    rect(g, x - 18, gy - 15, 6, 1, '#a39d8a');  // тарелки
+    rect(g, x + 14, gy - 15, 6, 1, '#a39d8a');
+  } else if (type === 'chair') {
+    const f = opened ? -1 : 1;
+    rect(g, x - 4, gy - 8, 8, 2, '#6b4532');
+    rect(g, x - 4, gy - 6, 1, 6, '#4a3226');
+    rect(g, x + 3, gy - 6, 1, 6, '#4a3226');
+    rect(g, f > 0 ? x - 4 : x + 3, gy - 18, 1, 10, '#4a3226');
+  } else if (type === 'cup') {
+    // серебряная чаша на столе, поблёскивает; взятую не рисуем
+    if (opened) return;
+    rect(g, x - 1, gy - 20, 3, 3, '#d8dde6');
+    rect(g, x, gy - 17, 1, 2, '#a3aab4');
+    rect(g, x - 1, gy - 15, 3, 1, '#d8dde6');
+    if (Math.floor(time * 3) % 3 === 0) rect(g, x + 1, gy - 21, 1, 1, '#ffffff');
   } else if (type === 'bones') {
     rect(g, x - 2, gy - 3, 4, 3, '#d9d4c3');
     rect(g, x - 1, gy - 2, 1, 1, '#14101e');

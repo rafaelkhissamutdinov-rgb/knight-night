@@ -585,8 +585,8 @@ function finish() {
   game.mode = 'end';
   ui.reportBtn.hidden = false;
   const s = game.stats;
-  showOverlay('Конец прототипа',
-    `Идеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter}`,
+  showOverlay('Конец первого этажа',
+    `Рыцарь поднимается на второй этаж — его мы сделаем дальше. Идеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter} · монет: ${game.coins}`,
     'R — пройти заново');
 }
 
@@ -682,6 +682,14 @@ function handlePress(code) {
     const chest = nearChest();
     if (chest) {
       game.flags[chestFlag(chest)] = true;
+      if (chest.pick) {
+        // предмет просто лежит — взять
+        game.bag.push(chest.pick);
+        callout(`Взято: ${ITEMS[chest.pick].name}`, 'perfect');
+        sfx.perfect();
+        save();
+        return;
+      }
       game.coins += chest.coins ?? 0;
       if (chest.item) {
         game.bag.push(chest.item);
@@ -767,7 +775,7 @@ function updateAim() {
 // Границы арены: ±150 от центра встречи, но не за стенами комнаты.
 function arenaBounds() {
   const L = room().length;
-  return [Math.max(16, game.arena.x - 150), Math.min(L - 16, game.arena.x + 150)];
+  return [Math.max(16, game.arena.x - 150), Math.min(room().limitRight ?? L - 16, game.arena.x + 150)];
 }
 
 // Встреча начинается, когда рыцарь подходит; проход закрыт, пока группа жива.
@@ -791,6 +799,14 @@ function updateArena() {
   if (!alive) {
     game.cleared.add(game.arena.key);
     game.clearedAt[game.arena.key] = game.time;
+    const enc = encs[game.arena.index];
+    if (enc.after) setTimeout(() => startTalk(enc.after, () => {
+      if (game.room === 'balcony') {
+        game.flags.balcony_done = true;
+        callout('Лестница на второй этаж — в Столовой', 'perfect');
+        save();
+      }
+    }), 900);
     // отдых после победы над группой
     const healed = Math.min(CONFIG.restHeal, CONFIG.playerHp - p.hp);
     if (healed > 0) {
@@ -911,7 +927,7 @@ const chestFlag = pr => `chest_${game.room}_${pr.id}`;
 // сундук у стены рядом с рыцарем (ещё не открытый)
 function nearChest() {
   const p = game.player;
-  return (room().props ?? []).find(pr => pr.type === 'chest' && !game.flags[chestFlag(pr)] && Math.abs(pr.x - p.x) < 18 && Math.abs(pr.z - p.z) < 14) ?? null;
+  return (room().props ?? []).find(pr => (pr.type === 'chest' || pr.pick) && !game.flags[chestFlag(pr)] && Math.abs(pr.x - p.x) < 18 && Math.abs(pr.z - p.z) < 14) ?? null;
 }
 function nearNpc() {
   const p = game.player;
@@ -928,7 +944,7 @@ function updateDoors(dt) {
   game.doorPush += dt;
   if (game.doorPush < 0.12) return;
   game.doorPush = 0;
-  const opensWithKey = d.key && hasItem(d.key);
+  const opensWithKey = (d.key && hasItem(d.key)) || (d.requires && game.flags[d.requires]);
   if (opensWithKey && !game.flags['opened_' + d.id]) {
     game.flags['opened_' + d.id] = true;
     callout('Ключ подошёл', 'perfect');
@@ -941,6 +957,7 @@ function updateDoors(dt) {
     }
     return;
   }
+  if (d.finish) { finish(); return; }
   game.transition = { kind: 'door', door: d, phase: 'turn', t: 0, x0: p.x, z0: p.z };
   sfx.door();
 }
@@ -1084,7 +1101,8 @@ function update(dt) {
   if (!game.arena && !game.tutorial && game.mode === 'play') {
     const npc = nearNpc();
     const d = game.doorNear;
-    hint(nearChest() ? 'E — открыть сундук' : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : hintWalk());
+    const near = nearChest();
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -1151,7 +1169,7 @@ function update(dt) {
     // где нет прохода, стена
     const edges = room().edges ?? {};
     if (!edges.left) lo = 16;
-    if (!edges.right) hi = L - 16;
+    if (!edges.right) hi = room().limitRight ?? L - 16;
   }
   p.x = Math.max(lo, Math.min(hi, p.x));
   if (game.arena) for (const e of game.enemies) {
@@ -1809,7 +1827,7 @@ function render() {
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => a.z - b.z);
   for (const a of things) {
-    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), !!game.flags[chestFlag(a.prop)]);
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : !!game.flags[chestFlag(a.prop)], game.time);
     else if (a === game.player) renderPlayer(cam);
     else if (a.npc) renderNpc(a, cam);
     else renderEnemy(a, cam);

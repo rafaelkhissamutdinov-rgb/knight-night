@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.19';
+export const VERSION = 'v0.20';
 
 export const CONFIG = {
   width: 320,
@@ -179,6 +179,16 @@ export const ENEMY_TYPES = {
     guardChance: 0.5, reaction: 0.1, noLowGuard: true,
     colors: { armor: '#8a6a48', armorDark: '#5e4630', tabard: '#6b4532', helm: '#c49a76', visor: '#14101e', blade: '#c9d2dc', hilt: '#7a5a3a', boots: '#3b2a1e', bandana: '#2e3b4a', mask: '#5e4630' },
   },
+  // скелет — командир стражи: хороший полуторный меч и щит, сражается на обрушенном балконе.
+  // Щит держит верх и середину; пробивают низом, захлёстом, контратакой после идеальной серии.
+  commander: {
+    kind: 'melee', name: 'Скелет — командир стражи', shortName: 'Командир стражи', hp: 12, damage: 1, aggro: 160, reach: 34, speed: 46, lunge: 6, weapon: 19,
+    skull: true, plate: true, shield: true,
+    windup: 0.6, comboWindup: 0.42, gap: 0.08, recover: 0.9, wait: [0.6, 1.0],
+    combos: [['high', 'mid'], ['diagDown'], ['mid', 'low', 'high'], ['heavyHigh'], ['thrust', 'diagUp'], ['low', 'low', 'high']],
+    guardChance: 0.5, reaction: 0.1,
+    colors: { ...BONE, plate: '#b8a46a', plateDark: '#7a6a3e', plateLight: '#efe2a8', tabard: '#7a1e2e', shield: '#5a2a2a', blade: '#e8eef4', hilt: '#e0b04a' },
+  },
   skelShield: {
     kind: 'melee', name: 'Скелет со щитом', hp: 4, damage: 1, aggro: 130, reach: 26, speed: 40, lunge: 4, weapon: 13, skull: true, shield: true,
     windup: 0.7, comboWindup: 0.45, gap: 0.1, recover: 1, wait: [0.8, 1.2],
@@ -273,7 +283,7 @@ export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amu
 export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
-export const COINS = { axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, duelist: 10, mage: 15 };
+export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, duelist: 10, mage: 15 };
 
 // Мир: комнаты и переходы между ними.
 // edges — выход за край комнаты (left / right): to — комната, x — где рыцарь появится там.
@@ -328,7 +338,7 @@ export const ROOMS = {
   gallery: {
     name: 'Галерея', length: 1180, image: 'assets/backgrounds/gallery.png', tile: GALLERY_TILE, torches: [],
     flames: tiledFlames(1180, GALLERY_TILE, TILE_FLAMES),
-    edges: { left: { to: 'hall', x: 2370, name: 'Темница' } },
+    edges: { left: { to: 'hall', x: 2370, name: 'Темница' }, right: { to: 'corridor', x: 30, name: 'Коридор' } },
     doors: [
       { id: 'shop', x: 170, kind: 'wood', to: 'shop', toDoor: 'out', name: 'Лавка Лики' },
       { id: 'armory', x: 377, kind: 'wood', to: 'armory', toDoor: 'out', name: 'Оружейная' },
@@ -380,6 +390,36 @@ export const ROOMS = {
     ],
   },
   // лестница башни: наверх — к магу
+  // за Галереей: коридор с мародёрами → столовая (чаша, лестница на второй этаж) → обрушенный балкон (тупик, командир стражи)
+  corridor: {
+    name: 'Коридор', length: 900, torches: [120, 330, 540, 760],
+    edges: { left: { to: 'gallery', x: 1150, name: 'Галерея' }, right: { to: 'dining', x: 30, name: 'Столовая' } },
+    props: [{ type: 'crate', x: 200, z: 2 }, { type: 'sack', x: 214, z: 6 }, { type: 'barrel', x: 640, z: 3 }],
+    encounters: [
+      { x: 470, enemies: [{ type: 'merc', dx: 40, z: 16 }, { type: 'axe', dx: 110, z: 30 }] },
+    ],
+  },
+  dining: {
+    name: 'Столовая', length: 480, columns: false, torches: [60, 420], stairs: 'up', stairsX: 40,
+    edges: { left: { to: 'corridor', x: 870, name: 'Коридор' }, right: { to: 'balcony', x: 30, name: 'Балкон' } },
+    doors: [
+      // у подножия лестницы: наверх можно, когда осмотрел этаж до конца (балкон)
+      { id: 'up', x: 60, kind: 'none', name: 'Лестница на второй этаж', requires: 'balcony_done', locked: 'Сначала осмотри этаж до конца', finish: true },
+    ],
+    props: [
+      { type: 'table', x: 300, z: 16 }, { type: 'chair', x: 252, z: 10 }, { type: 'chair', x: 348, z: 24, flip: true },
+      { type: 'cup', id: 'cup', x: 318, z: 17, pick: 'silver_cup' },
+      { type: 'barrel', x: 452, z: 3 },
+    ],
+  },
+  // тупик: обрыв и вид на долину, деревню, поля и леса — туда рыцарь пойдёт во второй локации
+  balcony: {
+    name: 'Обрушенный балкон', length: 400, balcony: true, torches: [], limitRight: 348,  // дальше — обрыв
+    edges: { left: { to: 'dining', x: 450, name: 'Столовая' } },
+    encounters: [
+      { x: 240, before: 'commander_meet', after: 'balcony_after', enemies: [{ type: 'commander', dx: 40, z: 22 }] },
+    ],
+  },
   tower: {
     name: 'Лестница башни', length: 320, columns: false, torches: [100, 230], stairs: 'up',
     doors: [
