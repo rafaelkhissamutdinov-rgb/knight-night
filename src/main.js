@@ -631,7 +631,17 @@ function handlePress(code) {
   if (game.transition) return;
 
   const p = game.player;
-  if (code === 'KeyE') {
+  if (code === 'KeyE' && !game.arena) {
+    const chest = nearChest();
+    if (chest) {
+      game.flags[chestFlag(chest)] = true;
+      game.coins += chest.coins ?? 0;
+      callout(`Сундук: +${chest.coins} монет`, 'perfect');
+      sfx.perfect();
+      sparks(chest.x, groundY(chest.z) - 10, 14, [PAL.gold, PAL.spark], 80);
+      save();
+      return;
+    }
     const npc = nearNpc();
     if (npc) {
       npc.facing = Math.sign(p.x - npc.x) || -1;
@@ -840,6 +850,12 @@ function trainerLeave() {
 function doorAt(p) {
   return (room().doors ?? []).find(d => Math.abs(d.x - p.x) < DOOR_W / 2 + 2 && p.z < 14) ?? null;
 }
+const chestFlag = pr => `chest_${game.room}_${pr.id}`;
+// сундук у стены рядом с рыцарем (ещё не открытый)
+function nearChest() {
+  const p = game.player;
+  return (room().props ?? []).find(pr => pr.type === 'chest' && !game.flags[chestFlag(pr)] && Math.abs(pr.x - p.x) < 18 && Math.abs(pr.z - p.z) < 14) ?? null;
+}
 function nearNpc() {
   const p = game.player;
   return game.npcs.find(n => Math.abs(n.x - p.x) < 28 && Math.abs(n.z - p.z) < 12) ?? null;
@@ -850,7 +866,8 @@ function updateDoors(dt) {
   const p = game.player;
   const d = p.ready && !game.arena && !game.tutorial ? doorAt(p) : null;
   game.doorNear = d;
-  if (!d || !held('depthIn') || p.z > 1) { game.doorPush = 0; return; }
+  if (game.doorLock && !held('depthIn')) game.doorLock = false;  // вышел из двери — сначала отпусти W
+  if (!d || !held('depthIn') || p.z > 1 || game.doorLock) { game.doorPush = 0; return; }
   game.doorPush += dt;
   if (game.doorPush < 0.12) return;
   game.doorPush = 0;
@@ -924,6 +941,7 @@ function updateTransition(dt) {
   }
   if (!next) {
     game.transition = null;
+    game.doorLock = true;
     p.z = 8;
     p.step = 0;
     game.view = 'side';
@@ -1004,7 +1022,7 @@ function update(dt) {
   if (!game.arena && !game.tutorial && game.mode === 'play') {
     const npc = nearNpc();
     const d = game.doorNear;
-    hint(npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : hintWalk());
+    hint(nearChest() ? 'E — открыть сундук' : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -1518,7 +1536,7 @@ function render() {
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => a.z - b.z);
   for (const a of things) {
-    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z));
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), !!game.flags[chestFlag(a.prop)]);
     else if (a === game.player) renderPlayer(cam);
     else if (a.npc) renderNpc(a, cam);
     else renderEnemy(a, cam);
@@ -1588,7 +1606,7 @@ function render() {
   const rapier = game.player.weapon === 'rapier';
   const skill = rapier ? 'восьмёрка' : 'вихрь';
   if (ui.skillName.textContent !== skill) ui.skillName.textContent = skill;
-  const wl = game.unlocked.has('rapier') ? `${game.player.arms.name} · Q` : '';
+  const wl = [game.unlocked.has('rapier') ? `${game.player.arms.name} · Q` : '', game.coins ? `монеты: ${game.coins}` : ''].filter(Boolean).join(' · ');
   if (ui.weapon.textContent !== wl) { ui.weapon.textContent = wl; ui.weapon.hidden = !wl; }
   ui.skillSpin.classList.toggle('ready', charge >= 1);
 }
@@ -1621,7 +1639,7 @@ function renderEnemy(e, cam) {
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
-      wrap: e.def.wrap, curved: e.def.curved, slim: e.def.slim,
+      wrap: e.def.wrap, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
     });
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {

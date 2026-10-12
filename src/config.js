@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.13';
+export const VERSION = 'v0.14';
 
 export const CONFIG = {
   width: 320,
@@ -153,6 +153,15 @@ export const ENEMY_TYPES = {
     guardChance: 0.35, reaction: 0.14,
     colors: { ...BONE_LEATHER },
   },
+  // наёмник с копьём: лёгкая кожаная броня, длинные уколы и круговой взмах «тык-тык — диск».
+  // Нижних ударов нет и снизу не закрывается — его берут скоростью и кувырком с подсечкой.
+  spear: {
+    kind: 'melee', name: 'Наёмник с копьём', shortName: 'Копейщик', hp: 4, damage: 1, aggro: 160, reach: 46, speed: 44, lunge: 6, weapon: 30, spear: true,
+    windup: 0.6, comboWindup: 0.42, gap: 0.08, recover: 1.0, wait: [0.7, 1.1],
+    combos: [['thrust', 'thrust', 'whirl'], ['thrust', 'thrust'], ['thrust', 'whirl'], ['thrust', 'thrust', 'whirl']],
+    guardChance: 0.5, reaction: 0.1, noLowGuard: true,
+    colors: { armor: '#8a6a48', armorDark: '#5e4630', tabard: '#6b4532', helm: '#9a7a52', visor: '#14101e', blade: '#c9d2dc', hilt: '#7a5a3a', boots: '#3b2a1e' },
+  },
   skelShield: {
     kind: 'melee', name: 'Скелет со щитом', hp: 4, damage: 1, aggro: 130, reach: 26, speed: 40, lunge: 4, weapon: 13, skull: true, shield: true,
     windup: 0.7, comboWindup: 0.45, gap: 0.1, recover: 1, wait: [0.8, 1.2],
@@ -259,6 +268,7 @@ export const ROOMS = {
       { id: 'guard', x: 1580, kind: 'wood', to: 'guardroom', toDoor: 'out', name: 'Караульная' },
       { id: 'cellC', x: 2090, kind: 'bars', locked: 'Пустая камера' },
       { id: 'iron', x: 2620, kind: 'iron', locked: 'Заперто. Нужен ключ' },
+      { id: 'armory', x: 3150, kind: 'wood', to: 'armory', toDoor: 'out', name: 'Оружейная' },
     ],
     trainer: { x: 300, z: 22 },
     props: [{ type: 'barrel', x: 680, z: 2 }, { type: 'crate', x: 1500, z: 3 }, { type: 'bones', x: 2180, z: 30 }],
@@ -277,6 +287,15 @@ export const ROOMS = {
     props: [
       { type: 'crate', x: 252, z: 2 }, { type: 'crate', x: 264, z: 10 }, { type: 'barrel', x: 282, z: 3 },
       { type: 'barrel', x: 120, z: 2 }, { type: 'sack', x: 236, z: 4 },
+    ],
+  },
+  // за Илиа: испытать рапиру на копейщиках; в сундуке монеты для лавки
+  armory: {
+    name: 'Оружейная', length: 480, columns: false, torches: [120, 360],
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'armory', name: 'Темница' }],
+    props: [{ type: 'chest', id: 'a', x: 446, z: 3, coins: 20 }, { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 420, z: 14 }],
+    encounters: [
+      { x: 290, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'spear', dx: 110, z: 32 }] },
     ],
   },
   guardroom: {
