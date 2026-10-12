@@ -152,8 +152,14 @@ export function drawFigure(g, o) {
     rect(g, f > 0 ? headX - 2 : headX + 6, headY + 1, 3, 10, colors.wrap);
     rect(g, f > 0 ? headX - 2 : headX + 8, headY + 6, 1, 6, colors.wrapDark);
     rect(g, f > 0 ? headX + 4 : headX + 1, headY + 2, 2, 1, colors.visor);
-    rect(g, headX, headY + 4, 7, 3, colors.wrapDark);
-    rect(g, f > 0 ? headX + 2 : headX + 1, headY + 5, 4, 1, colors.wrap);
+    if (o.veil !== false) {
+      rect(g, headX, headY + 4, 7, 3, colors.wrapDark);
+      rect(g, f > 0 ? headX + 2 : headX + 1, headY + 5, 4, 1, colors.wrap);
+    } else {
+      // лицо открыто: брови, губы
+      rect(g, f > 0 ? headX + 4 : headX + 1, headY + 1, 2, 1, colors.hair ?? colors.visor);
+      rect(g, f > 0 ? headX + 4 : headX + 1, headY + 5, 2, 1, colors.lips ?? '#a0524a');
+    }
     rect(g, headX + 3, headY - 1, 1, 1, colors.belt);
   } else if (hood) {
     // глубокий капюшон: лицо в тени

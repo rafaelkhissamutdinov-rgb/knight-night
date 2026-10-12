@@ -5,7 +5,7 @@ import { createEnemy } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
-import { POSES, approachPose } from './poses.js';
+import { POSES, approachPose, ease } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { loadSave, writeSave, clearSave } from './save.js';
@@ -1056,8 +1056,10 @@ function updateCutscene(dt) {
   }
   p.sheathed = false;
   if (c.t < WAKE.kneel) {
-    const shakeHead = c.t > 1.8 && c.t < 2.5 ? Math.sin(c.t * 22) * 1.5 : 0;
-    p.pose = { ...SIT, lean: SIT.lean + shakeHead };
+    // сидит, голова опущена → поднимает голову → снова опускает взгляд, смотрит вперёд
+    const k = (a, b) => Math.min(1, Math.max(0, (c.t - a) / (b - a)));
+    const lean = 3 - 4 * ease(k(1.7, 2.1)) + 2 * ease(k(2.5, 2.9));
+    p.pose = { ...SIT, lean };
   } else if (c.t < WAKE.stand) {
     p.pose = approachPose(p.pose, POSES.kneel, dt, 10);
   } else {
@@ -1577,7 +1579,7 @@ for (const set of Object.values(FACES)) for (const src of Object.values(set)) ne
 const PORTRAITS = {
   knight: { colors: KNIGHT_COLORS, plume: true },
   ilia: { colors: ENEMY_TYPES.duelist.colors, face: true, rapier: true, robe: true },
-  trainer: { colors: ENEMY_TYPES.trainer.colors, wrap: true, robe: true, slim: true },
+  trainer: { colors: ENEMY_TYPES.trainer.colors, wrap: true, veil: false, robe: true, slim: true },
   lika: { ...NPC_TYPES.lika },
 };
 
@@ -2022,10 +2024,19 @@ function renderEnemy(e, cam) {
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
-      wrap: e.def.wrap, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
+      wrap: e.def.wrap, veil: e.def.veil, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate,
     });
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
+    if (e.state === 'notice') {
+      // «!» над головой: заметил рыцаря
+      const pop = Math.min(1, e.t / 0.15);
+      const y = GROUND - 46 - Math.round(pop * 4);
+      rect(g, ex - 1, y, 3, 7, '#14101e');
+      rect(g, ex, y + 1, 1, 4, PAL.gold);
+      rect(g, ex - 1, y + 8, 3, 3, '#14101e');
+      rect(g, ex, y + 9, 1, 1, PAL.gold);
+    }
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) {
       // удар, который сбивает защиту, бликует оранжевым
       const c = e.strike?.breaks || e.strike?.bypass ? PAL.flame2 : PAL.spark;

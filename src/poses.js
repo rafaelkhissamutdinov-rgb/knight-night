@@ -56,6 +56,7 @@ export const POSES = {
 
   broken:      { hx: 2,  hy: -4,  angle: -130, lean: -4, crouch: 1 },  // защиту сбили: меч отброшен
   tuck:        { hx: 4,  hy: 4,   angle: -60,  lean: 4,  crouch: 8 },  // сгруппировался в кувырке
+  lean_sword:  { hx: 7,  hy: 12,  angle: 86,   lean: 3,  crouch: 2 },  // отдыхает, опершись на клинок, упёртый в пол
   kneel:       { hx: 5,  hy: 10,  angle: 90,   lean: 1,  crouch: 9 },  // на одном колене, меч упёрт в пол
 
   hurt:        { hx: 4,  hy: 8,   angle: 50,   lean: -3, crouch: 0 },
