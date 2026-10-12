@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.16';
+export const VERSION = 'v0.17';
 
 export const CONFIG = {
   width: 320,
@@ -32,6 +32,8 @@ export const CONFIG = {
   // Передвижение
   walkSpeed: 74,        // в бою
   exploreSpeed: 120,    // вне боя: по пустым коридорам быстрее (v0.16, просьба владельца)
+  runSpeed: 210,        // вне боя рыцарь сам переходит на бег (v0.17)
+  runDelay: 0.35,       // через столько секунд ходьбы
   exploreDepthSpeed: 70,
   enemyMove: 1.4,       // множитель скорости передвижения врагов (не ударов)
   backWalkFactor: 0.8,  // пятиться медленнее, чем идти вперёд
@@ -240,6 +242,7 @@ export const ITEMS = {
   potion: { name: 'Зелье лечения', price: 10, effect: { heal: 3 } },
   bandage: { name: 'Бинт', price: 4, effect: { heal: 1 } },
   map: { name: 'Карта замка', price: 25 },
+  key_tower: { name: 'Ключ от башни', key: true },
 };
 
 // Мир: комнаты и переходы между ними.
@@ -252,6 +255,15 @@ export const ITEMS = {
 // image — фон-картинка вместо нарисованного кодом (assets/backgrounds/, 320×180 на экран); flames — где на ней факелы [x, y].
 export const START = { room: 'cell', x: 112, z: 26 };
 
+// Галерея: картинка-плитка 236×180 повторяется с зеркалом; факелы на плитке — в TILE_FLAMES
+const GALLERY_TILE = 236;
+const TILE_FLAMES = [[19, 69], [95, 69], [170, 69]];
+const tiledFlames = (length, tile, flames) => {
+  const out = [];
+  for (let i = 0; i * tile < length; i++) for (const [x, y] of flames) out.push([i * tile + (i % 2 ? tile - x : x), y]);
+  return out;
+};
+
 export const ROOMS = {
   cell: {
     name: 'Камера с порталом', length: 320, dark: true, torches: [], columns: false, cobwebs: true, gate: 'right',
@@ -262,42 +274,55 @@ export const ROOMS = {
     ],
     edges: { right: { to: 'hall', x: 44 } },
   },
+  // нижний ярус замка: обучение, четыре встречи и Илиа; в конце — лестница наверх, в Галерею
   hall: {
-    name: 'Темница', length: 3320, gate: 'left', finish: true,
-    torches: [150, 330, 760, 920, 1240, 1400, 1760, 1920, 2240, 2400, 2780, 2940, 3180],
-    edges: { left: { to: 'cell', x: 276 } },
+    name: 'Темница', length: 2400, gate: 'left', stairs: 'right',
+    torches: [150, 330, 560, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200],
+    edges: { left: { to: 'cell', x: 276 }, right: { to: 'gallery', x: 30, name: 'Лестница наверх' } },
     doors: [
       { id: 'cellA', x: 470, kind: 'bars', locked: 'Пустая камера' },
-      { id: 'shop', x: 600, kind: 'wood', to: 'shop', toDoor: 'out', name: 'Лавка' },
-      { id: 'cellB', x: 1060, kind: 'bars', locked: 'Пустая камера', bones: true },
-      { id: 'guard', x: 1580, kind: 'wood', to: 'guardroom', toDoor: 'out', name: 'Караульная' },
-      { id: 'cellC', x: 2090, kind: 'bars', locked: 'Пустая камера' },
-      { id: 'iron', x: 2620, kind: 'iron', locked: 'Заперто. Нужен ключ' },
-      { id: 'armory', x: 3150, kind: 'wood', to: 'armory', toDoor: 'out', name: 'Оружейная' },
+      { id: 'cellB', x: 870, kind: 'bars', locked: 'Пустая камера', bones: true },
+      { id: 'cellC', x: 1560, kind: 'bars', locked: 'Пустая камера' },
     ],
     trainer: { x: 300, z: 22 },
-    props: [{ type: 'barrel', x: 680, z: 2 }, { type: 'crate', x: 1500, z: 3 }, { type: 'bones', x: 2180, z: 30 }],
+    props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 }],
     encounters: [
-      { x: 800, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
-      { x: 1280, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
-      { x: 1800, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
-      { x: 2320, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
-      { x: 2920, before: 'ilia_meet', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // before — диалог перед боем
+      { x: 660, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
+      { x: 1020, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
+      { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
+      { x: 1740, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
+      { x: 2100, before: 'ilia_meet', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // before — диалог перед боем
+    ],
+  },
+  // верхняя галерея с окнами на горы (фон владельца, плитка с зеркалом); отсюда — все комнаты и башня
+  gallery: {
+    name: 'Галерея', length: 1180, image: 'assets/backgrounds/gallery.png', tile: GALLERY_TILE, torches: [],
+    flames: tiledFlames(1180, GALLERY_TILE, TILE_FLAMES),
+    edges: { left: { to: 'hall', x: 2370, name: 'Темница' } },
+    doors: [
+      { id: 'shop', x: 170, kind: 'wood', to: 'shop', toDoor: 'out', name: 'Лавка Лики' },
+      { id: 'armory', x: 377, kind: 'wood', to: 'armory', toDoor: 'out', name: 'Оружейная' },
+      { id: 'guard', x: 567, kind: 'wood', to: 'guardroom', toDoor: 'out', name: 'Караульная' },
+      { id: 'barracks', x: 849, kind: 'wood', to: 'barracks', toDoor: 'out', name: 'Казарма' },
+      { id: 'tower', x: 1114, kind: 'iron', to: 'tower', toDoor: 'out', name: 'Башня', key: 'key_tower', locked: 'Заперто. Нужен ключ от башни' },
+    ],
+    encounters: [
+      { x: 700, enemies: [{ type: 'spear', dx: 60, z: 18 }, { type: 'skelArcher', dx: 150, z: 6 }] },
     ],
   },
   shop: {
     name: 'Лавка Лики', length: 320, columns: false, torches: [160],
-    doors: [{ id: 'out', x: 64, kind: 'wood', to: 'hall', toDoor: 'shop', name: 'Темница' }],
+    doors: [{ id: 'out', x: 64, kind: 'wood', to: 'gallery', toDoor: 'shop', name: 'Галерея' }],
     npcs: [{ type: 'lika', x: 214, z: 12 }],
     props: [
       { type: 'crate', x: 252, z: 2 }, { type: 'crate', x: 264, z: 10 }, { type: 'barrel', x: 282, z: 3 },
       { type: 'barrel', x: 120, z: 2 }, { type: 'sack', x: 236, z: 4 },
     ],
   },
-  // за Илиа: испытать рапиру на копейщиках; в сундуке монеты для лавки
+  // испытать рапиру на копейщиках; в сундуке монеты для лавки
   armory: {
     name: 'Оружейная', length: 480, columns: false, torches: [120, 360],
-    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'armory', name: 'Темница' }],
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'armory', name: 'Галерея' }],
     props: [{ type: 'chest', id: 'a', x: 446, z: 3, coins: 20 }, { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 420, z: 14 }],
     encounters: [
       { x: 290, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'spear', dx: 110, z: 32 }] },
@@ -307,9 +332,33 @@ export const ROOMS = {
   guardroom: {
     name: 'Караульная', length: 320, image: 'assets/backgrounds/guardroom.png', torches: [],
     flames: [[19, 77], [90, 92], [143, 80], [232, 79], [252, 90], [303, 76]],
-    doors: [{ id: 'out', x: 50, kind: 'wood', to: 'hall', toDoor: 'guard', name: 'Темница' }],
+    doors: [{ id: 'out', x: 50, kind: 'wood', to: 'gallery', toDoor: 'guard', name: 'Галерея' }],
     encounters: [
       { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'slime', dx: 80, z: 32 }] },
     ],
+  },
+  // капитан стражи стережёт сундук с ключом от башни
+  barracks: {
+    name: 'Казарма', length: 480, columns: false, torches: [120, 360],
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'barracks', name: 'Галерея' }],
+    props: [
+      { type: 'chest', id: 'key', x: 446, z: 3, coins: 5, item: 'key_tower' },
+      { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 175, z: 2 }, { type: 'barrel', x: 420, z: 16 },
+    ],
+    encounters: [
+      { x: 270, before: 'captain_meet', enemies: [{ type: 'captain', dx: 60, z: 22 }, { type: 'skelShort', dx: 110, z: 36 }] },
+    ],
+  },
+  // лестница башни: наверх — к магу
+  tower: {
+    name: 'Лестница башни', length: 320, columns: false, torches: [100, 230], stairs: 'up',
+    doors: [
+      { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
+      { id: 'up', x: 272, kind: 'wood', to: 'mage', toDoor: 'in', name: 'Вершина башни' },
+    ],
+  },
+  mage: {
+    name: 'Вершина башни', length: 480, columns: false, torches: [100, 240, 380], magic: true,
+    doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни' }],
   },
 };
