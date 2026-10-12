@@ -22,6 +22,19 @@ export function thick(g, x0, y0, x1, y1, w, color) {
   }
 }
 
+// Светлее (k > 0) или темнее (k < 0) цвет #rrggbb — для объёма без новых цветов в палитре.
+const shadeCache = new Map();
+export function shade(hex, k) {
+  const key = hex + k;
+  if (shadeCache.has(key)) return shadeCache.get(key);
+  if (!hex || hex[0] !== '#' || hex.length !== 7) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const ch = v => Math.max(0, Math.min(255, Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k))));
+  const out = '#' + [n >> 16, (n >> 8) & 255, n & 255].map(ch).map(v => v.toString(16).padStart(2, '0')).join('');
+  shadeCache.set(key, out);
+  return out;
+}
+
 function withAlpha(g, a, fn) {
   const prev = g.globalAlpha;
   g.globalAlpha = prev * a;
@@ -54,10 +67,21 @@ export function drawFigure(g, o) {
     thick(g, hipX + 6 * f, hipY - 4, hipX + 9 * f, gy - 2, 3, colors.armor);
     rect(g, hipX + 9 * f - 1, gy - 2, 4, 2, colors.boots);
   } else {
-    thick(g, hipX - 2 * f, hipY, hipX - 2 * f - s * f, gy - 2, 3, colors.armorDark);
-    thick(g, hipX + 2 * f, hipY, hipX + 2 * f + s * f, gy - 2, 3, colors.armor);
-    rect(g, hipX - 3 * f - s * f - 1, gy - 2, 4, 2, colors.boots);
-    rect(g, hipX + 2 * f + s * f - 1, gy - 2, 4, 2, colors.boots);
+    // бедро и голень с коленом: колено чуть вперёд, сильнее — в приседе
+    const leg = (hx, fx, color) => {
+      const kx = (hx + fx) / 2 + f * (1 + pose.crouch * 0.35), ky = (hipY + gy - 2) / 2;
+      thick(g, hx, hipY, kx, ky, 3, color);
+      thick(g, kx, ky, fx, gy - 2, 3, color);
+      rect(g, kx - 1 + (f > 0 ? 1 : 0), ky - 1, 1, 2, shade(color, skull ? -0.25 : 0.25));
+    };
+    const bx = hipX - 2 * f - s * f, fx = hipX + 2 * f + s * f;
+    leg(hipX - 2 * f, bx, colors.armorDark);
+    leg(hipX + 2 * f, fx, colors.armor);
+    for (const [px, c] of [[bx, shade(colors.boots, -0.2)], [fx, colors.boots]]) {
+      rect(g, px - 2 + (f > 0 ? 0 : -1), gy - 3, 5, 3, c);
+      rect(g, px + (f > 0 ? 2 : -3), gy - 1, 1, 1, c);
+      rect(g, px - 2 + (f > 0 ? 0 : -1), gy - 3, 5, 1, shade(c, 0.25));
+    }
   }
 
   // длинное одеяние до пят: расширяется книзу, из-под него видны только носки сапог
@@ -96,10 +120,33 @@ export function drawFigure(g, o) {
     rect(g, shX - 3, shY + 1, 7, 1, colors.armorDark);
   }
 
-  // корпус и табард (у скелета — тёмные просветы между рёбрами; пояс-кушак у тонкой фигуры)
+  // вторая рука — за корпусом, в тени
+  if (!offhandBack && !bow) {
+    const ex = shX - 3 * f, ey = shY + 7;
+    thick(g, shX - f, shY + 2, ex, ey, 2, shade(colors.armorDark, -0.25));
+    thick(g, ex, ey, ex + f, ey + 5, 2, shade(colors.armorDark, -0.25));
+  }
+
+  // корпус и табард (у скелета — рёбра; пояс-кушак у тонкой фигуры)
   if (!coat) {
-    thick(g, hipX, hipY - 3, shX, shY + 3, skull || slim ? 6 : 8, colors.armor);
-    thick(g, hipX + f, hipY - 1, (hipX + shX) / 2 + f, shY + 5, skull ? 2 : slim ? 2 : 4, colors.tabard);
+    const w = skull || slim ? 6 : 8;
+    thick(g, hipX, hipY - 3, shX, shY + 3, w, colors.armor);
+    // объём: светлая сторона спереди-сверху, тень сзади
+    thick(g, hipX + f * (w / 2 - 1), hipY - 3, shX + f * (w / 2 - 1), shY + 3, 1, shade(colors.armor, 0.3));
+    thick(g, hipX - f * (w / 2), hipY - 3, shX - f * (w / 2), shY + 3, 1, shade(colors.armor, -0.3));
+    if (skull) {
+      // рёбра и позвоночник
+      for (let y = shY + 3; y < hipY - 3; y += 2) {
+        const k = (y - shY) / Math.max(1, hipY - shY), cx = shX + (hipX - shX) * k;
+        rect(g, cx - 2, y, 5, 1, shade(colors.armor, -0.45));
+      }
+      rect(g, hipX - 3, hipY - 3, 7, 2, shade(colors.armor, -0.2));
+    } else {
+      thick(g, hipX + f, hipY - 1, (hipX + shX) / 2 + f, shY + 5, slim ? 2 : 4, colors.tabard);
+      thick(g, hipX + f * (slim ? 2 : 3), hipY - 1, (hipX + shX) / 2 + f * (slim ? 2 : 3), shY + 5, 1, shade(colors.tabard, -0.3));
+      // пояс
+      if (!robe) rect(g, hipX - w / 2, hipY - 3, w, 1, colors.belt ?? shade(colors.armor, -0.45));
+    }
   }
   if (plate) {
     // латы: нагрудник с бликом и наплечник поверх рёбер
@@ -178,9 +225,15 @@ export function drawFigure(g, o) {
     rect(g, f > 0 ? headX + 4 : headX + 1, headY + 4, 2, 1, colors.hair);
     rect(g, f > 0 ? headX + 3 : headX + 1, headY + 6, 3, 1, colors.hair);
   } else if (skull) {
-    rect(g, headX, headY + 1, 7, 6, colors.helm);
-    rect(g, f > 0 ? headX + 4 : headX + 1, headY + 3, 2, 2, colors.visor);
-    rect(g, f > 0 ? headX + 3 : headX + 1, headY + 6, 3, 1, colors.armorDark);
+    // череп: округлый свод, глазница, нос, челюсть с зубами
+    rect(g, headX + 1, headY, 5, 1, colors.helm);
+    rect(g, headX, headY + 1, 7, 5, colors.helm);
+    rect(g, f > 0 ? headX + 1 : headX + 2, headY + 6, 4, 2, colors.helm);
+    rect(g, f > 0 ? headX : headX + 6, headY + 1, 1, 4, shade(colors.helm, -0.2));
+    rect(g, f > 0 ? headX + 4 : headX + 1, headY + 2, 2, 2, colors.visor);
+    rect(g, f > 0 ? headX + 6 : headX, headY + 4, 1, 1, colors.visor);
+    rect(g, f > 0 ? headX + 2 : headX + 2, headY + 6, 4, 1, shade(colors.helm, -0.45));
+    rect(g, f > 0 ? headX + 3 : headX + 3, headY + 6, 1, 1, colors.helm);
     if (plate) {
       // шлем-шапель с наносником
       rect(g, headX - 1, headY - 1, 9, 4, colors.plate);
@@ -189,12 +242,23 @@ export function drawFigure(g, o) {
       rect(g, f > 0 ? headX + 5 : headX + 1, headY + 3, 1, 2, colors.plateDark);
     }
   } else {
-    rect(g, headX, headY, 7, 8, colors.helm);
+    // топфхелм: скруглённый верх, блик спереди, прорезь забрала и дырочки для дыхания, тёмный подбородок
+    rect(g, headX + 1, headY, 5, 1, colors.helm);
+    rect(g, headX, headY + 1, 7, 7, colors.helm);
+    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 1, 1, 2, shade(colors.helm, 0.45));
+    rect(g, f > 0 ? headX : headX + 6, headY + 1, 1, 7, shade(colors.helm, -0.3));
     rect(g, f > 0 ? headX + 3 : headX, headY + 3, 4, 1, colors.visor);
+    rect(g, f > 0 ? headX + 4 : headX + 2, headY + 5, 1, 1, shade(colors.helm, -0.45));
+    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 6, 1, 1, shade(colors.helm, -0.45));
+    rect(g, headX + 1, headY + 7, 5, 1, shade(colors.helm, -0.2));
   }
   if (plume) {
+    // плюмаж струится назад
     rect(g, headX + 2, headY - 2, 3, 2, colors.plume);
     rect(g, headX + (f > 0 ? -1 : 4), headY - 1, 4, 2, colors.plume);
+    rect(g, headX + (f > 0 ? -3 : 7), headY, 3, 2, shade(colors.plume, -0.25));
+    rect(g, headX + (f > 0 ? -4 : 9), headY + 2, 2, 1, shade(colors.plume, -0.35));
+    rect(g, headX + 3, headY - 2, 1, 1, shade(colors.plume, 0.35));
   }
 
   // щит перед корпусом
@@ -206,7 +270,15 @@ export function drawFigure(g, o) {
   // рука
   const handX = shX + pose.hx * f;
   const handY = shY + 2 + pose.hy;
-  thick(g, shX + f, shY + 2, handX, handY, 2, colors.armorDark);
+  // плечо с локтем, наплечник, латная перчатка
+  const elX = (shX + f + handX) / 2 - f, elY = (shY + 2 + handY) / 2 + 1;
+  thick(g, shX + f, shY + 2, elX, elY, 2, colors.armorDark);
+  thick(g, elX, elY, handX, handY, 2, colors.armorDark);
+  if (!skull && !coat && !slim && !bandit) {
+    rect(g, shX - 2, shY, 5, 3, colors.armor);
+    rect(g, shX - 1, shY, 3, 1, shade(colors.armor, 0.35));
+  }
+  rect(g, handX - 1, handY - 1, 2, 2, (face || bandit || slim || coat || wrap || bob) ? (colors.helm) : shade(colors.armorDark, 0.2));
   const a = pose.angle * Math.PI / 180;
   const dx = Math.cos(a) * f, dy = Math.sin(a);
 
@@ -392,4 +464,48 @@ export function flashColors(colors) {
   const out = {};
   for (const k in colors) out[k] = '#fff4e8';
   return out;
+}
+
+// Контур: фигура рисуется на отдельный холст, обводится тёмной линией в 1 пиксель и переносится на экран.
+// Так силуэт читается на любом фоне — главный приём пиксель-арта.
+const OW = 120, OH = 140, OX = 60, OY = 112;
+let outA = null, outB = null;
+function withOutline(g, x, ground, draw, color = '#0d0b14') {
+  if (typeof document === 'undefined') return draw(g, x, ground);
+  if (!outA) {
+    outA = document.createElement('canvas'); outA.width = OW; outA.height = OH;
+    outB = document.createElement('canvas'); outB.width = OW; outB.height = OH;
+  }
+  const a = outA.getContext('2d'), b = outB.getContext('2d');
+  a.clearRect(0, 0, OW, OH);
+  const rx = Math.round(x), rg = Math.round(ground);
+  const res = draw(a, OX + (x - rx), OY + (ground - rg));
+  b.globalCompositeOperation = 'source-over';
+  b.clearRect(0, 0, OW, OH);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) b.drawImage(outA, dx, dy);
+  b.globalCompositeOperation = 'source-in';
+  b.fillStyle = color;
+  b.fillRect(0, 0, OW, OH);
+  b.globalCompositeOperation = 'source-over';
+  b.drawImage(outA, 0, 0);
+  const ox = rx - OX, oy = rg - OY;
+  g.drawImage(outB, ox, oy);
+  return res ? { tipX: res.tipX + ox, tipY: res.tipY + oy, handX: res.handX + ox, handY: res.handY + oy } : res;
+}
+
+// Боец с контуром; шлейф клинка рисуется поверх без контура.
+export function drawFigureOutlined(g, o) {
+  const res = withOutline(g, o.x, o.ground, (c, x, ground) => drawFigure(c, { ...o, x, ground, trail: null }));
+  if (o.trail && !o.bladeHidden) for (const [i, p] of o.trail.entries()) {
+    withAlpha(g, 0.15 + 0.12 * i, () => thick(g, res.handX, res.handY, p.tipX, p.tipY, 1, '#ffffff'));
+  }
+  return res;
+}
+
+export function drawFigureFrontOutlined(g, o) {
+  withOutline(g, o.x, o.ground, (c, x, ground) => drawFigureFront(c, { ...o, x, ground }));
+}
+
+export function drawSlimeOutlined(g, o) {
+  withOutline(g, o.x, o.ground, (c, x, ground) => drawSlime(c, { ...o, x, ground }));
 }
