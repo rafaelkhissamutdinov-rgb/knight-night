@@ -1241,7 +1241,8 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 const FACES = {
   knight: { default: 'assets/portraits/knight.jpg', tired: 'assets/portraits/knight-tired.jpg', nohelm: 'assets/portraits/knight-nohelm.jpg' },
   ilia: { default: 'assets/portraits/ilia.jpg' },
-  lika: { default: 'assets/portraits/lika.jpg' },
+  lika: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry']
+    .map(m => [m, m === 'default' ? 'assets/portraits/lika.jpg' : `assets/portraits/lika-${m}.jpg`])),
 };
 for (const set of Object.values(FACES)) for (const src of Object.values(set)) new Image().src = src;  // загрузить заранее
 
@@ -1346,13 +1347,13 @@ shopCtx.imageSmoothingEnabled = false;
 function openShop(npc) {
   const data = SHOPS[npc.def.shop];
   if (!data) return;
-  game.shop = { npc, data, view: 'main', text: data.hello, shown: 0 };
+  game.shop = { npc, data, view: 'main', text: data.hello, shown: 0, mood: data.moods?.hello };
   game.mode = 'shop';
   // нарисованный портрет, если есть; иначе — пиксельная заглушка
   const face = FACES[npc.def.face]?.default;
   ui.shopFace.hidden = !face;
   ui.shopPortrait.hidden = !!face;
-  if (face) ui.shopFace.src = face;
+  if (face) shopFace();
   else drawLikaPortrait(shopCtx, npc.def.colors);
   ui.shopName.textContent = npc.def.name;
   ui.shop.hidden = false;
@@ -1368,9 +1369,19 @@ function closeShop() {
   game.mode = 'play';
 }
 
-function shopSay(text) {
+// реплика продавца; mood — выражение лица на портрете (без него — обычное)
+function shopSay(text, mood = null) {
   game.shop.text = text;
   game.shop.shown = 0;
+  game.shop.mood = mood;
+  shopFace();
+}
+
+function shopFace() {
+  const set = FACES[game.shop.npc.def.face];
+  if (!set) return;
+  const src = set[game.shop.mood] ?? set.default;
+  if (!ui.shopFace.src.endsWith(src)) ui.shopFace.src = src;
 }
 
 function shopView(view) {
@@ -1385,11 +1396,11 @@ function shopOptions() {
   if (sh.view === 'buy') return [
     ...d.items.map(it => {
       const item = ITEMS[it.id];
-      return { label: item.name, right: `${item.price} мон.`, muted: it.soon || item.price > game.coins, hover: it.text, go: () => buyItem(it) };
+      return { label: item.name, right: `${item.price} мон.`, muted: it.soon || item.price > game.coins, hover: it.text, mood: d.moods?.item, go: () => buyItem(it) };
     }),
     back,
   ];
-  if (sh.view === 'talk') return [...d.talk.map(t => ({ label: t.topic, go: () => shopSay(t.lines.join(' ')) })), back];
+  if (sh.view === 'talk') return [...d.talk.map(t => ({ label: t.topic, go: () => shopSay(t.lines.join(' '), t.mood) })), back];
   return [
     { label: 'Купить', go: () => shopView('buy') },
     { label: 'Поговорить', go: () => shopView('talk') },
@@ -1399,14 +1410,14 @@ function shopOptions() {
 
 function buyItem(it) {
   const d = game.shop.data, item = ITEMS[it.id];
-  if (it.soon) return shopSay(d.soon);
-  if (item.price > game.coins) return shopSay(d.poor);
+  if (it.soon) return shopSay(d.soon, d.moods?.soon);
+  if (item.price > game.coins) return shopSay(d.poor, d.moods?.poor);
   game.coins -= item.price;
   const p = game.player;
   const heal = Math.min(item.effect?.heal ?? 0, CONFIG.playerHp - p.hp);
   if (heal > 0) { p.hp += heal; renderHearts(); }
   sfx.perfect();
-  shopSay(d.bought + (heal > 0 ? `  (+${heal} ♥)` : ''));
+  shopSay(d.bought + (heal > 0 ? `  (+${heal} ♥)` : ''), d.moods?.bought);
   renderShop();
   save();
 }
@@ -1420,7 +1431,7 @@ function renderShop() {
     b.className = o.muted ? 'muted' : '';
     b.innerHTML = `<span>${i + 1}. ${o.label}</span>${o.right ? `<span>${o.right}</span>` : ''}`;
     b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); o.go(); });
-    if (o.hover) b.addEventListener('pointerenter', () => shopSay(o.hover));
+    if (o.hover) b.addEventListener('pointerenter', () => shopSay(o.hover, o.mood));
     ui.shopMenu.appendChild(b);
   });
 }
@@ -1435,7 +1446,7 @@ function shopPress(code) {
   if (!m) return;
   const o = shopOptions()[Number(m[1]) - 1];
   if (!o) return;
-  if (o.hover && game.shop.text !== o.hover) shopSay(o.hover);  // с клавиатуры: сначала описание, потом покупка
+  if (o.hover && game.shop.text !== o.hover) shopSay(o.hover, o.mood);  // с клавиатуры: сначала описание, потом покупка
   else o.go();
 }
 
