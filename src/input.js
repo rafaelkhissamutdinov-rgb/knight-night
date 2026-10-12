@@ -1,5 +1,5 @@
 // Клавиатура: какие клавиши зажаты, в каком порядке нажаты, и очередь новых нажатий.
-const BLOCKED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
+const BLOCKED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);
 
 export function createInput(target = window) {
   const order = [];   // зажатые клавиши, последняя — самая свежая

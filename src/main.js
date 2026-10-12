@@ -368,6 +368,24 @@ function spinRequested() {
 }
 
 function handlePress(code) {
+  if (code === 'Escape' || code === 'KeyP') {
+    if (game.mode === 'play') {
+      game.mode = 'paused';
+      showOverlay('Пауза', 'R — начать встречу заново · C — сменить схему управления · Esc — продолжить', 'Esc — продолжить');
+    } else if (game.mode === 'paused') {
+      game.mode = 'play';
+      hideOverlay();
+    }
+    return;
+  }
+  if (game.mode === 'paused') {
+    if (code === 'KeyR') restartFight();
+    else if (code === 'KeyC') {
+      game.scheme = game.scheme === 'mouse' ? 'wheel' : 'mouse';
+      showOverlay('Пауза', `Схема: ${game.scheme === 'mouse' ? 'высота по мыши' : 'колесо и W/S'} · R — встреча заново · Esc — продолжить`, 'Esc — продолжить');
+    }
+    return;
+  }
   if (code === 'KeyC') {
     game.scheme = game.scheme === 'mouse' ? 'wheel' : 'mouse';
     callout(game.scheme === 'mouse' ? 'Схема: высота по мыши' : 'Схема: колесо и W/S', 'muted');
@@ -500,6 +518,14 @@ function updateArena() {
   const alive = game.enemies.some(e => e.group === game.arena.index && (e.alive || e.state === 'yield'));
   if (!alive) {
     game.cleared.add(game.arena.index);
+    // отдых после победы над группой
+    const p = game.player;
+    const healed = Math.min(CONFIG.restHeal, CONFIG.playerHp - p.hp);
+    if (healed > 0) {
+      p.hp += healed;
+      renderHearts();
+      callout(`Передышка  +${healed}`, 'perfect');
+    }
     game.arena = null;
     game.current = null;
     game.token = null;
@@ -678,7 +704,7 @@ const PORTRAITS = {
 };
 
 function startTalk(id) {
-  if (!DIALOGUES[id]) return;
+  if (!CONFIG.dialogues || !DIALOGUES[id]) return;
   game.flags['seen_' + id] = true;
   game.talk = new DialogueRunner(DIALOGUES, game.flags);
   game.talk.start(id);
@@ -864,6 +890,12 @@ function renderEnemy(e, cam) {
   if (alpha <= 0) return;
   g.globalAlpha = alpha;
   const GROUND = groundY(e.z);
+  if (CONFIG.enemyBars && e.alive && e.hp < e.def.hp) {
+    const w = 14, fill = Math.max(1, Math.round(w * e.hp / e.def.hp));
+    const top = GROUND - (e.kind === 'slime' ? Math.round(14 * e.size) + 5 : 40) - e.airY;
+    rect(g, ex - w / 2, top, w, 2, '#2d2838');
+    rect(g, ex - w / 2, top, fill, 2, '#e8454f');
+  }
   if (e.kind === 'slime') {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
     drawSlime(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
