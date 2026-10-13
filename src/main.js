@@ -8,7 +8,7 @@ import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutli
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
-import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, DECOR_LIVE } from './decor.js';
+import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient } from './audio.js';
@@ -852,7 +852,18 @@ function handlePress(code) {
     const rest = !game.doorNear && nearRest();
     if (rest) { startRest(rest); return; }
     const look = !game.doorNear && nearLook();
-    if (look) { startTalk(look.look); return; }
+    if (look) {
+      // у тайника выбор в разговоре ставит флаг — тогда проход открывается
+      startTalk(look.look, look.secret ? () => {
+        if (!game.flags[look.secret]) return;
+        sfx.door();
+        shake(2);
+        dust(look.x, CONFIG.floorTop + 2, 1);
+        callout('Стеллаж отошёл — за ним проход!', 'perfect');
+        save();
+      } : null);
+      return;
+    }
     const npc = nearNpc();
     if (npc) {
       npc.facing = Math.sign(p.x - npc.x) || -1;
@@ -1362,7 +1373,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().secret ? ' · ЛКМ — ударить' : ''}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -1792,6 +1803,11 @@ function renderMap() {
       rect(g, sx, b.y + 1, 2, 3, '#e06030'); rect(g, sx, b.y + 1, 1, 1, '#ffd070');
     }
     if (r.npcs?.some(n => NPC_TYPES[n.type]?.shop)) rect(g, Math.round(b.x + b.w / 2), b.y + 2, 2, 2, PAL.gold);
+    // неоткрытый сундук — коричневый квадратик с золотой точкой
+    for (const pr of r.props ?? []) if (pr.type === 'chest' && !game.flags[`chest_${id}_${pr.id}`]) {
+      const cx = Math.round(b.x + (pr.x / r.length) * b.w) - 1;
+      rect(g, cx, b.y + 2, 3, 2, '#6b4532'); rect(g, cx + 1, b.y + 2, 1, 1, PAL.gold);
+    }
   }
   // Найт — красная точка, мигает
   const me = box(game.room);
@@ -2300,6 +2316,7 @@ function render() {
   for (const d of r.decor ?? []) {
     if (d.type === 'cracks') drawCracks(g, d.x - cam, CONFIG.floorTop, { open: !!game.flags[d.secret], hits: game.wallHits }, game.time);
     else if (d.type === 'slab') drawSlab(g, d.x - cam, CONFIG.floorTop, !!game.flags[d.secret]);
+    else if (d.type === 'shelfdoor') drawShelfDoor(g, d.x - cam, CONFIG.floorTop, !!game.flags[d.secret]);
     else if (d.type === 'stainedglass') drawStainedGlass(g, d.x - cam, CONFIG.floorTop, game.time, d.y);
     else if (DECOR_LIVE.has(d.type)) drawDecorLive(g, d, d.x - cam, CONFIG.floorTop, game.time);
   }

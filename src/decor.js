@@ -443,7 +443,7 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
   }
 }
 
-export const DECOR_LIVE = new Set(['fireplace', 'chandelier', 'cracks', 'slab', 'stainedglass']);
+export const DECOR_LIVE = new Set(['fireplace', 'chandelier', 'cracks', 'slab', 'stainedglass', 'shelfdoor']);
 
 // Плита за алтарём: закрыта — стена; открыта — плита сдвинута вбок, за ней тёмный проход
 export function drawSlab(g, sx, floorTop, open) {
@@ -458,6 +458,19 @@ export function drawSlab(g, sx, floorTop, open) {
   rect(g, x0, top, w, h, '#07060c');
   rect(g, x0 + w, top, 8, h, '#4a4462');   // плита отъехала вправо
   rect(g, x0 + w, top, 8, 1, '#5e5878');
+}
+
+// Стеллаж-дверь: открыт — книжная створка повёрнута к нам торцом, за ней тёмный проход
+export function drawShelfDoor(g, sx, floorTop, open) {
+  if (!open) {
+    rect(g, sx + 6, floorTop - 40, 1, 4, '#c8a050');  // книга торчит из ряда
+    return;
+  }
+  const x0 = Math.round(sx - 11), top = floorTop - 40;
+  rect(g, x0 - 2, top - 2, 26, 42, '#3b2a1e');
+  rect(g, x0, top, 22, 40, '#07060c');
+  rect(g, x0 + 22, top - 2, 6, 42, '#5a3f2a');  // створка торцом
+  for (let y = top + 2; y < top + 38; y += 6) rect(g, x0 + 23, y, 4, 4, ['#7a2633', '#2a3a6a', '#3a5a3a'][(y / 6) % 3 | 0]);
 }
 
 // Витраж: стрельчатое окно, цветные стёкла в свинцовой сетке; на полу — цветные пятна света

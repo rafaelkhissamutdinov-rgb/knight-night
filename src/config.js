@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.39';
+export const VERSION = 'v0.40';
 
 export const CONFIG = {
   width: 320,
@@ -326,7 +326,7 @@ export const MAP = {
   gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], balcony: [1, 44.5, 9, 3.2],
   shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4],
   landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
-  library: [2, 12.6, 5, 4.2], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
+  library: [2, 12.6, 5, 4.2], reading: [2, 14.4, 2, 2.4], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
 };
 
 
@@ -558,10 +558,17 @@ export const ROOMS = {
   // библиотека: стеллажи, стремянка, стол с раскрытой книгой; алебардист и лучник; сундук в глубине
   library: {
     name: 'Библиотека', floor: 2, length: 640, columns: false, torches: [130, 470],
-    doors: [{ id: 'out', x: 60, kind: 'wood', to: 'hall2', toDoor: 'library', name: 'Жилое крыло' }],
+    doors: [
+      { id: 'out', x: 60, kind: 'wood', to: 'hall2', toDoor: 'library', name: 'Жилое крыло' },
+      { id: 'hidden', x: 540, kind: 'none', needs: 'secret_library', to: 'reading', toDoor: 'out', name: 'Тайная читальня' },
+    ],
     decor: [
       { type: 'bookshelf', x: 200 }, { type: 'bookshelf', x: 250, gap: 2 }, { type: 'ladder', x: 268 },
-      { type: 'bookshelf', x: 400, gap: 1 }, { type: 'bookshelf', x: 540 }, { type: 'bookshelf', x: 590, skull: true },
+      { type: 'bookshelf', x: 400, gap: 1 },
+      // одна книга торчит: потянуть — стеллаж отходит, за ним тайная читальня
+      { type: 'bookshelf', x: 540, look: 'look_shelf', name: 'стеллаж', secret: 'secret_library' },
+      { type: 'shelfdoor', x: 540, secret: 'secret_library' },
+      { type: 'bookshelf', x: 590, skull: true },
       { type: 'chandelier', x: 320, y: 26 },
     ],
     props: [
@@ -592,6 +599,16 @@ export const ROOMS = {
     ],
     encounters: [
       { x: 200, enemies: [{ type: 'skelShield', dx: 60, z: 20 }, { type: 'halberd', dx: 120, z: 30 }] },
+    ],
+  },
+  // тайная читальня за стеллажом Библиотеки: стол, оплывшая свеча, сундук
+  reading: {
+    name: 'Тайная читальня', floor: 2, length: 320, columns: false, torches: [], cobwebs: true,
+    doors: [{ id: 'out', x: 60, kind: 'hole', to: 'library', toDoor: 'hidden', name: 'Библиотека' }],
+    decor: [{ type: 'bookshelf', x: 150, gap: 3 }, { type: 'bookshelf', x: 196, gap: 0 }, { type: 'chandelier', x: 240, y: 30 }],
+    props: [
+      { type: 'desk', x: 240, z: 10, look: 'look_reading', name: 'стол' },
+      { type: 'chest', id: 'r', x: 290, z: 3, coins: 25, item: 'potion' },
     ],
   },
   vestry: {
