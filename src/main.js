@@ -1,7 +1,7 @@
 import { CONFIG, ROOMS, START, MAP, EASY, NORMAL, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
-import { createEnemy } from './enemy.js';
+import { createEnemy, RISE_TIME } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
@@ -1488,6 +1488,12 @@ function update(dt) {
     if ((e.state === 'dead' && e.t > 2) || e.state === 'gone') continue;
     e.update(dt, world);
     if (!e.alive && !e.paid && e.state !== 'leave' && COINS[e.type]) payCoins(e);
+    if (e.state === 'rise' && !e.roseFx) {
+      // кости зашевелились и собираются
+      e.roseFx = true;
+      sparks(e.x, groundY(e.z) - 4, 10, ['#e6e1d0', '#a39d8a'], 60);
+      sfx.block();
+    }
   }
   game.wardFlash = Math.max(0, game.wardFlash - dt);
   updateArrows(dt);
@@ -2525,6 +2531,10 @@ function renderEnemy(e, cam) {
   const ex = e.x - cam;
   if (ex < -50 || ex > W + 50) return;
   if (e.state === 'dead' && e.kind !== 'slime') { renderDeath(e, ex); return; }
+  // спящий скелет лежит грудой костей; проснулся — встаёт (фигура вытягивается вверх)
+  const riser = e.def.skull && e.kind !== 'ghost' && !e.def.noRise;
+  if (riser && e.state === 'dormant') { drawBonePile(ex, groundY(e.z), e.facing, e.def); return; }
+  const riseK = riser && e.state === 'rise' ? Math.min(1, e.t / RISE_TIME) : 1;
   let alpha = e.kind === 'ghost' ? (0.55 + 0.15 * Math.sin(game.time * 5 + e.x)) * (e.ghost ?? 1) : 1;  // призрак полупрозрачный и мерцает
   if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
   if (alpha <= 0.02) return;
@@ -2545,6 +2555,12 @@ function renderEnemy(e, cam) {
     const whirl = e.state === 'strike' && e.strike?.pose === 'whirl';
     if (whirl) disc(ex, GROUND - 27 - e.airY, 20);
     if (e.kind === 'ghost') g.globalCompositeOperation = 'lighter';  // призрак светится, а не темнеет
+    if (riseK < 1) {
+      g.save();
+      g.translate(ex, GROUND);
+      g.scale(1, 0.25 + 0.75 * ease(riseK));
+      g.translate(-ex, -GROUND);
+    }
     const tip = drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       breathe: (e.state === 'idle' || e.state === 'dormant') && !e.def.skull && Math.sin(game.time * 2.2 + e.x * 0.37) > 0.3 ? 1 : 0,  // живые дышат, скелеты — нет
@@ -2554,6 +2570,7 @@ function renderEnemy(e, cam) {
       wrap: e.def.wrap, veil: e.def.veil, bun: e.def.bun, ornate: e.def.ornate, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd,
     });
+    if (riseK < 1) g.restore();
     g.globalCompositeOperation = 'source-over';
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (e.def.crossbow && e.state === 'windup' && e.alive && e.t > e.windupTime * 0.35) {
