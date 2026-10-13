@@ -1569,10 +1569,10 @@ function step(dt) {
 const portraitCtx = ui.talkPortrait.getContext('2d');
 // Нарисованные портреты владельца: у реплики можно указать mood (настроение), иначе — default.
 const FACES = {
-  knight: { default: 'assets/portraits/knight.jpg', tired: 'assets/portraits/knight-tired.jpg', nohelm: 'assets/portraits/knight-nohelm.jpg' },
-  ilia: { default: 'assets/portraits/ilia.jpg' },
+  knight: { default: 'assets/portraits/knight.png', tired: 'assets/portraits/knight-tired.png', nohelm: 'assets/portraits/knight-nohelm.png' },
+  ilia: { default: 'assets/portraits/ilia.png' },
   lika: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry']
-    .map(m => [m, m === 'default' ? 'assets/portraits/lika.jpg' : `assets/portraits/lika-${m}.jpg`])),
+    .map(m => [m, m === 'default' ? 'assets/portraits/lika.png' : `assets/portraits/lika-${m}.png`])),
 };
 for (const set of Object.values(FACES)) for (const src of Object.values(set)) new Image().src = src;  // загрузить заранее
 
@@ -1699,6 +1699,17 @@ function closeShop() {
   game.mode = 'play';
 }
 
+// следующая реплика темы: Найт (knight: true) или Лика с выражением лица
+function nextShopLine() {
+  const sh = game.shop;
+  const line = sh.queue.shift();
+  if (!line) return;
+  const text = typeof line === 'string' ? line : line.text;
+  if (line.knight) shopSay(`Найт: ${text}`, sh.mood);
+  else shopSay(text, line.mood);
+  renderShop();
+}
+
 // реплика продавца; mood — выражение лица на портрете (без него — обычное)
 function shopSay(text, mood = null) {
   game.shop.text = text;
@@ -1716,6 +1727,7 @@ function shopFace() {
 
 function shopView(view) {
   game.shop.view = view;
+  game.shop.queue = null;
   shopSay(game.shop.data.menu);
   renderShop();
 }
@@ -1730,7 +1742,11 @@ function shopOptions() {
     }),
     back,
   ];
-  if (sh.view === 'talk') return [...d.talk.map(t => ({ label: t.topic, go: () => shopSay(t.lines.join(' '), t.mood) })), back];
+  if (sh.view === 'talk') {
+    // идёт разговор по теме — только «Дальше», пока не кончатся реплики
+    if (sh.queue?.length) return [{ label: 'Дальше ▸', go: nextShopLine }];
+    return [...d.talk.map(t => ({ label: t.topic, go: () => { sh.queue = t.lines.slice(); nextShopLine(); } })), back];
+  }
   return [
     { label: 'Купить', go: () => shopView('buy') },
     { label: 'Поговорить', go: () => shopView('talk') },
@@ -1768,6 +1784,12 @@ function renderShop() {
 }
 
 function shopPress(code) {
+  if ((code === 'Enter' || code === 'Space' || code === 'Mouse0') && game.shop.queue?.length) {
+    // пока печатается — показать строку целиком, потом — следующая
+    if (game.shop.shown < game.shop.text.length) game.shop.shown = game.shop.text.length;
+    else nextShopLine();
+    return;
+  }
   if (code === 'Escape' || code === 'Backspace') {
     if (game.shop.view === 'main') closeShop();
     else shopView('main');
