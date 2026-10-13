@@ -1,0 +1,242 @@
+<title>Knight Night: проба света</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;600&family=Golos+Text:wght@400;500&display=swap">
+<style>
+/* Тёмная игровая страница: кадр игры в центре, под ним — переключатели и пояснение. Один осознанный тёмный вид. */
+:root {
+  --bg: #120f18;
+  --panel: #1c1824;
+  --line: #2f2939;
+  --fg: #ece5f2;
+  --muted: #a69cb6;
+  --torch: #f2b45a;
+  --pixel: "Pixelify Sans", ui-monospace, monospace;
+  --body: "Golos Text", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { background: var(--bg); color: var(--fg); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1100px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 36px; display: grid; gap: 16px; }
+h1 { margin: 0; font-family: var(--pixel); font-weight: 600; font-size: clamp(22px, 3.4vw, 30px); color: var(--torch); text-wrap: balance; }
+.lead { margin: 0; color: var(--muted); max-width: 70ch; }
+.stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; border: 3px solid var(--line); background: #000; touch-action: none; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.controls button {
+  font-family: var(--pixel); font-size: 15px; color: var(--fg); cursor: pointer;
+  background: var(--panel); border: 2px solid var(--line); padding: 6px 14px;
+}
+.controls button[aria-pressed="true"] { border-color: var(--torch); color: var(--torch); }
+.controls button:focus-visible { outline: 2px solid var(--torch); outline-offset: 2px; }
+.keys { color: var(--muted); font-size: 14px; }
+kbd { font-family: var(--pixel); font-size: 13px; color: var(--fg); background: var(--panel); border: 2px solid var(--line); border-bottom-width: 3px; padding: 0 5px; }
+.notes { display: grid; gap: 6px; max-width: 72ch; color: var(--muted); font-size: 14px; }
+.notes p { margin: 0; }
+.notes b { color: var(--fg); font-weight: 500; }
+.err { color: #ff9a9a; }
+</style>
+
+<div class="wrap">
+  <h1>Темница при живом свете</h1>
+  <p class="lead">Фон и Найт — из PixelLab, цвета их собственные, без фильтров. Свет считает шейдер по картам нормалей: факелы мерцают, курсор — фонарь в руке, свет ложится по рельефу кладки и брони.</p>
+
+  <div class="stage" id="stage">
+    <canvas id="gl" width="320" height="180" aria-label="Комната Темницы с рыцарем; свет от факелов и фонаря"></canvas>
+    <canvas id="fx" width="320" height="180" aria-hidden="true"></canvas>
+  </div>
+
+  <div class="controls" role="group" aria-label="Настройки света">
+    <button id="b-light" aria-pressed="true">Живой свет</button>
+    <button id="b-lamp" aria-pressed="true">Фонарь за курсором</button>
+    <button id="b-steps" aria-pressed="false">Свет ступенями</button>
+    <button id="b-dust" aria-pressed="true">Пыль в воздухе</button>
+    <span class="keys"><kbd>A</kbd> <kbd>D</kbd> — Найт ходит</span>
+  </div>
+  <div class="controls" role="group" aria-label="Настроение света">
+    <button id="m-blue" data-mood="blue" aria-pressed="true">Синий вечер</button>
+    <button id="m-moon" data-mood="moon" aria-pressed="false">Лунная ночь</button>
+    <button id="m-warm" data-mood="warm" aria-pressed="false">Тёплый</button>
+  </div>
+
+  <div class="notes">
+    <p><b>Живой свет выкл.</b> — так картинка выглядит сейчас: свет нарисован в самом фоне.</p>
+    <p><b>Настроение</b> — это цвет общего света и теней, а не фильтр поверх картинки: факелы и фонарь остаются тёплыми.</p>
+    <p><b>Свет ступенями</b> — переходы света делаются пиксельными полосами, как в старых играх. Без него — плавные полутона.</p>
+    <p id="err" class="err" hidden></p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const W = 320, H = 180;
+  const glCanvas = document.getElementById('gl');
+  const fx = document.getElementById('fx').getContext('2d');
+  const gl = glCanvas.getContext('webgl', { premultipliedAlpha: false, antialias: false });
+  const errEl = document.getElementById('err');
+  if (!gl) { errEl.hidden = false; errEl.textContent = 'Браузер не дал WebGL — живой свет не показать.'; return; }
+
+  const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('не загрузилось: ' + src)); i.src = src; });
+
+  // холсты, в которые каждый кадр рисуется сцена: цвет и нормали отдельно
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; return [c, g]; };
+  const [albC, alb] = mk(), [nrmC, nrm] = mk();
+
+  // нормали, отражённые по горизонтали: красный канал (x) меняет знак
+  function flipNormals(img) {
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.translate(img.width, 0); g.scale(-1, 1); g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height);
+    for (let i = 0; i < d.data.length; i += 4) d.data[i] = 255 - d.data[i];
+    g.putImageData(d, 0, 0); return c;
+  }
+  function flipImage(img) {
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.translate(img.width, 0); g.scale(-1, 1); g.drawImage(img, 0, 0); return c;
+  }
+
+  const VS = `attribute vec2 p; varying vec2 uv; void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
+  const FS = `precision mediump float;
+  varying vec2 uv;
+  uniform sampler2D albedo, normals, emis;
+  uniform vec2 res;
+  uniform vec4 lp[4];   // x, y (пиксели, y вниз), высота z, радиус
+  uniform vec4 lc[4];   // цвет rgb, сила
+  uniform vec3 ambient;
+  uniform float on, steps;
+  uniform vec3 shadowTint;
+  uniform float tintAmt;
+  void main(){
+    vec2 t = vec2(uv.x, 1.0 - uv.y);
+    vec4 a = texture2D(albedo, t);
+    if (on < 0.5) { gl_FragColor = vec4(a.rgb, 1.0); return; }
+    vec3 n = normalize(texture2D(normals, t).rgb * 2.0 - 1.0);
+    vec2 px = t * res;
+    vec3 light = ambient;
+    vec3 glow = vec3(0.0);
+    for (int i = 0; i < 4; i++) {
+      vec2 d = lp[i].xy - px;
+      float dist = length(d);
+      float r = lp[i].w;
+      float att = clamp(1.0 - dist / r, 0.0, 1.0);
+      att *= att;
+      vec3 L = normalize(vec3(d.x, -d.y, lp[i].z));   // в пространство нормалей: y вверх
+      float diff = max(dot(n, L), 0.0);
+      light += lc[i].rgb * lc[i].a * diff * att;
+      float g = clamp(1.0 - dist / (r * 0.45), 0.0, 1.0);
+      glow += lc[i].rgb * lc[i].a * g * g * g * 0.10;   // мягкий ореол в воздухе
+    }
+    if (steps > 0.5) light = floor(light * 7.0 + 0.5) / 7.0;
+    float e = texture2D(emis, t).r;
+    vec3 col = a.rgb * light + glow + a.rgb * e * 1.4;
+    float lum = dot(col, vec3(0.299, 0.587, 0.114));
+    col += shadowTint * (1.0 - smoothstep(0.05, 0.55, lum)) * tintAmt;   // тени уходят в цвет настроения, свет факелов остаётся тёплым
+    float v = smoothstep(0.95, 0.35, length(uv - 0.5));   // виньетка
+    col *= mix(0.84, 1.0, v);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+
+  function shader(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, shader(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const U = n => gl.getUniformLocation(prog, n);
+  function tex(unit) {
+    const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  const tAlb = tex(0), tNrm = tex(1), tEm = tex(2);
+  gl.uniform1i(U('albedo'), 0); gl.uniform1i(U('normals'), 1); gl.uniform1i(U('emis'), 2);
+  gl.uniform2f(U('res'), W, H);
+
+  const state = { light: true, lamp: true, steps: false, dust: true, mood: 'blue' };
+  // настроения: общий свет, холодная подсветка сбоку, оттенок теней
+  const MOODS = {
+    blue: { ambient: [0.34, 0.42, 0.66], fill: [0.45, 0.62, 1.0, 0.55], tint: [0.02, 0.05, 0.12], amt: 1.0 },
+    moon: { ambient: [0.22, 0.30, 0.55], fill: [0.55, 0.72, 1.0, 0.75], tint: [0.01, 0.04, 0.14], amt: 1.0 },
+    warm: { ambient: [0.50, 0.44, 0.52], fill: [0.55, 0.65, 1.0, 0.40], tint: [0.0, 0.0, 0.0], amt: 0.0 },
+  };
+  for (const b of document.querySelectorAll('[data-mood]')) b.addEventListener('click', () => {
+    state.mood = b.dataset.mood;
+    for (const o of document.querySelectorAll('[data-mood]')) o.setAttribute('aria-pressed', String(o === b));
+  });
+  const bind = (id, key) => { const b = document.getElementById(id); b.addEventListener('click', () => { state[key] = !state[key]; b.setAttribute('aria-pressed', String(state[key])); }); };
+  bind('b-light', 'light'); bind('b-lamp', 'lamp'); bind('b-steps', 'steps'); bind('b-dust', 'dust');
+
+  // фонарь: где курсор (или палец); по умолчанию — у Найта
+  const lamp = { x: 175, y: 120, set: false };
+  const stage = document.getElementById('stage');
+  const toScene = e => { const r = stage.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; };
+  stage.addEventListener('pointermove', e => { [lamp.x, lamp.y] = toScene(e); lamp.set = true; });
+  stage.addEventListener('pointerdown', e => { [lamp.x, lamp.y] = toScene(e); lamp.set = true; });
+
+  const keys = new Set();
+  addEventListener('keydown', e => { if (e.code === 'KeyA' || e.code === 'KeyD') { keys.add(e.code); e.preventDefault(); } });
+  addEventListener('keyup', e => keys.delete(e.code));
+
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const TORCHES = [[85.5, 60], [285.8, 61]];
+  const dust = Array.from({ length: 70 }, () => ({ x: Math.random() * W, y: Math.random() * 118, v: 2 + Math.random() * 5, p: Math.random() * 6.28 }));
+  const noise = (t, s) => 0.55 * Math.sin(t * 7.1 + s) + 0.3 * Math.sin(t * 13.7 + s * 2.3) + 0.15 * Math.sin(t * 23.3 + s * 0.7);
+
+  Promise.all(['bg.png', 'bg_n.png', 'em.png', 'kn.png', 'kn_n.png'].map(load)).then(([bg, bgN, em, kn, knN]) => {
+    const knL = flipImage(kn), knNL = flipNormals(knN);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, tEm); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, em);
+    const knight = { x: 150, facing: 1, step: 0 };
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const t = reduce ? 0 : now / 1000;
+      const dir = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+      if (dir) { knight.x = Math.max(-10, Math.min(W - 54, knight.x + dir * 55 * dt)); knight.facing = dir; knight.step += dt * 8; }
+      const bob = dir ? Math.round(Math.abs(Math.sin(knight.step)) * -1) : 0;
+      // сцена: цвет и нормали
+      alb.clearRect(0, 0, W, H); alb.drawImage(bg, 0, 0);
+      nrm.fillStyle = 'rgb(128,128,255)'; nrm.fillRect(0, 0, W, H); nrm.drawImage(bgN, 0, 0);
+      const kx = Math.round(knight.x), ky = 100 + bob;
+      alb.drawImage(knight.facing > 0 ? kn : knL, kx, ky);
+      nrm.drawImage(knight.facing > 0 ? knN : knNL, kx, ky);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tAlb); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, albC);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tNrm); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, nrmC);
+      // источники: два факела, фонарь, холодная подсветка из коридора слева
+      const f0 = 1 + 0.12 * noise(t, 0), f1 = 1 + 0.12 * noise(t, 4);
+      const lx = lamp.set ? lamp.x : knight.x + 32 + knight.facing * 14, ly = lamp.set ? lamp.y : 128;
+      const L = [
+        [TORCHES[0][0], TORCHES[0][1], 26, 175 * f0, 1.0, 0.68, 0.38, 1.0 * f0],
+        [TORCHES[1][0], TORCHES[1][1], 26, 175 * f1, 1.0, 0.68, 0.38, 1.0 * f1],
+        [lx, ly, 20, state.lamp ? 120 : 0.001, 1.0, 0.88, 0.70, state.lamp ? 1.0 : 0],
+        [-40, 30, 60, 300, ...MOODS[state.mood].fill],
+      ];
+      gl.uniform4fv(U('lp'), L.flatMap(l => [l[0], l[1], l[2], l[3]]));
+      gl.uniform4fv(U('lc'), L.flatMap(l => [l[4], l[5], l[6], l[7]]));
+      const M = MOODS[state.mood];
+      gl.uniform3f(U('ambient'), ...M.ambient);
+      gl.uniform3f(U('shadowTint'), ...M.tint);
+      gl.uniform1f(U('tintAmt'), M.amt);
+      gl.uniform1f(U('on'), state.light ? 1 : 0);
+      gl.uniform1f(U('steps'), state.steps ? 1 : 0);
+      gl.viewport(0, 0, W, H); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      // пылинки светятся там, где светло
+      fx.clearRect(0, 0, W, H);
+      if (state.dust && state.light) {
+        fx.globalCompositeOperation = 'lighter';
+        for (const d of dust) {
+          if (!reduce) { d.y -= d.v * dt * 0.4; d.x += Math.sin(t * 0.6 + d.p) * dt * 3; if (d.y < 0) { d.y = 118; d.x = Math.random() * W; } }
+          let b = 0;
+          for (const l of L.slice(0, 3)) { const k = 1 - Math.hypot(l[0] - d.x, l[1] - d.y) / (l[3] * 0.55); if (k > 0) b += k * k * l[7]; }
+          if (b < 0.04) continue;
+          fx.fillStyle = `rgba(255,214,150,${Math.min(0.8, b * 0.7)})`;
+          fx.fillRect(Math.round(d.x), Math.round(d.y), 1, 1);
+        }
+        fx.globalCompositeOperation = 'source-over';
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }).catch(e => { errEl.hidden = false; errEl.textContent = 'Не загрузились картинки: ' + e.message; });
+})();
+</script>
