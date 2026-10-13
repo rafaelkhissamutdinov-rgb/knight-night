@@ -347,8 +347,45 @@ function keys(g, d) {
   }
 }
 
+// высокий стеллаж с книгами: корешки разного цвета и высоты, пустые места, иногда череп
+function bookshelf(g, d, floorTop) {
+  const w = d.w ?? 44, h = d.h ?? 62, x0 = Math.round(d.x - w / 2), top = floorTop - h;
+  rect(g, x0, top, w, h, '#3b2a1e');
+  rect(g, x0 + 2, top + 2, w - 4, h - 2, '#241a12');
+  const COLORS = ['#7a2633', '#2a3a6a', '#3a5a3a', '#6b4532', '#5a2a5a', '#8a7a58', '#4a4462'];
+  let seed = (d.x * 7) | 0;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let s = 0; s < 4; s++) {
+    const sy = top + 4 + s * 15;
+    rect(g, x0 + 1, sy + 12, w - 2, 2, '#5a3f2a');
+    let x = x0 + 3;
+    while (x < x0 + w - 4) {
+      const bw = 2 + Math.floor(rnd() * 2), bh = 7 + Math.floor(rnd() * 5);
+      if (d.gap === s && x > x0 + 10 && x < x0 + 24) { x += bw + 1; continue; }  // пустое место — книги унесли
+      rect(g, x, sy + 12 - bh, bw, bh, COLORS[Math.floor(rnd() * COLORS.length)]);
+      if (rnd() < 0.3) rect(g, x, sy + 12 - bh + 2, bw, 1, '#c8a050');
+      x += bw + (rnd() < 0.15 ? 2 : 0);
+    }
+  }
+  if (d.skull) { rect(g, x0 + w - 12, top + 9, 6, 5, '#e6e1d0'); rect(g, x0 + w - 11, top + 11, 1, 1, '#14101e'); rect(g, x0 + w - 8, top + 11, 1, 1, '#14101e'); }
+  rect(g, x0, top, w, 2, '#5a3f2a');
+}
+
+// стремянка, прислонённая к стеллажу
+function ladder(g, d, floorTop) {
+  const x = Math.round(d.x), top = floorTop - 58;
+  thick(g, x, floorTop, x + 6, top, 1, '#8a5a3b');
+  thick(g, x + 6, floorTop, x + 12, top, 1, '#8a5a3b');
+  for (let i = 1; i < 8; i++) {
+    const t = i / 8, y = Math.round(floorTop - 58 * t), xx = Math.round(x + 6 * t);
+    rect(g, xx, y, 6, 1, '#6b4532');
+  }
+}
+
 export function drawDecor(g, d, floorTop) {
   switch (d.type) {
+    case 'bookshelf': return bookshelf(g, d, floorTop);
+    case 'ladder': return ladder(g, d, floorTop);
     case 'keys': return keys(g, d);
     case 'note': return note(g, d);
     case 'shelf': return shelf(g, d);

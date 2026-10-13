@@ -1072,7 +1072,8 @@ function nearChest() {
 // декор, который можно осмотреть (look — разговор в DIALOGUES): стоять у стены напротив
 function nearLook() {
   const p = game.player;
-  return (room().decor ?? []).find(d => d.look && !(d.secret && game.flags[d.secret]) && Math.abs(d.x - p.x) < 20 && p.z < 14) ?? null;
+  const r = room();
+  return [...(r.decor ?? []), ...(r.props ?? [])].find(d => d.look && !(d.secret && game.flags[d.secret]) && Math.abs(d.x - p.x) < 20 && (d.z === undefined ? p.z < 14 : Math.abs(d.z - p.z) < 12)) ?? null;
 }
 // удар у замурованного прохода: три удара — стена рушится
 function hitWall(atk) {
@@ -1743,7 +1744,7 @@ function renderJournal() {
   else drawFigure(journalCtx, {
     x: 26, ground: 44, facing: -1, pose: POSES.idle, colors: d.colors, weaponLen: d.weapon ?? 17,
     skull: d.skull, shield: d.shield, bow: d.kind === 'archer', crossbow: d.crossbow, bowDraw: d.crossbow ? 1 : 0, face: t === 'duelist', rapier: t === 'duelist', robe: d.robe,
-    bandit: d.bandit, axe: d.axe, plate: d.plate, spear: d.spear,
+    bandit: d.bandit, axe: d.axe, plate: d.plate, spear: d.spear, halberd: d.halberd,
   });
 }
 
@@ -2351,7 +2352,7 @@ function renderEnemy(e, cam) {
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0, crossbow: e.def.crossbow,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
       wrap: e.def.wrap, veil: e.def.veil, bun: e.def.bun, ornate: e.def.ornate, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
-      bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate,
+      bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd,
     });
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (e.def.crossbow && e.state === 'windup' && e.alive && e.t > e.windupTime * 0.35) {

@@ -488,6 +488,16 @@ export function drawProp(g, type, x, gy, opened = false, time = 0) {
     rect(g, x - 2, gy - 15, 1, 1, '#14101e'); rect(g, x + 3, gy - 14, 1, 1, '#14101e');
     rect(g, x + 14, gy - 18, 2, 5, '#ece4d0');
     rect(g, x + 14, gy - 20 - (Math.floor(time * 8) % 2), 2, 2, PAL.flame1);
+  } else if (type === 'desk') {
+    // стол для чтения: раскрытая книга, свеча, чернильница
+    rect(g, x - 16, gy - 13, 32, 3, '#6b4532');
+    rect(g, x - 16, gy - 13, 32, 1, '#8a5a3b');
+    rect(g, x - 14, gy - 10, 2, 10, '#4a3226'); rect(g, x + 12, gy - 10, 2, 10, '#4a3226');
+    rect(g, x - 7, gy - 15, 6, 2, '#e8dcb8'); rect(g, x, gy - 15, 6, 2, '#e0d4b0'); rect(g, x - 1, gy - 15, 1, 2, '#8a7a58');
+    rect(g, x - 6, gy - 15, 4, 1, '#6b5a4a'); rect(g, x + 1, gy - 14, 4, 1, '#6b5a4a');
+    rect(g, x + 9, gy - 18, 2, 5, '#ece4d0');
+    rect(g, x + 9, gy - 20 - (Math.floor(time * 7) % 2), 2, 2, PAL.flame1);
+    rect(g, x - 13, gy - 15, 2, 2, '#1c1828');
   } else if (type === 'stool') {
     rect(g, x - 4, gy - 7, 8, 2, '#6b4532');
     rect(g, x - 3, gy - 5, 1, 5, '#4a3226');
