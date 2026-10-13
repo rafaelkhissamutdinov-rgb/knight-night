@@ -118,6 +118,7 @@ function respawnable(enc) {
 }
 
 function loadRoom(id, at) {
+  game.coinFx = [];
   (ROOMS[id].encounters ?? []).forEach((enc, i) => {
     const key = encKey(id, i);
     if (enc.story && game.flags['done_' + enc.story]) game.cleared.add(key);
@@ -191,6 +192,8 @@ function newGame() {
     motes: [],
     visited: [],
     coins: 0,
+    coinsShown: 0,
+    coinFx: [],
     bag: [],
     equip: { ...START_EQUIP },
     bestiary: {},
@@ -730,6 +733,9 @@ function handlePress(code) {
         return;
       }
       game.coins += chest.coins ?? 0;
+      for (let i = 0; i < Math.min(12, chest.coins ?? 0); i++) {
+        game.coinFx.push({ x: chest.x, y: groundY(chest.z) - 10, gy: groundY(chest.z), vx: (Math.random() * 2 - 1) * 50, vy: -110 - Math.random() * 60, t: 0, wait: 0.5 + i * 0.06, fly: null });
+      }
       if (chest.item) {
         game.bag.push(chest.item);
         callout(`Сундук: ${ITEMS[chest.item].name}${chest.coins ? ` и ${chest.coins} монет` : ''}`, 'perfect');
@@ -1200,6 +1206,7 @@ function update(dt) {
   updateView(dt, !!cur);
 
   updateCharge();
+  updateCoinFx(dt);
   p.update(dt, controls());
   // на бегу из-под ступни, которая встала на пол, — облачко пыли
   const fall = Math.floor(p.step * 2);
@@ -1310,13 +1317,63 @@ function payCoins(e) {
   e.paid = true;
   seen(e.type).kills++;
   const n = COINS[e.type];
-  game.coins += n;
+  game.coins += n;  // в сохранение — сразу; счётчик в HUD растёт, когда монета долетает
   game.stats.coinsEarned += n;
-  sparks(e.x, groundY(e.z) - 14, 4 + n * 2, [PAL.gold, '#fff4c2'], 70);
-  sfx.bow();
-  ui.weapon.classList.remove('gain');
-  void ui.weapon.offsetWidth;
-  ui.weapon.classList.add('gain');
+  sparks(e.x, groundY(e.z) - 14, 4, [PAL.gold, '#fff4c2'], 50);
+  const gy = groundY(e.z);
+  for (let i = 0; i < n; i++) {
+    game.coinFx.push({ x: e.x, y: gy - 14, gy, vx: (Math.random() * 2 - 1) * 55, vy: -90 - Math.random() * 60, t: 0, wait: 0.55 + i * 0.07, fly: null });
+  }
+}
+
+// монеты: подпрыгивают на полу, потом по одной летят в счётчик (левый верх экрана)
+const COIN_TARGET = { x: 46, y: 28 };
+function updateCoinFx(dt) {
+  for (const c of game.coinFx) {
+    c.t += dt;
+    if (!c.fly) {
+      c.vy += 420 * dt;
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      if (c.y > c.gy) {
+        c.y = c.gy;
+        if (Math.abs(c.vy) > 40) sfx.clink();
+        c.vy *= -0.4;
+        c.vx *= 0.6;
+      }
+      if (c.t >= c.wait) c.fly = { k: 0, sx: c.x - game.camX, sy: c.y };
+    } else {
+      c.fly.k += dt * 2.4;
+      if (c.fly.k >= 1) {
+        c.done = true;
+        game.coinsShown = Math.min(game.coins, game.coinsShown + 1);
+        sfx.coin(game.coinsShown % 4);
+        ui.weapon.classList.remove('gain');
+        void ui.weapon.offsetWidth;
+        ui.weapon.classList.add('gain');
+      }
+    }
+  }
+  game.coinFx = game.coinFx.filter(c => !c.done);
+  if (!game.coinFx.length) game.coinsShown = game.coins;  // всё долетело (или покупка, загрузка) — счётчик честный
+}
+
+function coinAt(x, y, t) {
+  // вращается: ширина 3 → 2 → 1 → 2
+  const w = [3, 2, 1, 2][Math.floor(t * 12) % 4];
+  rect(g, Math.round(x - w / 2), Math.round(y - 3), w, 3, PAL.gold);
+  if (w > 1) rect(g, Math.round(x - w / 2), Math.round(y - 3), 1, 1, '#fff4c2');
+  rect(g, Math.round(x - w / 2), Math.round(y - 1), w, 1, '#a8822e');
+}
+
+function renderCoinFx(cam) {
+  for (const c of game.coinFx) {
+    if (!c.fly) { coinAt(c.x - cam, c.y, c.t); continue; }
+    const k = ease(c.fly.k);
+    const x = c.fly.sx + (COIN_TARGET.x - c.fly.sx) * k;
+    const y = c.fly.sy + (COIN_TARGET.y - c.fly.sy) * k - Math.sin(Math.PI * c.fly.k) * 24;
+    coinAt(x, y, c.t);
+  }
 }
 
 // ---------- снаряжение и сумка ----------
@@ -2025,6 +2082,7 @@ function render() {
   for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck, a.bolt);
   for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
+  renderCoinFx(cam);
 
   // передний план: распахнутая дверь решётки
   if (r.gate === 'right') drawGatePanel(g, r.length - 26 - cam, CONFIG.floorTop, H, -1);
@@ -2082,7 +2140,7 @@ function render() {
   const rapier = game.player.weapon === 'rapier';
   const skill = rapier ? 'восьмёрка' : 'вихрь';
   if (ui.skillName.textContent !== skill) ui.skillName.textContent = skill;
-  const wl = [game.bag.some(id => ITEMS[id].slot === 'weapon') ? `${game.player.arms.name} · Q` : '', game.coins ? `монеты: ${game.coins}` : ''].filter(Boolean).join(' · ');
+  const wl = [game.bag.some(id => ITEMS[id].slot === 'weapon') ? `${game.player.arms.name} · Q` : '', game.coinsShown ? `монеты: ${game.coinsShown}` : ''].filter(Boolean).join(' · ');
   if (ui.weapon.textContent !== wl) { ui.weapon.textContent = wl; ui.weapon.hidden = !wl; }
   ui.skillSpin.classList.toggle('ready', charge >= 1);
   // навык из слота и Бубновый туз
