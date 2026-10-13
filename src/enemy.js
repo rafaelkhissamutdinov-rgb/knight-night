@@ -54,7 +54,7 @@ class Enemy {
 
   get solid() { return this.alive && this.airY < 6; }
   get canGuard() { return this.alive && (this.state === 'idle' || this.state === 'approach' || this.state === 'dormant'); }
-  get windupTime() { return this.windupOverride ?? (this.idx === 0 ? this.def.windup : this.def.comboWindup); }
+  get windupTime() { return this.windupOverride ?? (this.idx === 0 ? this.def.windup : this.def.comboWindup) * CONFIG.windupMult; }
   get height() { return this.combo ? this.combo[this.idx] : null; }
   get strike() { return STRIKES[this.height] ?? STRIKES.mid; }
   get glint() { return this.state === 'windup' && this.t >= this.windupTime - CONFIG.perfectWindow; }
