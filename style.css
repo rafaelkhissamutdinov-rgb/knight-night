@@ -55,6 +55,17 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
 .foe .bar { width: 22cqw; height: 1.4cqw; background: #2d2838; }
 .foe .bar i { display: block; height: 100%; background: var(--red); transition: width 0.15s; }
 
+/* заставка этажа: при первом входе на новый этаж */
+.floorcard {
+  position: absolute; left: 50%; top: 30%; transform: translateX(-50%);
+  display: grid; justify-items: center; gap: 0.8cqw; pointer-events: none; text-align: center;
+  font-family: var(--pixel); text-shadow: 0.3cqw 0.3cqw 0 #000;
+  animation: floorcard 3.2s ease-in-out forwards;
+}
+.floorcard b { font-size: 5.5cqw; color: var(--gold); letter-spacing: 0.12em; }
+.floorcard span { font-size: 2.4cqw; color: var(--fg); }
+@keyframes floorcard { 0% { opacity: 0; } 20%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .floorcard { animation-duration: 2.5s; } }
 .callout {
   position: absolute; left: 50%; top: 26%;
   transform: translate(-50%, 0);

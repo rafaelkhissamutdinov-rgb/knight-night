@@ -64,6 +64,7 @@ const ui = {
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkFace: $('talk-face'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
   reportBtn: $('report-btn'), reportText: $('report-text'), overlayMenu: $('overlay-menu'),
+  floorcard: $('floorcard'), floorcardTitle: $('floorcard-title'), floorcardRoom: $('floorcard-room'),
   journal: $('journal'), journalList: $('journal-list'), journalPage: $('journal-page'), journalFig: $('journal-fig'),
   journalName: $('journal-name'), journalHow: $('journal-how'), journalWin: $('journal-win'), journalLore: $('journal-lore'), journalKills: $('journal-kills'),
   equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'),
@@ -118,9 +119,22 @@ function respawnable(enc) {
   return !enc.story && !enc.before && !enc.unique && !enc.enemies.some(e => BOSSES.has(e.type));
 }
 
+const FLOOR_NAMES = { 2: 'Второй этаж', 3: 'Третий этаж' };
 function loadRoom(id, at) {
   game.coinFx = [];
   game.flags['map_' + id] = true;  // для карты: где побывал
+  const floor = ROOMS[id].floor ?? 1;
+  if (FLOOR_NAMES[floor] && !game.flags['card_' + floor]) {
+    // первый раз на этом этаже — заставка
+    game.flags['card_' + floor] = true;
+    ui.floorcardTitle.textContent = FLOOR_NAMES[floor];
+    ui.floorcardRoom.textContent = ROOMS[id].name;
+    ui.floorcard.hidden = true;
+    void ui.floorcard.offsetWidth;
+    ui.floorcard.hidden = false;
+    clearTimeout(game.floorcardTimer);
+    game.floorcardTimer = setTimeout(() => { ui.floorcard.hidden = true; }, 3300);
+  }
   (ROOMS[id].encounters ?? []).forEach((enc, i) => {
     const key = encKey(id, i);
     if (enc.story && game.flags['done_' + enc.story]) game.cleared.add(key);
@@ -1227,7 +1241,7 @@ function updateDoors(dt) {
     }
     return;
   }
-  if (d.finish) { finish(d); return; }
+  if (d.finish) { if (d.finishTalk) startTalk(d.finishTalk, () => finish(d)); else finish(d); return; }
   if (d.fall) { game.transition = { kind: 'fall', door: d, phase: 'drop', t: 0 }; sfx.dash(); return; }
   game.transition = { kind: 'door', door: d, phase: 'turn', t: 0, x0: p.x, z0: p.z };
   sfx.door();
@@ -1285,7 +1299,7 @@ function updateTransition(dt) {
       loadRoom(tr.edge.to, { x: tr.edge.x - tr.dir * 18, z: p.z, facing: tr.dir });
       tr.phase = 'in';
       tr.t = 0;
-      callout(tr.edge.name && tr.dir > 0 && tr.edge.name !== room().name ? `${tr.edge.name} → ${room().name}` : room().name, 'muted');
+      if (ui.floorcard.hidden) callout(tr.edge.name && tr.dir > 0 && tr.edge.name !== room().name ? `${tr.edge.name} → ${room().name}` : room().name, 'muted');
     } else if (tr.phase === 'in' && tr.t >= EDGE_PHASES.in) {
       game.transition = null;
       p.walking = false;
@@ -1312,7 +1326,7 @@ function updateTransition(dt) {
     const out = to.doors.find(d => d.id === tr.door.toDoor);
     loadRoom(tr.door.to, { x: out.x, z: -7 });
     tr.door = out;
-    callout(to.name, 'muted');
+    if (ui.floorcard.hidden) callout(to.name, 'muted');  // заставка этажа уже называет комнату
     sfx.door();
   }
   if (!next) {
