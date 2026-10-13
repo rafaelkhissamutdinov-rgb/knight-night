@@ -15,6 +15,8 @@ import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, update
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
+import { loadKnightSprites, knightReady, drawKnight } from './sprites.js';
+loadKnightSprites();
 import { BESTIARY } from './story/bestiary.js';
 import { ENEMY_TYPES } from './config.js';
 
@@ -48,9 +50,12 @@ const HINT_FIGHT = 'курсор — высота ▲ ━ ▼ · ЛКМ удар
 const hintFight = () => game.cleared?.size >= 3 ? '' : HINT_FIGHT;
 const hintWalk = () => game.visited?.includes('gallery') || game.flags?.done_ilia || game.cleared?.size >= 3 ? '' : HINT_WALK;
 
+// Холст вдвое больше игрового мира (640×360): код рисует в координатах мира с масштабом S,
+// спрайты из PixelLab — в родных пикселях (src/sprites.js). Логика и баланс — в прежних единицах.
+const S = 2;
 const canvas = document.getElementById('game');
-canvas.width = W;
-canvas.height = H;
+canvas.width = W * S;
+canvas.height = H * S;
 const g = canvas.getContext('2d');
 g.imageSmoothingEnabled = false;
 const rollCanvas = document.createElement('canvas');
@@ -2474,14 +2479,14 @@ function renderFoe() {
 function render() {
   const sx = game.shake ? Math.round((Math.random() * 2 - 1) * game.shake) : 0;
   const sy = game.shake ? Math.round((Math.random() * 2 - 1) * game.shake) : 0;
-  g.setTransform(1, 0, 0, 1, sx, sy);
+  g.setTransform(S, 0, 0, S, sx * S, sy * S);
   g.fillStyle = PAL.bg;
   g.fillRect(-4, -4, W + 8, H + 8);
 
   if (game.mode === 'title') {
     // титульный экран: замок на горе под луной
     drawTitle(g, performance.now() / 1000);
-    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.setTransform(S, 0, 0, S, 0, 0);
     return;
   }
   const r = room();
@@ -2578,7 +2583,7 @@ function render() {
     }
   }
 
-  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.setTransform(S, 0, 0, S, 0, 0);
   if (game.mode === 'map') renderMap();
   if (game.flash > 0) {
     g.globalAlpha = game.flash;
@@ -2773,6 +2778,11 @@ function renderPlayer(cam) {
   const px = p.x - cam;
   const GROUND = groundY(p.z) + Math.round(game.fallY ?? 0);  // падение сквозь пролом
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
+  const sprite = knightReady();
+  if (p.state === 'roll' && sprite) {
+    drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_tuck', rotate: p.facing * Math.min(1, p.t / WEAPON.roll.time) * Math.PI * 2 });
+    return;
+  }
   if (p.state === 'roll') {
     // кувырок: сгруппированный рыцарь делает полный оборот
     rollCtx.clearRect(0, 0, 48, 48);
@@ -2799,11 +2809,23 @@ function renderPlayer(cam) {
     view = game.viewPrev;
     squash = 0.5;
   }
+  if (view !== 'side' && sprite) {
+    if (alpha > 0) drawKnight(g, { x: px, ground: GROUND, view: view === 'back' ? 'back' : 'front', squash, alpha });
+    return;
+  }
   if (view !== 'side') {
     if (alpha <= 0) return;
     g.globalAlpha = alpha;
     drawFigureFrontOutlined(g, { x: Math.round(px), ground: GROUND, colors, back: view === 'back', step: p.step * Math.PI * 2, weapon: p.weapon, squash });
     g.globalAlpha = 1;
+    return;
+  }
+  if (game.cutscene && game.cutscene.t < WAKE.kneel && sprite) {
+    drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' });
+    return;
+  }
+  if (game.rest && sprite) {
+    drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' });
     return;
   }
   if (game.cutscene && game.cutscene.t < WAKE.kneel) {
@@ -2830,7 +2852,11 @@ function renderPlayer(cam) {
     const k = Math.min(1, (game.time - game.charge.t) / WEAPONS.rapier.chargeTime);
     rect(g, px - 6, GROUND + 3, Math.round(12 * k), 1, PAL.gold);
   }
-  const tip = drawFigureOutlined(g, {
+  const tip = sprite ? drawKnight(g, {
+    x: px, ground: GROUND, facing, pose: p.pose, state: p.state, walking: p.walking, step: p.step, time: game.time, airY: p.airY,
+    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing,
+    alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
+  }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
     breathe: p.state === 'ready' && !p.walking && Math.sin(game.time * 2.4) > 0.3 ? 1 : 0,  // дышит, когда стоит
     weaponLen: p.arms.length ?? 17, scabbard: !rapier, rapier, offhandBack: rapier && p.state !== 'hurt',

@@ -25,6 +25,7 @@ npm start    # python3 -m http.server 8080 → http://localhost:8080
 - `src/player.js` — рыцарь: ready / attack (windup → active → recover) / dash / backdash / roll / hurt / swallowed. `chooseAttack` выбирает удар по вводу, ножны, отмена замаха, буфер ввода.
 - `src/poses.js` — позы (кисть, угол клинка, наклон, присед). Замах должен читаться по силуэту.
 - `src/draw.js` — пиксельные примитивы и фигура бойца-заглушки.
+- `src/sprites.js` — спрайт Найта (v0.60): кадры `assets/sprites/knight/` (+ `knight.json`: точка кисти каждого кадра), ближайшая поза из `src/poses.js`, меч/рапира рисуются кодом от кисти. Холст 640×360, мир — 320×180, масштаб `S = 2` в `src/main.js`.
 - `src/palette.js` — цвета.
 - `src/main.js` — цикл (фиксированный шаг 1/60 с), режимы title / play / dead / end, ввод (направления относительно взгляда рыцаря), объект `world` для врагов, стрелы, столкновения тел, эффекты, HUD.
 - `index.html`, `style.css` — страница; HUD, надписи и окно диалога — DOM поверх canvas.
