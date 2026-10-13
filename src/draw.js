@@ -49,7 +49,7 @@ export function drawFigure(g, o) {
   const {
     x, ground, facing: f, pose, colors, step = 0, plume = false, weaponLen = 17,
     bladeHidden = false, scabbard = false, shield = false, skull = false,
-    bow = false, bowDraw = 0, crossbow = false, gaitRun = null, airY = 0, trail = null, face = false, rapier = false, robe = false,
+    bow = false, bowDraw = 0, crossbow = false, gaitRun = null, breathe = 0, airY = 0, trail = null, face = false, rapier = false, robe = false,
     offhandBack = false, sit = false, seat = null, wrap = false, curved = false, slim = false, hood = false, pack = false,
     short = false, bob = false, coat = false, spear = false, halberd = false, bandit = false, axe = false, plate = false,
     bun = false, ornate = false,
@@ -62,7 +62,7 @@ export function drawFigure(g, o) {
   // seat — сидит на высоте seat над полом (0 — на полу): бедро опускается туда
   const hipY = seat !== null ? gy - seat - 4 : gy - (short ? 10 : 13) + pose.crouch + hop;  // short — невысокая фигура
   const shX = hipX + (pose.lean + (gaitOn ? Math.round(gaitRun * 2.5) : 0)) * f;
-  const shY = hipY - (short ? 10 : 12);
+  const shY = hipY - (short ? 10 : 12) + breathe;  // breathe 1 — выдох: плечи и голова на пиксель ниже
 
   // ноги (сидя на полу — вытянуты вперёд, одна согнута)
   const s = Math.round(Math.sin(step) * 3);
