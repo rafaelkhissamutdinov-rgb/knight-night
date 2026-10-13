@@ -1,4 +1,4 @@
-import { CONFIG, ROOMS, START, MAP, EASY, NORMAL, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
+import { CONFIG, ROOMS, START, MAP, EASY, NORMAL, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS, SETS } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy, RISE_TIME } from './enemy.js';
@@ -14,6 +14,7 @@ import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
+import { splitDamage } from './combat.js';
 import { BESTIARY } from './story/bestiary.js';
 import { ENEMY_TYPES } from './config.js';
 
@@ -144,7 +145,7 @@ function loadRoom(id, at) {
   game.visited.push(id);
   const r = ROOMS[id];
   game.enemies = spawnRoom(id);
-  game.npcs = (r.npcs ?? []).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: -1 }));
+  game.npcs = (r.npcs ?? []).filter(n => !n.needs || game.flags[n.needs]).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: -1 }));
   game.arena = null;
   game.current = null;
   game.token = null;
@@ -266,6 +267,8 @@ function continueGame(data) {
   game.player = new Player(data.x, ITEMS[game.equip.weapon].weapon);
   game.player.sheathed = false;
   game.player.hp = Math.max(1, Math.min(CONFIG.playerHp, data.hp ?? CONFIG.playerHp));
+  game.shield = null;  // щит при загрузке — полный
+  applyArmor();
   const rest = game.flags.restAt;
   if (rest && ROOMS[rest.room]) loadRoom(rest.room, { x: rest.x, z: rest.z ?? 8 });  // как скамейки: с места отдыха
   else loadRoom(ROOMS[data.room] ? data.room : START.room, { x: data.x, z: data.z ?? 22 });
@@ -453,14 +456,20 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
       shake(1.5);
       callout(`♦ Бубновый туз  −0`, 'perfect');
     } else {
-      p.hurt(dmg, sourceX);
+      // щит брони принимает удар первым
+      const split = splitDamage(dmg, Math.floor(game.shield ?? 0));
+      game.shield = (game.shield ?? 0) - split.absorbed;
+      game.hitAt = game.time;
+      p.hurt(split.hp, sourceX);
       renderHearts();
-      sparks(p.x + 2, y, 10, [PAL.blood, '#9e2648'], 80);
+      if (split.hp > 0) sparks(p.x + 2, y, 10, [PAL.blood, '#9e2648'], 80);
+      if (split.absorbed > 0) sparks(p.x + 2, y, 8, ['#6fa8dc', '#d8ecff'], 90);
       sfx.hit();
       game.hitstop = CONFIG.hitstop.hit;
       shake(mult > 1 ? 4 : 3);
-      flash('#e8454f', 0.3);
-      callout(backTurned ? `В спину! −${dmg}` : mult > 1 ? `Пропущен ×${mult}  −${dmg}` : `Пропущен  −${dmg}`, 'hit');
+      flash(split.hp > 0 ? '#e8454f' : '#6fa8dc', split.hp > 0 ? 0.3 : 0.18);
+      const what = split.hp > 0 ? `−${split.hp}${split.absorbed ? `  (щит −${split.absorbed})` : ''}` : `щит −${split.absorbed}`;
+      callout(backTurned ? `В спину! ${what}` : mult > 1 ? `Пропущен ×${mult}  ${what}` : `Пропущен  ${what}`, split.hp > 0 ? 'hit' : 'block');
     }
   }
   // рапира: два успешных блока подряд — автоматический рипост
@@ -574,6 +583,8 @@ function restartFight() {
   const z = game.player.z;
   game.player = new Player(game.checkpoint, game.player.weapon);
   game.player.z = z;
+  game.shield = null;
+  applyArmor();
   game.player.sheathed = false;
   game.transition = null;
   game.view = 'side';
@@ -868,6 +879,7 @@ function handlePress(code) {
         game.bag.push(chest.pick);
         callout(`Взято: ${ITEMS[chest.pick].name}`, 'perfect');
         sfx.perfect();
+        checkSets();
         save();
         return;
       }
@@ -1226,6 +1238,7 @@ function standUp() {
 function updateRest(dt) {
   const r = game.rest, p = game.player;
   r.t += dt;
+  if (game.shield < shieldMax()) { game.shield = shieldMax(); renderHearts(); }  // на отдыхе щит сразу полный
   r.heal += dt;
   if (r.heal >= 0.4 && p.hp < CONFIG.playerHp) {
     r.heal = 0;
@@ -1467,6 +1480,8 @@ function update(dt) {
   if (game.cutscene) { updateCutscene(dt); return; }
   if (game.transition) { updateTransition(dt); updateCamera(dt); return; }
   if (game.rest) { updateRest(dt); updateCoinFx(dt); updateCamera(dt); return; }
+  updateShield(dt);
+  updateEnterTalk();
   updateArena();
   updateTrainerMeet();
   if (!game.arena && !game.tutorial && game.mode === 'play') {
@@ -1695,6 +1710,7 @@ function equipItem(id) {
   const prev = game.equip[item.slot];
   if (prev) game.bag.push(prev);
   game.equip[item.slot] = id;
+  if (item.slot === 'armor') { applyArmor(); renderHearts(); }
   if (item.slot === 'weapon') {
     p.setWeapon(item.weapon);
     game.charge = null;
@@ -2399,11 +2415,51 @@ function hideOverlay() {
   ui.reportBtn.textContent = 'Скопировать отчёт для тестера';
 }
 
+// разговор при первом входе в комнату (enterTalk: { id, needs })
+function updateEnterTalk() {
+  const t = room().enterTalk;
+  if (!t || game.flags['seen_' + t.id] || (t.needs && !game.flags[t.needs]) || game.arena) return;
+  startTalk(t.id);
+}
+
+// Собран сет — части превращаются в вещь (сет мародёра → снаряжение мародёра)
+function checkSets() {
+  for (const set of Object.values(SETS)) {
+    if (owns(set.gives) || !set.pieces.every(id => game.bag.includes(id))) continue;
+    for (const id of set.pieces) game.bag.splice(game.bag.indexOf(id), 1);
+    game.bag.push(set.gives);
+    setTimeout(() => callout(`${set.name} собран! ${ITEMS[set.gives].name} — в сумке (I)`, 'counter'), 900);
+  }
+}
+
+// скорость ходьбы от брони (ITEMS[...].speed)
+const applyArmor = () => { game.player.speedMult = ITEMS[game.equip.armor]?.speed ?? 1; };
+
+// Щит — от надетой брони (ITEMS[...].shield)
+const shieldMax = () => ITEMS[game.equip.armor]?.shield ?? 0;
+
+// Шкалы жизни и щита (раньше — сердечки)
 function renderHearts() {
   const p = game.player;
-  ui.hearts.innerHTML = Array.from({ length: CONFIG.playerHp }, (_, i) =>
-    `<i class="${i < p.hp ? 'on' : ''}"></i>`).join('');
-  ui.hearts.classList.toggle('low', p.hp > 0 && p.hp <= 2);  // мало здоровья — сердца мигают
+  const max = CONFIG.playerHp, sm = shieldMax();
+  game.shield = Math.min(game.shield ?? sm, sm);
+  $('hp-fill').style.width = `${100 * p.hp / max}%`;
+  $('hp-fill').parentElement.style.setProperty('--seg', `${100 / max}%`);
+  $('hp-text').textContent = `${p.hp}/${max}`;
+  $('shield-bar').hidden = sm <= 0;
+  $('shield-fill').style.width = sm ? `${100 * game.shield / sm}%` : '0';
+  $('shield-bar').style.setProperty('--seg', sm ? `${100 / sm}%` : '100%');
+  $('shield-text').textContent = sm ? `щит ${Math.floor(game.shield)}/${sm}` : '';
+  ui.hearts.classList.toggle('low', p.hp > 0 && p.hp <= 2);  // мало жизни — шкала мигает
+}
+
+// щит восстанавливается, если по рыцарю какое-то время не попадали
+function updateShield(dt) {
+  const sm = shieldMax();
+  if (game.shield >= sm || game.time - (game.hitAt ?? -99) < CONFIG.shieldRegenDelay) return;
+  const before = Math.floor(game.shield);
+  game.shield = Math.min(sm, game.shield + dt / CONFIG.shieldRegenTime);
+  if (Math.floor(game.shield) !== before) renderHearts();
 }
 
 function renderFoe() {
@@ -2497,10 +2553,11 @@ function render() {
     const p = game.player;
     const c = game.cutscene;
     const portalLight = c && c.t < WAKE.flash ? 30 + 40 * (c.t / WAKE.flash) : 95;
-    const lights = [
-      { x: r.portal.x - cam, y: groundY(r.portal.z) - 6, r: portalLight },
-      { x: r.length - cam + 10, y: 110, r: 90, a: 0.8 },
-    ];
+    const lights = [];
+    if (r.portal) lights.push({ x: r.portal.x - cam, y: groundY(r.portal.z) - 6, r: portalLight });
+    if (r.gate) lights.push({ x: r.length - cam + 10, y: 110, r: 90, a: 0.8 });
+    // костры и прочие огни на полу (light у пропа) — мерцают
+    for (const pr of r.props ?? []) if (pr.light) lights.push({ x: pr.x - cam, y: groundY(pr.z) - 8, r: 120 + 8 * Math.sin(game.time * 9 + pr.x) + 5 * Math.sin(game.time * 23) });
     if (!hidePlayer) lights.push({ x: p.x - cam, y: groundY(p.z) - 16, r: 42, a: 0.7 });
     drawDarkness(g, W, H, lights);
     // тёмные пылинки плывут перед камерой
@@ -2816,9 +2873,9 @@ function renderNpc(n, cam) {
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
   drawFigureOutlined(g, {
-    x, ground: groundY(n.z), facing: n.facing, pose: { ...POSES.idle, hy: 8, angle: 80, crouch: breathe },
+    x, ground: groundY(n.z), facing: n.facing, pose: n.def.sit ? { ...POSES.sheathed, hy: 7 + breathe, lean: 0, crouch: 0 } : { ...POSES.idle, hy: 8, angle: 80, crouch: breathe },
     colors: n.def.colors, robe: n.def.robe, hood: n.def.hood, pack: n.def.pack, bladeHidden: true,
-    short: n.def.short, bob: n.def.bob, coat: n.def.coat,
+    short: n.def.short, bob: n.def.bob, coat: n.def.coat, face: !!n.def.human, sit: !!n.def.sit, seat: 0,
   });
 }
 

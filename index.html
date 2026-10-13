@@ -15,7 +15,10 @@
       <canvas id="game" width="320" height="180"></canvas>
       <div class="hud">
         <div class="hud-left">
-          <div class="hearts" id="hearts" aria-label="Здоровье"></div>
+          <div class="bars" id="hearts">
+            <div class="bar hp" aria-label="Жизнь"><b id="hp-fill"></b><span id="hp-text"></span></div>
+            <div class="bar shield" id="shield-bar" aria-label="Щит"><b id="shield-fill"></b><span id="shield-text"></span></div>
+          </div>
           <div class="skill" id="skill-spin" aria-label="Перезарядка приёма на колесе"><span id="skill-name">вихрь</span><b><i id="skill-spin-bar"></i></b></div>
           <div class="weapon" id="weapon" hidden></div>
           <div class="skill" id="skill-g" hidden><span id="skill-g-name">навык</span><b><i id="skill-g-bar"></i></b></div>

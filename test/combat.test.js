@@ -667,3 +667,19 @@ test('призрак: после серии растворяется, неуяз
   run(e, w, en => en.state === 'idle');
   assert.equal(e.ghost, 1);
 });
+
+test('щит брони принимает урон первым', async () => {
+  const { splitDamage } = await import('../src/combat.js');
+  assert.deepEqual(splitDamage(2, 3), { absorbed: 2, hp: 0 });
+  assert.deepEqual(splitDamage(2, 1), { absorbed: 1, hp: 1 });
+  assert.deepEqual(splitDamage(1, 0), { absorbed: 0, hp: 1 });
+});
+
+test('сеты: части и награда есть в ITEMS, части лежат в комнатах', async () => {
+  const { SETS, ITEMS, ROOMS } = await import('../src/config.js');
+  const picks = Object.values(ROOMS).flatMap(r => (r.props ?? []).map(p => p.pick).filter(Boolean));
+  for (const set of Object.values(SETS)) {
+    assert.ok(ITEMS[set.gives]?.slot, set.gives);
+    for (const id of set.pieces) { assert.ok(ITEMS[id], id); assert.ok(picks.includes(id), 'часть лежит в комнате: ' + id); }
+  }
+});

@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.58';
+export const VERSION = 'v0.59';
 
 export const CONFIG = {
   width: 320,
@@ -30,6 +30,8 @@ export const CONFIG = {
   counterMult: 2,       // во сколько раз больнее бьёшь ошеломлённого врага
   tradeMult: 2,         // во сколько раз больнее получаешь, если враг ударил, пока ты атаковал (или после неудачного отскока)
   playerHp: 10,
+  shieldRegenDelay: 4,  // щит брони начинает восстанавливаться, если столько секунд по рыцарю не попадали
+  shieldRegenTime: 1.2, // секунд на одну единицу щита
 
   // Передвижение
   walkSpeed: 74,        // в бою
@@ -288,6 +290,11 @@ export const ENEMY_TYPES = {
 export const NPC_TYPES = {
   // Лика — торговка: невысокая, длинные чёрные волосы с чёлкой до глаз, оливковый плащ с высоким воротом на пуговицах
   // (по портрету владельца assets/portraits/lika.png)
+  // Илиа после поражения: сидит у костра на Привале (решение владельца); face: 'ilia' — портрет, human — лицо на фигурке
+  ilia: {
+    name: 'Илиа', face: 'ilia', talk: 'ilia_camp_again', human: true, robe: true, sit: true,
+    colors: { armor: '#d9c7a3', armorDark: '#b39f7c', tabard: '#efe4cc', belt: '#6b4a32', helm: '#e2b896', visor: '#1b1b22', hair: '#15151c', hairLight: '#2a2a34', boots: '#4a3626', blade: '#c9d2dc', hilt: '#8a6a3a' },
+  },
   lika: {
     name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true,
     colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' },
@@ -300,7 +307,12 @@ export const NPC_TYPES = {
 export const ITEMS = {
   sword_old: { name: 'Старый стальной полуторный меч', slot: 'weapon', weapon: 'sword' },
   rapier: { name: 'Рапира Илиа', slot: 'weapon', weapon: 'rapier' },
-  armor_old: { name: 'Потёртые стальные доспехи', slot: 'armor' },
+  armor_old: { name: 'Потёртые стальные доспехи', slot: 'armor', shield: 3 },
+  // сет мародёра (решение владельца): три части по разным комнатам → броня; быстрее, но щит слабее. speed — множитель ходьбы
+  armor_marauder: { name: 'Снаряжение мародёра', slot: 'armor', shield: 1, speed: 1.15 },
+  mar_scarf: { name: 'Платок мародёра', set: 'marauder' },
+  mar_jacket: { name: 'Кожаная куртка мародёра', set: 'marauder' },
+  mar_boots: { name: 'Сапоги мародёра', set: 'marauder' },
   diamond_ace: { name: 'Бубновый туз', slot: 'amulet', price: 30, ward: { absorb: 4, cooldown: 10 } },
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
@@ -319,6 +331,10 @@ export const ITEMS = {
   rosary: { name: 'Чётки монаха', slot: 'amulet', parryHeal: { heal: 1, cooldown: 8 } },
 };
 export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amulet', 'Амулет'], ['spell', 'Заклинание'], ['skill', 'Навык']];
+// Сеты: собрал все части — получаешь вещь (части уходят из сумки)
+export const SETS = {
+  marauder: { name: 'Комплект мародёра', pieces: ['mar_scarf', 'mar_jacket', 'mar_boots'], gives: 'armor_marauder' },
+};
 export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
@@ -347,7 +363,7 @@ export const MAP = {
   shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4],
   landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8],
   landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
-  library: [2, 12.6, 5, 4.2], reading: [2, 14.4, 2, 2.4], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
+  camp: [2, 12.6, 11, 2.6], library: [2, 12.6, 5, 4.2], reading: [2, 14.4, 2, 2.4], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
 };
 
 
@@ -375,6 +391,7 @@ export const ROOMS = {
     trainer: { x: 300, z: 22 },
     props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 }],
     decor: [
+      { type: 'note', x: 1500, y: 70, look: 'look_prisoner', name: 'надпись на стене' },
       { type: 'chains', x: 700, y: 46 }, { type: 'chains', x: 1150, y: 46 }, { type: 'chains', x: 1680, y: 46 },
       { type: 'tally', x: 1265, y: 50, n: 37, look: 'look_tally', name: 'зарубки на стене' },
       { type: 'chains', x: 2180, y: 46 },
@@ -452,7 +469,7 @@ export const ROOMS = {
     props: [{ type: 'chest', id: 'a', x: 446, z: 3, coins: 20 }, { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 420, z: 14 }],
     decor: [
       { type: 'rack', x: 200, look: 'look_rack', name: 'стойка с оружием' },
-      { type: 'rack', x: 290, items: [null, 'spear', null, null, 'sword'] },
+      { type: 'rack', x: 290, items: [null, 'spear', null, null, 'sword'], look: 'look_rack_empty', name: 'полупустая стойка' },
       { type: 'shield', x: 420, y: 40 },
       { type: 'banner', x: 245, y: 8, h: 30, color: '#2a3a6a', dark: '#1a2448' },
     ],
@@ -483,6 +500,7 @@ export const ROOMS = {
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'barracks', name: 'Галерея' }],
     props: [
       { type: 'chest', id: 'key', x: 446, z: 3, coins: 25 },
+      { type: 'loot', id: 'mar_scarf', x: 236, z: 30, pick: 'mar_scarf' },
       { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 175, z: 2 }, { type: 'barrel', x: 420, z: 16 },
     ],
     decor: [
@@ -499,7 +517,7 @@ export const ROOMS = {
   corridor: {
     name: 'Коридор', length: 900, torches: [120, 330, 540, 760],
     edges: { left: { to: 'gallery', x: 1150, name: 'Галерея' }, right: { to: 'dining', x: 30, name: 'Столовая' } },
-    props: [{ type: 'crate', x: 200, z: 2 }, { type: 'sack', x: 214, z: 6 }, { type: 'barrel', x: 640, z: 3 }],
+    props: [{ type: 'crate', x: 200, z: 2 }, { type: 'sack', x: 214, z: 6 }, { type: 'barrel', x: 640, z: 3 }, { type: 'loot', id: 'mar_boots', x: 470, z: 30, pick: 'mar_boots' }],
     decor: [
       { type: 'banner', x: 60, y: 10 },
       { type: 'portrait', x: 232, y: 36, who: 'king', look: 'look_king', name: 'портрет' },
@@ -521,6 +539,7 @@ export const ROOMS = {
     props: [
       { type: 'table', x: 300, z: 16 }, { type: 'chair', x: 252, z: 10 }, { type: 'chair', x: 348, z: 24, flip: true },
       { type: 'cup', id: 'cup', x: 318, z: 17, pick: 'silver_cup' },
+      { type: 'letter', x: 280, z: 15, look: 'look_letter', name: 'письмо' },
       { type: 'barrel', x: 452, z: 3 },
     ],
     decor: [
@@ -557,6 +576,7 @@ export const ROOMS = {
     name: 'Жилое крыло', floor: 2, length: 1500, torches: [150, 450, 640, 850, 1030, 1250, 1430],
     edges: { left: { to: 'landing2', x: 370, name: 'Лестничная площадка' }, right: { to: 'stairs3', x: 30, name: 'Лестница наверх' } },
     doors: [
+      { id: 'camp', x: 300, kind: 'wood', to: 'camp', toDoor: 'out', name: 'Привал' },
       { id: 'library', x: 380, kind: 'wood', to: 'library', toDoor: 'out', name: 'Библиотека' },
       { id: 'chapel', x: 760, kind: 'wood', to: 'chapel', toDoor: 'out', name: 'Часовня' },
       // кто за дверью — решит владелец (босс этажа или ключ); пока — глухие удары изнутри
@@ -571,11 +591,27 @@ export const ROOMS = {
       { type: 'window', x: 1330, w: 26, h: 44, y: 18, moon: true },
       { type: 'banner', x: 1100, y: 10 }, { type: 'banner', x: 1180, y: 10, torn: true },
     ],
-    props: [{ type: 'bones', x: 600, z: 26 }, { type: 'crate', x: 1000, z: 3 }, { type: 'barrel', x: 1400, z: 2 }],
+    props: [{ type: 'bones', x: 600, z: 26 }, { type: 'crate', x: 1000, z: 3 }, { type: 'barrel', x: 1400, z: 2 }, { type: 'loot', id: 'mar_jacket', x: 1040, z: 32, pick: 'mar_jacket' }],
     encounters: [
       { x: 560, enemies: [{ type: 'merc', dx: 60, z: 18 }, { type: 'crossbow', dx: 190, z: 30 }] },
       { x: 960, enemies: [{ type: 'skelShield', dx: 60, z: 24 }, { type: 'spear', dx: 110, z: 12 }, { type: 'skelArcher', dx: 200, z: 34 }] },
     ],
+  },
+  // Привал (решение владельца): уютная комната с костром, где после поражения отдыхает Илиа. Первый вход — разговор
+  // (он хватается за оружие: «Стой, я живой — не скелет и не мародёр»). Костёр — место отдыха. Название — черновик.
+  camp: {
+    name: 'Привал', floor: 2, length: 400, columns: false, torches: [], dark: true, warm: true,
+    enterTalk: { id: 'ilia_camp', needs: 'done_ilia' },
+    doors: [{ id: 'out', x: 60, kind: 'wood', to: 'hall2', toDoor: 'camp', name: 'Жилое крыло' }],
+    decor: [
+      { type: 'window', x: 300, w: 22, h: 34, y: 22, moon: true },
+      { type: 'banner', x: 150, y: 10, torn: true },
+    ],
+    props: [
+      { type: 'campfire', x: 210, z: 20, light: true, look: 'look_campfire', name: 'костёр', rest: { seat: 0, name: 'у костра', z: 20, dx: -30, face: 1 } },
+      { type: 'bedroll', x: 268, z: 34, look: 'look_bedroll', name: 'лежанка' }, { type: 'sack', x: 300, z: 6 }, { type: 'pot', x: 232, z: 8 },
+    ],
+    npcs: [{ type: 'ilia', x: 242, z: 22, needs: 'done_ilia' }],
   },
   // библиотека: стеллажи, стремянка, стол с раскрытой книгой; алебардист и лучник; сундук в глубине
   library: {
@@ -616,6 +652,7 @@ export const ROOMS = {
       { type: 'banner', x: 160, y: 10, h: 40, color: '#e8e0d0', dark: '#a89a8a' },
     ],
     props: [
+      { type: 'candles', x: 110, z: 4, look: 'look_candles', name: 'свечи' },
       { type: 'pew', x: 170, z: 14, rest: { seat: 4, name: 'на скамье', z: 15, face: 1 } }, { type: 'pew', x: 170, z: 30 }, { type: 'pew', x: 250, z: 14 }, { type: 'pew', x: 250, z: 30 },
       { type: 'altar', id: 'altar', x: 340, z: 4, altar: 'cup_placed' },
     ],
@@ -666,7 +703,7 @@ export const ROOMS = {
       { type: 'banner', x: 520, y: 10, torn: true }, { type: 'banner', x: 900, y: 10, torn: true },
       { type: 'ivy', x: 640, y: 0, len: 60, w: 14, n: 3 },
     ],
-    props: [{ type: 'bones', x: 330, z: 24 }, { type: 'crate', x: 1080, z: 2 }, { type: 'sack', x: 1094, z: 6 }],
+    props: [{ type: 'bones', x: 330, z: 24 }, { type: 'crate', x: 1080, z: 2 }, { type: 'sack', x: 1094, z: 6 }, { type: 'lute', x: 640, z: 32, look: 'look_lute', name: 'сломанная лютня' }],
     encounters: [
       { x: 600, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'merc', dx: 90, z: 30 }, { type: 'crossbow', dx: 180, z: 8 }] },
       { x: 1000, enemies: [{ type: 'skelLong', dx: 60, z: 22 }, { type: 'ghost', dx: 110, z: 34 }] },
@@ -681,7 +718,7 @@ export const ROOMS = {
       { type: 'armor', x: 240 }, { type: 'banner', x: 140, y: 10 }, { type: 'banner', x: 340, y: 10 },
       { type: 'rack', x: 420, items: ['spear', 'sword', 'spear'] },
     ],
-    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }],
+    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }, { type: 'logbook', x: 170, z: 4, look: 'look_logbook', name: 'журнал дежурств' }],
     encounters: [
       { x: 260, story: 'keyguard', before: 'keyguard_meet', noRise: true, enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'crossbow', dx: 170, z: 8 }] },
     ],
@@ -703,7 +740,7 @@ export const ROOMS = {
       { type: 'doorglow', x: 272 }, { type: 'chains', x: 110, y: 44 },
     ],
     // последний отдых перед боссом — сохраниться у двери покоев
-    props: [{ type: 'bench', x: 210, z: 2, rest: { seat: 4, name: 'на каменной скамье', face: 1 } }],
+    props: [{ type: 'bench', x: 210, z: 2, rest: { seat: 4, name: 'на каменной скамье', face: 1 } }, { type: 'bouquet', x: 252, z: 4, look: 'look_bouquet', name: 'засохший букет' }],
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
       // за дверью — покои принцессы и призрак главы королевской стражи (финальный босс главы 1, решение владельца v0.57; маг — позже)

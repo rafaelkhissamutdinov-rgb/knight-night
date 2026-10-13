@@ -551,6 +551,63 @@ export function drawProp(g, type, x, gy, opened = false, time = 0) {
     rect(g, x, gy - 17, 1, 2, '#a3aab4');
     rect(g, x - 1, gy - 15, 3, 1, '#d8dde6');
     if (Math.floor(time * 3) % 3 === 0) rect(g, x + 1, gy - 21, 1, 1, '#ffffff');
+  } else if (type === 'letter') {
+    rect(g, x - 3, gy - 2, 7, 2, '#e3d6b6');
+    rect(g, x - 3, gy - 2, 7, 1, '#f2e8d0');
+    rect(g, x, gy - 2, 2, 1, '#9a2f2f');  // сорванная печать
+  } else if (type === 'candles') {
+    for (const [dx, h] of [[-4, 6], [0, 9], [3, 5], [6, 7]]) {
+      rect(g, x + dx, gy - h, 2, h, '#e8dcc0');
+      if ((Math.floor(time * 7) + dx) % 3) rect(g, x + dx, gy - h - 2, 2, 2, '#ffd27a');
+    }
+    rect(g, x - 6, gy - 1, 15, 1, '#c9bc9c');  // натёкший воск
+  } else if (type === 'lute') {
+    rect(g, x - 5, gy - 5, 7, 5, '#a0703a');
+    rect(g, x - 4, gy - 6, 5, 1, '#b8854a');
+    rect(g, x - 2, gy - 3, 1, 1, '#2a1e14');  // розетка
+    thick(g, x + 2, gy - 3, x + 10, gy - 6, 1, '#6b4532');  // гриф
+    rect(g, x + 9, gy - 8, 2, 2, '#4a3226');
+  } else if (type === 'logbook') {
+    rect(g, x - 6, gy - 3, 12, 3, '#5a2f2a');
+    rect(g, x - 5, gy - 4, 5, 1, '#e3d6b6'); rect(g, x + 1, gy - 4, 5, 1, '#e3d6b6');
+    rect(g, x, gy - 4, 1, 1, '#3a2018');
+  } else if (type === 'bouquet') {
+    thick(g, x - 2, gy - 1, x - 3, gy - 8, 1, '#6b6040');
+    thick(g, x, gy - 1, x + 1, gy - 9, 1, '#6b6040');
+    thick(g, x + 2, gy - 1, x + 4, gy - 7, 1, '#6b6040');
+    for (const [dx, dy] of [[-3, -9], [1, -10], [4, -8]]) rect(g, x + dx, gy + dy, 2, 2, '#8a6070');
+    rect(g, x - 2, gy - 3, 5, 1, '#c0505a');  // лента
+  } else if (type === 'loot') {
+    // свёрток на полу: что-то оставили мародёры; поблёскивает, пока не взят
+    if (opened) return;
+    rect(g, x - 5, gy - 4, 10, 4, '#6b5a44');
+    rect(g, x - 4, gy - 5, 8, 1, '#8a7656');
+    rect(g, x - 1, gy - 5, 2, 5, '#3e3226');
+    if (Math.floor(time * 2.5) % 4 === 0) rect(g, x + 3, gy - 6, 1, 1, '#fff4c2');
+  } else if (type === 'campfire') {
+    // костёр: камни кольцом, скрещённые поленья, пламя мерцает, искры летят вверх
+    for (const [dx, c] of [[-9, '#5a5560'], [-6, '#6e6874'], [6, '#6e6874'], [9, '#5a5560'], [-3, '#4a4550'], [3, '#4a4550']]) rect(g, x + dx - 1, gy - 2, 3, 2, c);
+    thick(g, x - 7, gy - 1, x + 6, gy - 5, 2, '#5b3a24');
+    thick(g, x + 7, gy - 1, x - 6, gy - 5, 2, '#6b4532');
+    const f = Math.floor(time * 10);
+    const h = 9 + (f % 3);
+    for (let i = 0; i < h; i++) {
+      const w = Math.max(1, Math.round(6 * (1 - i / h)) + ((f + i) % 2));
+      const sway = Math.round(Math.sin(time * 8 + i * 0.7) * (i / h) * 2);
+      rect(g, x - Math.floor(w / 2) + sway, gy - 4 - i, w, 1, i < 3 ? '#ffe9a8' : i < h * 0.6 ? '#f2a03d' : '#d0532a');
+    }
+    for (let k = 0; k < 3; k++) {
+      const t = (time * 0.9 + k * 0.37) % 1;
+      rect(g, x + Math.round(Math.sin((time + k) * 3) * 4), gy - 12 - Math.round(t * 22), 1, 1, t < 0.6 ? '#ffd27a' : '#a0442a');
+    }
+  } else if (type === 'bedroll') {
+    rect(g, x - 12, gy - 3, 24, 3, '#6a3b3b');
+    rect(g, x - 12, gy - 4, 24, 1, '#8a5050');
+    rect(g, x + 8, gy - 6, 6, 4, '#c9b48a');  // свёрнутое одеяло-подушка
+  } else if (type === 'pot') {
+    rect(g, x - 4, gy - 7, 9, 6, '#3a3640');
+    rect(g, x - 5, gy - 7, 11, 1, '#55505e');
+    rect(g, x - 3, gy - 1, 7, 1, '#2a2630');
   } else if (type === 'bones') {
     rect(g, x - 2, gy - 3, 4, 3, '#d9d4c3');
     rect(g, x - 1, gy - 2, 1, 1, '#14101e');
