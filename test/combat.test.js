@@ -556,7 +556,7 @@ test('комнаты: двери ведут друг к другу, края и 
   assert.ok(ROOMS[START.room]);
   for (const [id, r] of Object.entries(ROOMS)) {
     for (const d of r.doors ?? []) {
-      if (d.locked && !d.key) continue;
+      if (d.finish || (d.locked && !d.key && !d.requires && !d.needs)) continue;  // глухие запертые двери и выход-финиш
       const back = ROOMS[d.to]?.doors?.find(x => x.id === d.toDoor);
       assert.ok(back, `${id}:${d.id} → ${d.to}:${d.toDoor}`);
       assert.equal(back.to, id, `обратная дверь ${d.to}:${back.id} ведёт в ${id}`);
