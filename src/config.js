@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.25';
+export const VERSION = 'v0.26';
 
 export const CONFIG = {
   width: 320,
@@ -242,12 +242,14 @@ export const ENEMY_TYPES = {
     guardChance: 0.4, reaction: 0.12,
     colors: { armor: '#6d6a7a', armorDark: '#45424f', tabard: '#8e2b3a', helm: '#7d7a8a', visor: '#14101e', blade: '#c9d2dc', hilt: '#8a5a3b', boots: '#3b2a26' },
   },
+  // атаман мародёров: латы снял с мёртвых стражников (замок заброшен — живой страже взяться неоткуда)
   captain: {
-    kind: 'melee', name: 'Капитан стражи', hp: 6, damage: 2, aggro: 130, reach: 32, speed: 45, lunge: 6, weapon: 19,
+    kind: 'melee', name: 'Атаман мародёров', shortName: 'Атаман', hp: 6, damage: 2, aggro: 130, reach: 32, speed: 45, lunge: 6, weapon: 19,
+    bandit: true, plate: true,
     windup: 0.55, comboWindup: 0.38, gap: 0.08, recover: 0.85, wait: [0.6, 1.0],
     combos: [['high', 'high'], ['mid', 'high', 'low'], ['low', 'low', 'high'], ['high', 'mid', 'low', 'mid']],
     guardChance: 0.6, reaction: 0.08,
-    colors: { armor: '#3b3550', armorDark: '#25212f', tabard: '#c99a2e', helm: '#4f4868', visor: '#ff7a2f', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#1c1828' },
+    colors: { armor: '#5a4a3e', armorDark: '#3b2f2a', tabard: '#5a1e1e', helm: '#b08060', visor: '#14101e', blade: '#f4f8ff', hilt: '#f2c14e', boots: '#1c1828', bandana: '#8e2b3a', mask: '#2a2420', plate: '#6d6a7a', plateDark: '#45424f', plateLight: '#a89a8a' },
   },
 };
 
@@ -297,14 +299,6 @@ export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield
 // image — фон-картинка вместо нарисованного кодом (assets/backgrounds/, 320×180 на экран); flames — где на ней факелы [x, y].
 export const START = { room: 'cell', x: 112, z: 26 };
 
-// Галерея: картинка-плитка 236×180 повторяется с зеркалом; факелы на плитке — в TILE_FLAMES
-const GALLERY_TILE = 236;
-const TILE_FLAMES = [[19, 69], [95, 69], [170, 69]];
-const tiledFlames = (length, tile, flames) => {
-  const out = [];
-  for (let i = 0; i * tile < length; i++) for (const [x, y] of flames) out.push([i * tile + (i % 2 ? tile - x : x), y]);
-  return out;
-};
 
 export const ROOMS = {
   cell: {
@@ -328,6 +322,11 @@ export const ROOMS = {
     ],
     trainer: { x: 300, z: 22 },
     props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 }],
+    decor: [
+      { type: 'chains', x: 700, y: 46 }, { type: 'chains', x: 1150, y: 46 }, { type: 'chains', x: 1680, y: 46 },
+      { type: 'tally', x: 1265, y: 50, n: 37, look: 'look_tally', name: 'зарубки на стене' },
+      { type: 'chains', x: 2180, y: 46 },
+    ],
     encounters: [
       { x: 660, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
       { x: 1020, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
@@ -336,10 +335,21 @@ export const ROOMS = {
       { x: 2100, enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
     ],
   },
-  // верхняя галерея с окнами на горы (фон владельца, плитка с зеркалом); отсюда — все комнаты и башня
+  // верхняя галерея с окнами на горы; отсюда — все комнаты и башня. Фон кодом: на картинке владельца
+  // (assets/backgrounds/gallery.png) двери некуда поставить — под окнами и в простенках нет места, по краям проломы
   gallery: {
-    name: 'Галерея', length: 1180, image: 'assets/backgrounds/gallery.png', tile: GALLERY_TILE, torches: [],
-    flames: tiledFlames(1180, GALLERY_TILE, TILE_FLAMES),
+    name: 'Галерея', length: 1180, columns: false,
+    torches: [125, 222, 325, 425, 520, 615, 710, 805, 905, 1010],
+    decor: [
+      ...[80, 272, 472, 660, 760, 960].flatMap(x => [
+        { type: 'window', x, w: 34, h: 52, y: 14, moon: x === 472 },
+        { type: 'ivy', x: x - 14, y: 0, len: 46, w: 10, n: 3 },
+      ]),
+      { type: 'ivy', x: 600, y: 0, len: 70, w: 16, n: 4 },
+      { type: 'shield', x: 1048, y: 42 },
+      { type: 'banner', x: 1086, y: 12, h: 46 }, { type: 'banner', x: 1142, y: 12, h: 46, torn: true },
+      { type: 'portrait', x: 30, y: 40, who: 'king', look: 'look_king', name: 'портрет' },
+    ],
     edges: { left: { to: 'hall', x: 2370, name: 'Темница' }, right: { to: 'corridor', x: 30, name: 'Коридор' } },
     doors: [
       { id: 'shop', x: 170, kind: 'wood', to: 'shop', toDoor: 'out', name: 'Лавка Лики' },
@@ -367,6 +377,12 @@ export const ROOMS = {
     name: 'Оружейная', length: 480, columns: false, torches: [120, 360],
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'armory', name: 'Галерея' }],
     props: [{ type: 'chest', id: 'a', x: 446, z: 3, coins: 20 }, { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 420, z: 14 }],
+    decor: [
+      { type: 'rack', x: 200, look: 'look_rack', name: 'стойка с оружием' },
+      { type: 'rack', x: 290, items: [null, 'spear', null, null, 'sword'] },
+      { type: 'shield', x: 420, y: 40 },
+      { type: 'banner', x: 245, y: 8, h: 30, color: '#2a3a6a', dark: '#1a2448' },
+    ],
     encounters: [
       { x: 290, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'spear', dx: 110, z: 32 }] },
     ],
@@ -380,7 +396,7 @@ export const ROOMS = {
       { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'axe', dx: 80, z: 32 }] },
     ],
   },
-  // капитан стражи стережёт сундук с монетами (ключ от башни — на втором или третьем этаже, решение владельца)
+  // логово мародёров: атаман стережёт сундук с монетами (ключ от башни — на втором или третьем этаже, решение владельца)
   barracks: {
     name: 'Казарма', length: 480, columns: false, torches: [120, 360],
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'barracks', name: 'Галерея' }],
@@ -388,8 +404,13 @@ export const ROOMS = {
       { type: 'chest', id: 'key', x: 446, z: 3, coins: 25 },
       { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 175, z: 2 }, { type: 'barrel', x: 420, z: 16 },
     ],
+    decor: [
+      { type: 'bunk', x: 200, look: 'look_bunk', name: 'нары' }, { type: 'bunk', x: 260, blanket: '#5a3a2a' },
+      { type: 'bunk', x: 410, blanket: '#3a4a3a' },
+      { type: 'banner', x: 318, y: 10, h: 40, torn: true },
+    ],
     encounters: [
-      { x: 270, before: 'captain_meet', enemies: [{ type: 'captain', dx: 60, z: 22 }, { type: 'skelShort', dx: 110, z: 36 }] },
+      { x: 270, before: 'captain_meet', enemies: [{ type: 'captain', dx: 60, z: 22 }, { type: 'merc', dx: 110, z: 36 }] },
     ],
   },
   // лестница башни: наверх — к магу
@@ -398,6 +419,13 @@ export const ROOMS = {
     name: 'Коридор', length: 900, torches: [120, 330, 540, 760],
     edges: { left: { to: 'gallery', x: 1150, name: 'Галерея' }, right: { to: 'dining', x: 30, name: 'Столовая' } },
     props: [{ type: 'crate', x: 200, z: 2 }, { type: 'sack', x: 214, z: 6 }, { type: 'barrel', x: 640, z: 3 }],
+    decor: [
+      { type: 'banner', x: 60, y: 10 },
+      { type: 'portrait', x: 232, y: 36, who: 'king', look: 'look_king', name: 'портрет' },
+      { type: 'portrait', x: 446, y: 36, who: 'mage', scratched: true, look: 'look_mage', name: 'портрет' },
+      { type: 'window', x: 700, w: 24, h: 40, y: 22, moon: true },
+      { type: 'armor', x: 810, rust: true, look: 'look_armor', name: 'доспех' },
+    ],
     encounters: [
       { x: 470, enemies: [{ type: 'merc', dx: 40, z: 16 }, { type: 'axe', dx: 110, z: 30 }] },
     ],
@@ -413,6 +441,12 @@ export const ROOMS = {
       { type: 'table', x: 300, z: 16 }, { type: 'chair', x: 252, z: 10 }, { type: 'chair', x: 348, z: 24, flip: true },
       { type: 'cup', id: 'cup', x: 318, z: 17, pick: 'silver_cup' },
       { type: 'barrel', x: 452, z: 3 },
+    ],
+    decor: [
+      { type: 'fireplace', x: 200, look: 'look_fire', name: 'камин' },
+      { type: 'tapestry', x: 200, y: 10, w: 56, h: 34, look: 'look_tapestry', name: 'гобелен' },
+      { type: 'chandelier', x: 300, y: 28 },
+      { type: 'banner', x: 395, y: 10 },
     ],
   },
   // тупик: обрыв и вид на долину, деревню, поля и леса — туда рыцарь пойдёт во второй локации

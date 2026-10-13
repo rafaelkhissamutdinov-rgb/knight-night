@@ -8,6 +8,7 @@ import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutli
 import { POSES, approachPose, ease } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
+import { drawDecorLive, DECOR_LIVE } from './decor.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
@@ -706,6 +707,8 @@ function handlePress(code) {
       save();
       return;
     }
+    const look = !game.doorNear && nearLook();
+    if (look) { startTalk(look.look); return; }
     const npc = nearNpc();
     if (npc) {
       npc.facing = Math.sign(p.x - npc.x) || -1;
@@ -935,6 +938,11 @@ function nearChest() {
   const p = game.player;
   return (room().props ?? []).find(pr => (pr.type === 'chest' || pr.pick) && !game.flags[chestFlag(pr)] && Math.abs(pr.x - p.x) < 18 && Math.abs(pr.z - p.z) < 14) ?? null;
 }
+// декор, который можно осмотреть (look — разговор в DIALOGUES): стоять у стены напротив
+function nearLook() {
+  const p = game.player;
+  return (room().decor ?? []).find(d => d.look && Math.abs(d.x - p.x) < 20 && p.z < 14) ?? null;
+}
 function nearNpc() {
   const p = game.player;
   return game.npcs.find(n => Math.abs(n.x - p.x) < 28 && Math.abs(n.z - p.z) < 12) ?? null;
@@ -1110,7 +1118,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearLook() ? `E — осмотреть: ${nearLook().name}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -1894,6 +1902,7 @@ function render() {
   g.drawImage(bgFor(game.room), cam, 0, W, H, 0, 0, W, H);
   drawTorches(g, cam, r.torches ?? [], game.time);
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
+  for (const d of r.decor ?? []) if (DECOR_LIVE.has(d.type)) drawDecorLive(g, d, d.x - cam, CONFIG.floorTop, game.time);
   const tr = game.transition;
   if (tr?.kind === 'door' && (!r.image || r.tile)) {
     // проём открывается, пока рыцарь входит и выходит

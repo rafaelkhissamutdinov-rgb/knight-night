@@ -1,5 +1,6 @@
 import { PAL } from './palette.js';
 import { rect, thick } from './draw.js';
+import { drawDecor } from './decor.js';
 
 // Декорации комнат: стена с колоннами и дверями, пол с глубиной, факелы, портал на полу,
 // бочки и ящики, решётка камеры, паутина и темнота. Фон комнаты рисуется один раз во всю её длину.
@@ -24,8 +25,10 @@ export function buildRoom(room, height, floorTop) {
     const off = row % 2 ? 8 : 0;
     for (let x = -off; x < length; x += 16) {
       const y = row * 8;
-      g.fillStyle = rand() < 0.12 ? PAL.wallDark : PAL.wall;
+      const t = rand();
+      g.fillStyle = t < 0.12 ? PAL.wallDark : t < 0.3 ? '#353049' : t < 0.45 ? '#3f3956' : PAL.wall;
       g.fillRect(x, y, 15, 7);
+      if (rand() < 0.15) { g.fillStyle = PAL.wallDark; g.fillRect(x + 2 + Math.floor(rand() * 10), y + 2 + Math.floor(rand() * 4), 2, 1); }  // щербина
       g.fillStyle = PAL.wallLight;
       g.fillRect(x, y, 15, 1);
     }
@@ -72,6 +75,17 @@ export function buildRoom(room, height, floorTop) {
     g.fillStyle = PAL.floorLight;
     g.fillRect(Math.floor(rand() * length), wallBottom + 4 + Math.floor(rand() * (height - wallBottom - 5)), 1, 1);
   }
+  // тень под потолком и у пола — стена не плоская
+  const shadeTop = g.createLinearGradient(0, 0, 0, 40);
+  shadeTop.addColorStop(0, 'rgba(8,6,14,0.55)');
+  shadeTop.addColorStop(1, 'rgba(8,6,14,0)');
+  g.fillStyle = shadeTop;
+  g.fillRect(0, 0, length, 40);
+  g.fillStyle = 'rgba(8,6,14,0.35)';
+  g.fillRect(0, wallBottom - 6, length, 6);
+  g.fillStyle = PAL.wallDark;
+  g.fillRect(0, wallBottom - 3, length, 3);  // плинтус
+  for (const d of room.decor ?? []) drawDecor(g, d, floorTop);
   for (const d of doors) drawDoor(g, d, floorTop);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
   if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop);
