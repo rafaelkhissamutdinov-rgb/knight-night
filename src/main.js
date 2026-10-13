@@ -1,4 +1,4 @@
-import { CONFIG, ROOMS, START, MAP, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
+import { CONFIG, ROOMS, START, MAP, EASY, NORMAL, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy } from './enemy.js';
@@ -600,7 +600,7 @@ function buildReport() {
   const total = s.perfect + s.block + s.broken + s.hit + s.dodged;
   const pct = total ? Math.round(s.perfect / total * 100) : 0;
   return [
-    `Knight Night ${VERSION} — отчёт тестера`,
+    `Knight Night ${VERSION} — отчёт тестера${easyOn ? ' (лёгкий режим)' : ''}`,
     `Время: ${mins}:${String(secs).padStart(2, '0')} · пройдено встреч: ${game.cleared.size} из ${ALL_ENCOUNTERS.length}`,
     `Обучение: ${game.flags.tutorial_done ? 'пройдено' : game.flags.tutorial_skipped ? 'пропущено' : game.tutorial ? `остановился на шаге ${game.tutorial.i + 1}` : 'не начато'} · комнаты: ${[...new Set(game.visited ?? [])].map(id => ROOMS[id].name).join(', ')}`,
     `Смерти по встречам:`,
@@ -639,6 +639,16 @@ function finish(d = {}) {
     `${d.finishText ?? 'Рыцарь поднимается на второй этаж — его мы сделаем дальше.'} Идеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter} · монет: ${game.coins}`,
     'R — пройти заново');
 }
+
+// ---------- лёгкий режим ----------
+let easyOn = false;
+try { easyOn = localStorage.getItem('knightNight.easy') === 'on'; } catch { /* без хранилища — выключен */ }
+function setEasy(on) {
+  easyOn = on;
+  Object.assign(CONFIG, on ? EASY : NORMAL);
+  try { localStorage.setItem('knightNight.easy', on ? 'on' : 'off'); } catch { /* ничего */ }
+}
+setEasy(easyOn);
 
 // ---------- начало игры ----------
 
@@ -705,6 +715,7 @@ function showPause() {
     ...(game.arena ? [['Встреча заново', restartFight]] : []),
     ['Управление', () => showControls(showPause)],
     [`Звуки окружения: ${ambientOn ? 'вкл' : 'выкл'}`, () => { setAmbient(!ambientOn); game.ambRoom = null; showPause(); }],
+    [`Лёгкий режим: ${easyOn ? 'вкл' : 'выкл'}`, () => { setEasy(!easyOn); showPause(); }],
     ['Новая игра', askNewFromPause],
     ['Главное меню', toTitle],
   ]);
