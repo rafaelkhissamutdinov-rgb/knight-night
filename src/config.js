@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.37';
+export const VERSION = 'v0.38';
 
 export const CONFIG = {
   width: 320,
@@ -319,6 +319,16 @@ export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield
 // image — фон-картинка вместо нарисованного кодом (assets/backgrounds/, 320×180 на экран); flames — где на ней факелы [x, y].
 export const START = { room: 'cell', x: 112, z: 26 };
 
+// Карта замка (покупается у Лики, M): где комната на схеме этажа — [этаж, x, y, ширина] в клетках по 6 px.
+// Ширина ≈ длина комнаты; боковые комнаты — над коридором, к которому ведёт их дверь.
+export const MAP = {
+  cell: [1, 2, 14, 3], hall: [1, 5, 14, 19], secret: [1, 16.2, 17, 2.6],
+  gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], balcony: [1, 44.5, 9, 3.2],
+  shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4],
+  landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
+  library: [2, 12.6, 5, 4.2], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
+};
+
 
 export const ROOMS = {
   cell: {
@@ -577,7 +587,7 @@ export const ROOMS = {
       { type: 'banner', x: 160, y: 10, h: 40, color: '#e8e0d0', dark: '#a89a8a' },
     ],
     props: [
-      { type: 'pew', x: 170, z: 14 }, { type: 'pew', x: 170, z: 30 }, { type: 'pew', x: 250, z: 14 }, { type: 'pew', x: 250, z: 30 },
+      { type: 'pew', x: 170, z: 14, rest: { seat: 4, name: 'на скамье', z: 15, face: 1 } }, { type: 'pew', x: 170, z: 30 }, { type: 'pew', x: 250, z: 14 }, { type: 'pew', x: 250, z: 30 },
       { type: 'altar', id: 'altar', x: 340, z: 4, altar: 'cup_placed' },
     ],
     encounters: [

@@ -220,3 +220,6 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 .shop-menu button.sel { border-color: var(--gold); color: var(--gold); }
 /* на титульном экране HUD не нужен */
 #game-box:has(.overlay.title:not([hidden])) .hud { visibility: hidden; }
+
+/* карта открыта — HUD поверх пергамента не нужен */
+.mapping .hud { visibility: hidden; }

@@ -1,4 +1,4 @@
-import { CONFIG, ROOMS, START, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
+import { CONFIG, ROOMS, START, MAP, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy } from './enemy.js';
@@ -120,6 +120,7 @@ function respawnable(enc) {
 
 function loadRoom(id, at) {
   game.coinFx = [];
+  game.flags['map_' + id] = true;  // для карты: где побывал
   (ROOMS[id].encounters ?? []).forEach((enc, i) => {
     const key = encKey(id, i);
     if (enc.story && game.flags['done_' + enc.story]) game.cleared.add(key);
@@ -670,7 +671,7 @@ const CONTROLS_TEXT = [
   'Пробел — рывок (курсор внизу — кувырок, вверху — прыжок, с «назад» — отскок)',
   'Колесо вверх — приём оружия · колесо вниз — навык · Q — сменить оружие',
   'E — говорить, лавка, сундук, осмотреть, отдохнуть · W у двери — войти',
-  'I — снаряжение · H — зелье · B — журнал · Esc — пауза',
+  'I — снаряжение · H — зелье · B — журнал · M — карта · Esc — пауза',
 ].join('\n');
 
 function showControls(back) {
@@ -744,6 +745,7 @@ function recordGuard(height) {
 
 function handlePress(code) {
   if (game.mode === 'shop') { shopPress(code); return; }
+  if (game.mode === 'map') { mapPress(code); return; }
   if (game.mode === 'equip') { equipPress(code); return; }
   if (game.mode === 'journal') { journalPress(code); return; }
   if (code === 'Escape' && game.controlsBack) {
@@ -881,6 +883,7 @@ function handlePress(code) {
   if (code === 'KeyI') { openEquip(); return; }
   if (code === 'KeyH') drinkPotion();
   if (code === 'KeyB') openJournal();
+  if (code === 'KeyM') openMap();
   if (is(code, 'guard')) { recordGuard(game.aim); p.cancel(); game.charge = null; }
   if (is(code, 'attack')) {
     // рапира, курсор вверху: зажал — прыжок с захлёстом, щёлкнул — обычный захлёст
@@ -1729,6 +1732,74 @@ function seen(type) {
 }
 
 // B — журнал; нужен журнал от Лики (встреченные до покупки враги туда тоже попадают)
+// ---------- карта замка ----------
+function openMap() {
+  if (!owns('map')) { callout('Нужна карта — её продаёт Лика', 'muted'); return; }
+  if (game.mode !== 'play' || game.transition || game.cutscene || game.arena) return;
+  game.mode = 'map';
+  game.mapFloor = room().floor ?? 1;
+  hint('');
+  ui.box.classList.add('mapping');
+}
+function mapPress(code) {
+  if (code === 'KeyM' || code === 'Escape' || code === 'Enter') { game.mode = 'play'; ui.box.classList.remove('mapping'); return; }
+  if (code === 'KeyA' || code === 'ArrowLeft') game.mapFloor = 1;
+  if (code === 'KeyD' || code === 'ArrowRight') game.mapFloor = 2;
+}
+function renderMap() {
+  const f = game.mapFloor, U = 6, X0 = 14, Y0 = 26;
+  // пергамент
+  rect(g, 8, 12, 304, 156, '#5a4632');
+  rect(g, 10, 14, 300, 152, '#d8c8a0');
+  rect(g, 12, 16, 296, 148, '#e0d2ac');
+  for (let i = 0; i < 40; i++) rect(g, 14 + (i * 73) % 290, 18 + (i * 37) % 140, 2, 1, '#cbb98e');  // пятна
+  g.fillStyle = '#5a4632';
+  g.font = '7px monospace';
+  g.textBaseline = 'top';
+  g.fillText(`Этаж ${f}${(room().floor ?? 1) === f ? ' · ' + room().name : ''}`, 18, 18);
+  g.fillText('M — закрыть · A / D — этаж', 186, 156);
+  const seen = id => game.flags['map_' + id];
+  const box = id => { const [ff, x, y, w] = MAP[id]; return ff === f ? { x: X0 + x * U, y: Y0 + y * U, w: w * U } : null; };
+  // переходы: края — рядом, двери — линия вверх к комнате
+  for (const [id, r] of Object.entries(ROOMS)) {
+    const a = MAP[id] && box(id);
+    if (!a || !seen(id)) continue;
+    for (const d of r.doors ?? []) {
+      const b = d.to && MAP[d.to] && box(d.to);
+      if (!b || !seen(d.to) || b.w >= a.w) continue;  // линию рисует коридор — к боковой комнате, один раз
+      const dx = a.x + (d.x / r.length) * a.w;
+      rect(g, Math.round(dx), Math.min(a.y, b.y + U), 1, Math.abs(a.y - (b.y + U)) || 1, '#8a7a58');
+    }
+  }
+  // края на разной высоте — лестница: ступеньки от конца одной комнаты к началу другой
+  for (const [id, r] of Object.entries(ROOMS)) {
+    const a = MAP[id] && box(id), e = r.edges?.right;
+    const b = e && MAP[e.to] && box(e.to);
+    if (!a || !b || !seen(id) || !seen(e.to) || a.y === b.y) continue;
+    const x = Math.round(a.x + a.w), top = Math.min(a.y, b.y) + U, bot = Math.max(a.y, b.y);
+    for (let y = top; y < bot; y += 2) rect(g, x - 1 + ((y - top) % 4 ? 1 : 0), y, 2, 1, '#8a7a58');
+  }
+  for (const id of Object.keys(MAP)) {
+    const b = box(id);
+    if (!b || !seen(id)) continue;
+    rect(g, Math.round(b.x), b.y, Math.round(b.w), U, '#5a4632');
+    rect(g, Math.round(b.x) + 1, b.y + 1, Math.round(b.w) - 2, U - 2, id === game.room ? '#c8b07a' : '#b8a478');
+    const r = ROOMS[id];
+    // отметки: место отдыха — огонёк, лавка — монета
+    for (const s of [...(r.props ?? []), ...(r.decor ?? [])]) if (s.rest) {
+      const sx = Math.round(b.x + (s.x / r.length) * b.w);
+      rect(g, sx, b.y + 1, 2, 3, '#e06030'); rect(g, sx, b.y + 1, 1, 1, '#ffd070');
+    }
+    if (r.npcs?.some(n => NPC_TYPES[n.type]?.shop)) rect(g, Math.round(b.x + b.w / 2), b.y + 2, 2, 2, PAL.gold);
+  }
+  // Найт — красная точка, мигает
+  const me = box(game.room);
+  if (me && Math.floor(game.time * 0 + performance.now() / 300) % 2 === 0) {
+    const px = Math.round(me.x + (game.player.x / room().length) * me.w);
+    rect(g, px - 1, me.y + 1, 3, U - 2, '#c8303f');
+  }
+}
+
 function openJournal() {
   if (!owns('journal')) { callout('Нужен журнал — его продаёт Лика', 'muted'); return; }
   if (game.mode !== 'play' || game.transition || game.cutscene) return;
@@ -2311,6 +2382,7 @@ function render() {
   }
 
   g.setTransform(1, 0, 0, 1, 0, 0);
+  if (game.mode === 'map') renderMap();
   if (game.flash > 0) {
     g.globalAlpha = game.flash;
     g.fillStyle = game.flashColor;
