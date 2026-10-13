@@ -5,7 +5,7 @@ import { createEnemy } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
-import { POSES, approachPose, ease } from './poses.js';
+import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, DECOR_LIVE } from './decor.js';
@@ -111,13 +111,15 @@ function spawnRoom(roomId) {
 // Перейти в комнату: враги, персонажи, камера. at — { x, z, facing } прибытия.
 // Обычные встречи (не боссы и не встречи с диалогом) возвращаются, если долго не заходил: монеты не кончаются.
 const BOSSES = new Set(['duelist', 'captain', 'commander', 'mage']);
+// сюжетные бои (story — имя) не возвращаются никогда: победа помнится флагом done_<имя>, а не номером встречи
 function respawnable(enc) {
-  return !enc.before && !enc.unique && !enc.enemies.some(e => BOSSES.has(e.type));
+  return !enc.story && !enc.before && !enc.unique && !enc.enemies.some(e => BOSSES.has(e.type));
 }
 
 function loadRoom(id, at) {
   (ROOMS[id].encounters ?? []).forEach((enc, i) => {
     const key = encKey(id, i);
+    if (enc.story && game.flags['done_' + enc.story]) game.cleared.add(key);
     if (game.cleared.has(key) && respawnable(enc) && game.time - (game.clearedAt[key] ?? 0) >= CONFIG.respawnTime) game.cleared.delete(key);
   });
   game.room = id;
@@ -234,6 +236,9 @@ function continueGame(data) {
   // старые сохранения: рапира была только в unlocked
   if (game.unlocked.has('rapier') && game.equip.weapon !== 'rapier' && !game.bag.includes('rapier')) game.bag.push('rapier');
   if (!data.equip && data.weapon === 'rapier') { game.bag = game.bag.filter(i => i !== 'rapier'); game.bag.push('sword_old'); game.equip.weapon = 'rapier'; }
+  // старые сохранения: бои помнились по номеру встречи — рапира у рыцаря значит, что Илиа уже побеждён
+  if (game.unlocked.has('rapier') || game.bag.includes('rapier') || game.equip.weapon === 'rapier') game.flags.done_ilia = true;
+  if (game.flags.balcony_done) game.flags.done_commander = true;
   game.player = new Player(data.x, ITEMS[game.equip.weapon].weapon);
   game.player.sheathed = false;
   game.player.hp = Math.max(1, Math.min(CONFIG.playerHp, data.hp ?? CONFIG.playerHp));
@@ -605,7 +610,23 @@ function showTitle() {
     data ? `Клик или Enter — продолжить (${ROOMS[data.room]?.name ?? 'начало'}) · N — новая игра` : 'Нажми любую клавишу');
 }
 
+function showPause() {
+  game.confirmNew = false;
+  showOverlay('Пауза', 'R — начать встречу заново · N — новая игра (с начала истории) · M — главное меню', 'Esc — продолжить');
+  ui.reportBtn.hidden = false;
+}
+
+// в главное меню: прогресс сохранён, там «продолжить» или N — новая игра
+function toTitle() {
+  save();
+  ui.talk.hidden = true;
+  newGame();
+  hideOverlay();
+  showTitle();
+}
+
 function startNew() {
+  game.confirmNew = false;
   clearSave();
   newGame();
   game.mode = 'play';
@@ -640,16 +661,24 @@ function handlePress(code) {
   if (code === 'Escape' || code === 'KeyP') {
     if (game.mode === 'play') {
       game.mode = 'paused';
-      showOverlay('Пауза', 'R — начать встречу заново · Esc — продолжить', 'Esc — продолжить');
-      ui.reportBtn.hidden = false;
+      showPause();
     } else if (game.mode === 'paused') {
+      if (game.confirmNew) { game.confirmNew = false; showPause(); return; }  // «нет» — назад в паузу
       game.mode = 'play';
       hideOverlay();
     }
     return;
   }
   if (game.mode === 'paused') {
-    if (code === 'KeyR') restartFight();
+    if (code === 'KeyR' && !game.confirmNew) restartFight();
+    else if (code === 'KeyN') {
+      // новая игра — с подтверждением: сбрасывает сохранение
+      if (game.confirmNew) startNew();
+      else {
+        game.confirmNew = true;
+        showOverlay('Начать заново?', 'Сохранение сотрётся: монеты, вещи, пройденные комнаты. История начнётся с камеры.', 'N — да, начать заново · Esc — нет');
+      }
+    } else if (code === 'KeyM' && !game.confirmNew) toTitle();
     return;
   }
   if (code === 'F3') {
@@ -809,6 +838,7 @@ function updateArena() {
     game.cleared.add(game.arena.key);
     game.clearedAt[game.arena.key] = game.time;
     const enc = encs[game.arena.index];
+    if (enc.story) game.flags['done_' + enc.story] = true;
     if (enc.after) setTimeout(() => startTalk(enc.after, () => {
       if (game.room === 'balcony') {
         game.flags.balcony_done = true;
@@ -994,9 +1024,10 @@ function updateTransition(dt) {
   const p = game.player;
   tr.t += dt;
   if (tr.kind === 'edge') {
-    p.x += tr.dir * CONFIG.exploreSpeed * dt;
+    const v = Math.max(CONFIG.exploreSpeed, p.speedNow ?? 0);
+    p.x += tr.dir * v * dt;
     p.facing = tr.dir;
-    p.step += dt * 12;
+    p.step += dt * v / gaitCycle(p.gaitRun ?? 0);
     p.walking = true;
     if (tr.phase === 'out' && tr.t >= EDGE_PHASES.out) {
       loadRoom(tr.edge.to, { x: tr.edge.x - tr.dir * 18, z: p.z, facing: tr.dir });
@@ -1016,10 +1047,10 @@ function updateTransition(dt) {
   if (tr.phase === 'walkIn') {
     p.x = tr.x0 + (tr.door.x - tr.x0) * k;
     p.z = tr.z0 + (-7 - tr.z0) * k;
-    p.step += dt * 10;
+    p.step += dt * 1.6;
   } else if (tr.phase === 'walkOut') {
     p.z = -7 + 15 * k;
-    p.step += dt * 10;
+    p.step += dt * 1.6;
   }
   if (tr.t < T) return;
   tr.t = 0;
@@ -1146,6 +1177,17 @@ function update(dt) {
 
   updateCharge();
   p.update(dt, controls());
+  // на бегу из-под ступни, которая встала на пол, — облачко пыли
+  const fall = Math.floor(p.step * 2);
+  if (p.walking && p.state === 'ready' && (p.gaitRun ?? 0) > 0.6 && fall !== p.lastFall) {
+    const fx = p.x + p.facing * 8;
+    for (let i = 0; i < 3; i++) game.particles.push({
+      x: fx + (Math.random() - 0.5) * 4, y: groundY(p.z) - 1,
+      vx: -p.facing * (10 + Math.random() * 25), vy: -6 - Math.random() * 14,
+      life: 0.2 + Math.random() * 0.15, color: i % 2 ? '#6b6377' : '#4f4868',
+    });
+  }
+  p.lastFall = fall;
   handlePlayerEvents();
   updatePickups(dt);
   for (const n of game.npcs) if (Math.abs(n.x - p.x) < 80) n.facing = Math.sign(p.x - n.x) || n.facing;
@@ -2123,7 +2165,7 @@ function renderPlayer(cam) {
   if (view !== 'side') {
     if (alpha <= 0) return;
     g.globalAlpha = alpha;
-    drawFigureFrontOutlined(g, { x: Math.round(px), ground: GROUND, colors, back: view === 'back', step: p.step, weapon: p.weapon, squash });
+    drawFigureFrontOutlined(g, { x: Math.round(px), ground: GROUND, colors, back: view === 'back', step: p.step * Math.PI * 2, weapon: p.weapon, squash });
     g.globalAlpha = 1;
     return;
   }
@@ -2146,7 +2188,7 @@ function renderPlayer(cam) {
     rect(g, px - 6, GROUND + 3, Math.round(12 * k), 1, PAL.gold);
   }
   const tip = drawFigureOutlined(g, {
-    x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY,
+    x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
     weaponLen: p.arms.length ?? 17, scabbard: !rapier, rapier, offhandBack: rapier && p.state !== 'hurt',
     bladeHidden: p.sheathed || drawing,
     trail: active ? p.trail : null,

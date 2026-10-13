@@ -2,9 +2,23 @@
 // angle — угол клинка в градусах (0 — вперёд, -90 — вверх, 90 — вниз),
 // lean — наклон корпуса вперёд, crouch — присед. Всё в пикселях игрового экрана.
 
+// Походка. step — фаза в циклах (цикл — два шага), run 0…1 — от шага к бегу.
+// Опорная нога стоит на полу и уезжает назад ровно со скоростью тела, поэтому ступни не скользят;
+// на бегу опора короче, шаг длиннее, есть полёт и колено выше.
+export const gait = run => ({ duty: 0.62 - 0.27 * run, amp: 5 + 4 * run, lift: 2 + 4 * run });
+export const gaitCycle = run => { const g = gait(run); return 2 * g.amp / g.duty; };  // пикселей за цикл
+export function gaitFoot(u, run) {
+  const { duty, amp, lift } = gait(run);
+  u = ((u % 1) + 1) % 1;
+  if (u < duty) return { dx: amp - 2 * amp * (u / duty), lift: 0 };
+  const k = (u - duty) / (1 - duty);
+  return { dx: -amp + 2 * amp * k * k * (3 - 2 * k), lift: Math.sin(Math.PI * k) * lift };
+}
+
 export const POSES = {
   idle:        { hx: 6,  hy: 6,   angle: -45,  lean: 0,  crouch: 0 },
   sheathed:    { hx: 1,  hy: 9,   angle: 160,  lean: 0,  crouch: 0 },
+  run_rapier:  { hx: 2,  hy: 10,  angle: 150,  lean: 0,  crouch: 0 },  // на бегу рапира опущена назад
   fence:       { hx: 11, hy: 3,   angle: -12,  lean: 1,  crouch: 2 },  // стойка рапириста: клинок вперёд, вторая рука за спиной
 
   // защита
