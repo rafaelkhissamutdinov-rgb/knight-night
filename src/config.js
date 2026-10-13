@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.23';
+export const VERSION = 'v0.24';
 
 export const CONFIG = {
   width: 320,
@@ -230,8 +230,9 @@ export const ENEMY_TYPES = {
     windup: 1.1, comboWindup: 0.9, gap: 0.3, recover: 1.0, wait: [1.2, 1.7],
     combos: [['mid']],
     guardChance: 0, reaction: 0.1,
-    robe: true, wrap: true, veil: false, curved: true, slim: true, rests: false,
-    colors: { armor: '#3f7a7f', armorDark: '#2a5458', tabard: '#b8323a', robe: '#2f5d62', robeDark: '#1e3f43', belt: '#e0b04a', helm: '#b7794f', visor: '#14101e', wrap: '#ead9b0', wrapDark: '#bfa97c', blade: '#e6edf3', hilt: '#e0b04a', boots: '#5a3a22' },
+    robe: true, bun: true, ornate: true, curved: true, slim: true,
+    // по портрету владельца: светло-русые волосы с пучком, открытое лицо, бирюзовое восточное платье с золотым и красным узором
+    colors: { armor: '#2f6a80', armorDark: '#1f4a5c', tabard: '#c9a24a', robe: '#2c5d72', robeDark: '#1c3d4e', belt: '#8a3a2a', helm: '#f0c8b0', visor: '#3a2418', hair: '#9a7650', hairLight: '#c49a6a', lips: '#c06a6a', blade: '#e6edf3', hilt: '#e0b04a', boots: '#5a3a22' },
   },
   // из первого прототипа, пока не на уровне
   guard: {
