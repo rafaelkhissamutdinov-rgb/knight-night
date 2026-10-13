@@ -2048,6 +2048,7 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 const FACES = {
   knight: { default: 'assets/portraits/knight.png', tired: 'assets/portraits/knight-tired.png', nohelm: 'assets/portraits/knight-nohelm.png' },
   ilia: { default: 'assets/portraits/ilia.png' },
+  trainer: { default: 'assets/portraits/alkima.png' },
   lika: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry']
     .map(m => [m, m === 'default' ? 'assets/portraits/lika.png' : `assets/portraits/lika-${m}.png`])),
 };
