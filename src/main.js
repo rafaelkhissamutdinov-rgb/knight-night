@@ -1873,7 +1873,8 @@ function shopOptions() {
   if (sh.view === 'buy') return [
     ...d.items.map(it => {
       const item = ITEMS[it.id];
-      return { label: item.name, right: `${item.price} мон.`, muted: it.soon || item.price > game.coins, hover: it.text, mood: d.moods?.item, go: () => buyItem(it) };
+      const have = onceOwned(it.id);
+      return { label: item.name, right: have ? 'есть' : `${item.price} мон.`, muted: have || it.soon || item.price > game.coins, hover: it.text, mood: d.moods?.item, go: () => buyItem(it) };
     }),
     back,
   ];
@@ -1889,10 +1890,16 @@ function shopOptions() {
   ];
 }
 
+// вещь берут один раз (снаряжение, журнал, свиток, артефакт): уже есть — второй не продают
+function onceOwned(id) {
+  const item = ITEMS[id];
+  return !!(item.slot || item.journal || item.learn || item.artifact || item.weapon || item.once) && (owns(id) || (item.learn && owns(item.learn)));
+}
+
 function buyItem(it) {
   const d = game.shop.data, item = ITEMS[it.id];
   if (it.soon) return shopSay(d.soon, d.moods?.soon);
-  if ((item.slot || item.journal || item.learn || item.artifact) && (owns(it.id) || (item.learn && owns(item.learn)))) return shopSay(d.owned, d.moods?.soon);
+  if (onceOwned(it.id)) return shopSay(d.owned, d.moods?.soon);
   if (item.price > game.coins) return shopSay(d.poor, d.moods?.poor);
   game.coins -= item.price;
   game.bag.push(it.id);

@@ -282,7 +282,7 @@ export const ITEMS = {
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
   bandage: { name: 'Бинт', price: 4, use: { heal: 1 } },
-  map: { name: 'Карта замка', price: 25 },
+  map: { name: 'Карта замка', price: 25, once: true },
   key_tower: { name: 'Ключ от башни', key: true },
   spell_bolt: { name: 'Магическая стрела', slot: 'spell' },
   // навыки — приёмы боя на колесе (вниз); learn — изучается чтением свитка, need — нужное оружие
