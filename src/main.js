@@ -1579,7 +1579,7 @@ for (const set of Object.values(FACES)) for (const src of Object.values(set)) ne
 const PORTRAITS = {
   knight: { colors: KNIGHT_COLORS, plume: true },
   ilia: { colors: ENEMY_TYPES.duelist.colors, face: true, rapier: true, robe: true },
-  trainer: { colors: ENEMY_TYPES.trainer.colors, wrap: true, veil: false, robe: true, slim: true },
+  trainer: { colors: ENEMY_TYPES.trainer.colors, bun: true, ornate: true, robe: true, slim: true },
   lika: { ...NPC_TYPES.lika },
 };
 
@@ -2024,7 +2024,7 @@ function renderEnemy(e, cam) {
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
-      wrap: e.def.wrap, veil: e.def.veil, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
+      wrap: e.def.wrap, veil: e.def.veil, bun: e.def.bun, ornate: e.def.ornate, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate,
     });
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);

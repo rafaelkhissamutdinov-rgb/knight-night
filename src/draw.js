@@ -51,6 +51,7 @@ export function drawFigure(g, o) {
     bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false, robe = false,
     offhandBack = false, sit = false, wrap = false, curved = false, slim = false, hood = false, pack = false,
     short = false, bob = false, coat = false, spear = false, bandit = false, axe = false, plate = false,
+    bun = false, ornate = false,
   } = o;
   const gy = ground - airY;
   const hipX = x;
@@ -156,6 +157,15 @@ export function drawFigure(g, o) {
     rect(g, shX - 4, shY, 9, 3, colors.plateDark);
     rect(g, shX - 3, shY, 7, 1, colors.plateLight);
   }
+  if (ornate) {
+    // восточный узор: высокий золотой воротник, золото с красным по центру и по подолу
+    rect(g, shX - 2, shY - 1, 5, 2, colors.tabard);
+    rect(g, shX - 1, shY, 3, 1, colors.belt);
+    thick(g, hipX + f, hipY - 3, shX + f, shY + 2, 1, colors.tabard);
+    for (let y = hipY; y < gy - 4; y += 3) rect(g, hipX - 1 + (y % 2), y, 2, 1, colors.tabard);
+    rect(g, hipX - 6, gy - 5, 12, 1, colors.tabard);
+    for (let x = hipX - 6; x < hipX + 6; x += 2) rect(g, x, gy - 4, 1, 1, colors.belt);
+  }
   if (robe) rect(g, hipX - 4, hipY - 3, 8, slim ? 2 : 1, slim ? colors.tabard : colors.belt);
   if (robe && slim) rect(g, hipX - 4, hipY - 1, 8, 1, colors.belt);
 
@@ -171,7 +181,20 @@ export function drawFigure(g, o) {
   // голова
   const headX = shX - 3 + f;
   const headY = shY - 9;
-  if (bandit) {
+  if (bun) {
+    // Алкима: светло-русые волосы до подбородка, чёлка набок, пучок на макушке, серьга
+    rect(g, f > 0 ? headX - 1 : headX + 5, headY, 3, 8, colors.hair);
+    rect(g, headX, headY, 7, 7, colors.helm);
+    rect(g, headX - 1, headY - 1, 9, 3, colors.hair);
+    rect(g, f > 0 ? headX + 3 : headX, headY + 1, 4, 2, colors.hair);
+    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 3, 1, 1, colors.hair);
+    rect(g, headX + 1, headY - 1, 4, 1, colors.hairLight);
+    rect(g, f > 0 ? headX - 1 : headX + 5, headY - 4, 3, 3, colors.hair);
+    rect(g, f > 0 ? headX : headX + 6, headY - 4, 1, 1, colors.hairLight);
+    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 3, 1, 1, colors.visor);
+    rect(g, f > 0 ? headX + 5 : headX + 1, headY + 5, 1, 1, colors.lips);
+    rect(g, f > 0 ? headX + 1 : headX + 5, headY + 5, 1, 1, colors.tabard);
+  } else if (bandit) {
     // мародёр: лицо, повязка на голове с хвостами, платок закрывает рот и нос
     rect(g, headX, headY, 7, 8, colors.helm);
     rect(g, headX - 1, headY - 1, 9, 3, colors.bandana);
