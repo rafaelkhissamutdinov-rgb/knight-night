@@ -93,7 +93,7 @@ class Enemy {
 
   // проснуться: скелеты сперва встают из груды костей (rise), потом — next ('approach' или 'rest')
   wake(next) {
-    if (this.def.skull && this.kind !== 'ghost' && !this.def.noRise) {
+    if (this.def.skull && this.kind !== 'ghost' && !this.def.noRise && !this.noRise) {
       this.afterRise = next;
       this.enter('rise');
     } else if (next === 'rest') this.rest();
