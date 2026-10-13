@@ -2247,6 +2247,7 @@ function buyItem(it) {
 function renderShop() {
   ui.shopCoins.textContent = `Монеты: ${game.coins}`;
   ui.shopMenu.innerHTML = '';
+  ui.shopMenu.classList.toggle('dense', shopOptions().length > 8);
   shopOptions().forEach((o, i) => {
     const b = document.createElement('button');
     b.type = 'button';
