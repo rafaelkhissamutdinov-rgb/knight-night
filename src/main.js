@@ -182,6 +182,7 @@ function newGame() {
     afterTalk: null,
     tutorial: null,
     cutscene: null,
+    rest: null,
     transition: null,
     view: 'side',
     viewPrev: 'side',
@@ -246,7 +247,9 @@ function continueGame(data) {
   game.player = new Player(data.x, ITEMS[game.equip.weapon].weapon);
   game.player.sheathed = false;
   game.player.hp = Math.max(1, Math.min(CONFIG.playerHp, data.hp ?? CONFIG.playerHp));
-  loadRoom(ROOMS[data.room] ? data.room : START.room, { x: data.x, z: data.z ?? 22 });
+  const rest = game.flags.restAt;
+  if (rest && ROOMS[rest.room]) loadRoom(rest.room, { x: rest.x, z: rest.z ?? 8 });  // как скамейки: с места отдыха
+  else loadRoom(ROOMS[data.room] ? data.room : START.room, { x: data.x, z: data.z ?? 22 });
   renderHearts();
 }
 
@@ -617,7 +620,7 @@ function showTitle() {
   const data = loadSave();
   showOverlay('Knight Night',
     'Рыцарь отмечает порталы на карте мира. Очередной портал перенёс его в заброшенный замок.',
-    data ? `Клик или Enter — продолжить (${ROOMS[data.room]?.name ?? 'начало'}) · N — новая игра` : 'Нажми любую клавишу');
+    data ? `Клик или Enter — продолжить (${ROOMS[data.flags?.restAt?.room ?? data.room]?.name ?? 'начало'}) · N — новая игра` : 'Нажми любую клавишу');
   ui.overlay.classList.add('title');  // текст внизу, картинка замка видна
 }
 
@@ -725,6 +728,11 @@ function handlePress(code) {
   if (game.transition) return;
 
   const p = game.player;
+  if (game.rest) {
+    // сидит: E или удар — встать
+    if (code === 'KeyE' || is(code, 'attack')) standUp();
+    return;
+  }
   if (code === 'KeyE' && !game.arena) {
     const chest = nearChest();
     if (chest) {
@@ -750,6 +758,8 @@ function handlePress(code) {
       save();
       return;
     }
+    const rest = !game.doorNear && nearRest();
+    if (rest) { startRest(rest); return; }
     const look = !game.doorNear && nearLook();
     if (look) { startTalk(look.look); return; }
     const npc = nearNpc();
@@ -1008,6 +1018,47 @@ function hitWall(atk) {
   callout('Стена рухнула — за ней проход!', 'perfect');
   save();
 }
+// место отдыха (rest у вещи или убранства): диван, камин
+function nearRest() {
+  const p = game.player;
+  const r = room();
+  return [...(r.props ?? []), ...(r.decor ?? [])].find(s => s.rest && Math.abs(s.x - p.x) < 22 && p.z < 18) ?? null;
+}
+
+// сесть: лечение понемногу, сохранение; отсюда начнётся «продолжить»
+function startRest(spot) {
+  const p = game.player;
+  game.rest = { spot, t: 0, heal: 0 };
+  p.x = spot.x + (spot.rest.dx ?? 0);  // dx — сбоку от вещи (у камина — рядом с огнём, а не в нём)
+  p.z = spot.rest.z ?? (spot.z + 1);
+  if (spot.rest.face) p.facing = spot.rest.face;
+  p.walking = false;
+  p.guard = null;
+  game.flags.restAt = { room: game.room, x: p.x, z: p.z };
+  game.checkpoint = p.x;
+  save();
+  callout(`Отдых ${spot.rest.name} · сохранено`, 'perfect');
+  sfx.ward();
+  hint('Движение или E — встать');
+}
+function standUp() {
+  game.rest = null;
+  hint(hintWalk());
+}
+function updateRest(dt) {
+  const r = game.rest, p = game.player;
+  r.t += dt;
+  r.heal += dt;
+  if (r.heal >= 0.4 && p.hp < CONFIG.playerHp) {
+    r.heal = 0;
+    p.hp++;
+    renderHearts();
+    sparks(p.x, groundY(p.z) - 20, 3, ['#8fd3ff', '#ffffff'], 30);
+    if (p.hp === CONFIG.playerHp) save();
+  }
+  if (r.t > 0.3 && (held('left') || held('right') || held('depthIn') || held('depthOut'))) standUp();
+}
+
 function nearNpc() {
   const p = game.player;
   return game.npcs.find(n => Math.abs(n.x - p.x) < 28 && Math.abs(n.z - p.z) < 12) ?? null;
@@ -1178,13 +1229,14 @@ function update(dt) {
   updateMotes(dt);
   if (game.cutscene) { updateCutscene(dt); return; }
   if (game.transition) { updateTransition(dt); updateCamera(dt); return; }
+  if (game.rest) { updateRest(dt); updateCoinFx(dt); updateCamera(dt); return; }
   updateArena();
   updateTrainerMeet();
   if (!game.arena && !game.tutorial && game.mode === 'play') {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().secret ? ' · ЛКМ — ударить' : ''}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().secret ? ' · ЛКМ — ударить' : ''}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -2277,6 +2329,12 @@ function renderPlayer(cam) {
   }
   if (game.cutscene && game.cutscene.t < WAKE.kneel) {
     drawFigureOutlined(g, { x: px, ground: GROUND, facing: p.facing, pose: p.pose, colors, plume: true, sit: true, weaponLen: 17, scabbard: true });
+    return;
+  }
+  if (game.rest) {
+    // сидит на диване или у огня; дышит
+    const breathe = Math.sin(game.rest.t * 2) > 0.5 ? 1 : 0;
+    drawFigureOutlined(g, { x: px, ground: GROUND, facing: p.facing, pose: { ...POSES.sheathed, hy: 7 + breathe, lean: 0, crouch: 0 }, colors, plume: true, sit: true, seat: game.rest.spot.rest.seat ?? 0, weaponLen: 17, bladeHidden: true });
     return;
   }
   const spinning = p.state === 'attack' && p.atk.key === 'spin' && p.phase === 'active';

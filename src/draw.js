@@ -50,7 +50,7 @@ export function drawFigure(g, o) {
     x, ground, facing: f, pose, colors, step = 0, plume = false, weaponLen = 17,
     bladeHidden = false, scabbard = false, shield = false, skull = false,
     bow = false, bowDraw = 0, crossbow = false, gaitRun = null, airY = 0, trail = null, face = false, rapier = false, robe = false,
-    offhandBack = false, sit = false, wrap = false, curved = false, slim = false, hood = false, pack = false,
+    offhandBack = false, sit = false, seat = null, wrap = false, curved = false, slim = false, hood = false, pack = false,
     short = false, bob = false, coat = false, spear = false, bandit = false, axe = false, plate = false,
     bun = false, ornate = false,
   } = o;
@@ -59,13 +59,29 @@ export function drawFigure(g, o) {
   // gaitRun — походка по фазе step (циклы); на бегу корпус подпрыгивает дважды за цикл и наклоняется вперёд
   const gaitOn = gaitRun !== null && !sit;
   const hop = gaitOn ? Math.round(gaitRun * 1.5 * Math.cos(step * Math.PI * 4)) : 0;
-  const hipY = gy - (short ? 10 : 13) + pose.crouch + hop;  // short — невысокая фигура
+  // seat — сидит на высоте seat над полом (0 — на полу): бедро опускается туда
+  const hipY = seat !== null ? gy - seat - 4 : gy - (short ? 10 : 13) + pose.crouch + hop;  // short — невысокая фигура
   const shX = hipX + (pose.lean + (gaitOn ? Math.round(gaitRun * 2.5) : 0)) * f;
   const shY = hipY - (short ? 10 : 12);
 
   // ноги (сидя на полу — вытянуты вперёд, одна согнута)
   const s = Math.round(Math.sin(step) * 3);
-  if (sit) {
+  if (sit && seat > 0) {
+    // на сиденье: бедро вперёд горизонтально, колено согнуто, голень вниз до пола
+    for (const [dx, c, boot] of [[-1, colors.armorDark, shade(colors.boots, -0.2)], [1, colors.armor, colors.boots]]) {
+      const kx = hipX + (7 + dx) * f, ky = hipY + 1;
+      thick(g, hipX, hipY, kx, ky, 3, c);
+      thick(g, kx, ky, kx + f, gy - 2, 3, c);
+      rect(g, kx - 1 + (f > 0 ? 0 : -2), gy - 3, 5, 3, boot);
+    }
+  } else if (sit && seat === 0) {
+    // на полу у огня: ноги вытянуты вперёд, одна согнута
+    thick(g, hipX, hipY, hipX + 11 * f, gy - 2, 3, colors.armorDark);
+    rect(g, hipX + 11 * f - 1, gy - 4, 3, 3, colors.boots);
+    thick(g, hipX + f, hipY, hipX + 6 * f, hipY - 3, 3, colors.armor);
+    thick(g, hipX + 6 * f, hipY - 3, hipX + 9 * f, gy - 2, 3, colors.armor);
+    rect(g, hipX + 9 * f - 1, gy - 2, 4, 2, colors.boots);
+  } else if (sit) {
     thick(g, hipX, hipY, hipX + 10 * f, gy - 2, 3, colors.armorDark);
     rect(g, hipX + 10 * f - 1, gy - 4, 3, 3, colors.boots);
     thick(g, hipX + f, hipY, hipX + 6 * f, hipY - 4, 3, colors.armor);
