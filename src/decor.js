@@ -382,8 +382,45 @@ function ladder(g, d, floorTop) {
   }
 }
 
+// пролом в полу у стены: рваный край плит, внизу темнота и слабый тёплый отсвет нижнего этажа
+function pit(g, d, floorTop) {
+  const cx = Math.round(d.x), top = floorTop + 1;
+  const edge = [0, 2, 1, 3, 1, 0, 2, 3, 1, 2, 0, 1];
+  for (let y = 0; y < 14; y++) {
+    const half = 18 - Math.abs(y - 6) * 1.6 - edge[y % edge.length];
+    rect(g, cx - half - 2, top + y, half * 2 + 4, 1, '#3a3449');
+    rect(g, cx - half, top + y, half * 2, 1, y > 8 ? '#2a1a12' : '#07060c');
+  }
+  rect(g, cx - 6, top + 10, 12, 2, '#5a3a20');   // отсвет снизу
+  for (const [dx, dy] of [[-22, 3], [21, 5], [-19, 11], [17, 12]]) rect(g, cx + dx, top + dy, 3, 2, '#4f4868');  // обломки плит
+}
+
+// завал: проход наверху лестницы забит камнями и балками, осыпь тянется вниз по ступеням.
+// x — середина прохода наверху; top — верх прохода (по умолчанию как у drawStairs)
+function rubble(g, d, floorTop) {
+  const cx = Math.round(d.x), top = d.top ?? floorTop - 111;
+  let seed = 5;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const stone = (x, y, s) => {
+    rect(g, Math.round(x), Math.round(y), s + 1, s, rnd() < 0.5 ? '#5a5276' : '#4a4462');
+    rect(g, Math.round(x), Math.round(y), s + 1, 1, '#6a6288');
+    rect(g, Math.round(x), Math.round(y) + s - 1, s + 1, 1, '#2f2a42');
+  };
+  // забитый проход
+  for (let i = 0; i < 60; i++) stone(cx - 14 + rnd() * 26, top + rnd() * 30, 3 + Math.floor(rnd() * 4));
+  // осыпь по ступеням вниз-влево
+  for (let i = 0; i < 40; i++) {
+    const k = rnd();
+    stone(cx - 14 - k * 44 + rnd() * 10, top + 28 + k * 50 + rnd() * 6, 2 + Math.floor(rnd() * 3));
+  }
+  thick(g, cx - 18, top + 4, cx + 14, top + 26, 2, '#5a3f2a');   // балки
+  thick(g, cx - 12, top + 26, cx + 12, top - 2, 2, '#4a3226');
+}
+
 export function drawDecor(g, d, floorTop) {
   switch (d.type) {
+    case 'pit': return pit(g, d, floorTop);
+    case 'rubble': return rubble(g, d, floorTop);
     case 'bookshelf': return bookshelf(g, d, floorTop);
     case 'ladder': return ladder(g, d, floorTop);
     case 'keys': return keys(g, d);
