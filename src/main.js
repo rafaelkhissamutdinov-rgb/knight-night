@@ -11,7 +11,7 @@ import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
-import { unlockAudio, sfx } from './audio.js';
+import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { BESTIARY } from './story/bestiary.js';
@@ -679,6 +679,7 @@ function showPause() {
     ['Продолжить', resumePlay],
     ...(game.arena ? [['Встреча заново', restartFight]] : []),
     ['Управление', () => showControls(showPause)],
+    [`Звуки окружения: ${ambientOn ? 'вкл' : 'выкл'}`, () => { setAmbient(!ambientOn); game.ambRoom = null; showPause(); }],
     ['Новая игра', askNewFromPause],
     ['Главное меню', toTitle],
   ]);
@@ -1093,6 +1094,21 @@ function hitWall(atk) {
   callout('Стена рухнула — за ней проход!', 'perfect');
   save();
 }
+// звуки окружения по комнате: капли в подземельях, ветер у окон и на балконе, треск камина вблизи
+function updateAmbience(dt) {
+  const r = room(), p = game.player;
+  game.ambT = (game.ambT ?? 1) - dt;
+  const windLevel = r.balcony ? 1 : game.room === 'gallery' ? 0.35 : 0;
+  if (game.ambRoom !== game.room) { game.ambRoom = game.room; setWind(windLevel, 0.3); }
+  const fire = (r.decor ?? []).find(d => d.type === 'fireplace');
+  const fireNear = fire ? Math.max(0, 1 - Math.abs(fire.x - p.x) / 220) : 0;
+  if (game.ambT > 0) return;
+  if (fireNear > 0.05) { crackle(fireNear); game.ambT = 0.08 + Math.random() * 0.35; return; }
+  if (windLevel) { setWind(windLevel * (0.7 + Math.random() * 0.6), Math.random()); game.ambT = 1.5 + Math.random() * 2; return; }
+  if (r.dark || game.room === 'hall' || game.room === 'secret') { drip(); game.ambT = 2 + Math.random() * 4; return; }
+  game.ambT = 2;
+}
+
 // место отдыха (rest у вещи или убранства): диван, камин
 function nearRest() {
   const p = game.player;
@@ -1339,6 +1355,7 @@ function update(dt) {
 
   updateCharge();
   updateCoinFx(dt);
+  updateAmbience(dt);
   p.update(dt, controls());
   // на бегу из-под ступни, которая встала на пол, — облачко пыли
   const fall = Math.floor(p.step * 2);

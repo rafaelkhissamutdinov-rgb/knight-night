@@ -70,3 +70,57 @@ export const sfx = {
   clink() { tone(2600, 0.03, 'triangle', 0.03); },
   cue(height) { tone({ high: 990, mid: 660, low: 440 }[height], 0.06, 'triangle', 0.07); },
 };
+
+// ---------- окружение: ветер, капли, треск огня ----------
+// Ветер — петля шума через фильтр, громкость и «тон» плавно меняются; капли и треск — короткие события.
+let wind = null;
+export let ambientOn = true;
+try { ambientOn = localStorage.getItem('knightNight.ambient') !== 'off'; } catch { /* без хранилища — включено */ }
+
+export function setAmbient(on) {
+  ambientOn = on;
+  try { localStorage.setItem('knightNight.ambient', on ? 'on' : 'off'); } catch { /* ничего */ }
+  if (!on) setWind(0);
+}
+
+function ensureWind() {
+  if (wind || !ctx) return;
+  const len = ctx.sampleRate * 2;
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < len; i++) { last = last * 0.97 + (Math.random() * 2 - 1) * 0.03; data[i] = last * 6; }  // бурый шум — мягкий
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 400;
+  const gain = ctx.createGain();
+  gain.gain.value = 0;
+  src.connect(filter).connect(gain).connect(master);
+  src.start();
+  wind = { filter, gain };
+}
+
+// level 0…1: 0 — тихо; gust — порыв (0…1) меняет тон
+export function setWind(level, gust = 0) {
+  if (!ctx) return;
+  ensureWind();
+  const t = ctx.currentTime;
+  wind.gain.gain.setTargetAtTime(ambientOn ? level * 0.12 : 0, t, 0.8);
+  wind.filter.frequency.setTargetAtTime(300 + 700 * gust, t, 1.2);
+}
+
+export function drip() {
+  if (!ctx || !ambientOn) return;
+  const f = 900 + Math.random() * 700;
+  tone(f, 0.12, 'sine', 0.035, f * 0.55);
+  setTimeout(() => tone(f * 0.8, 0.1, 'sine', 0.012, f * 0.45), 160);  // отзвук под сводом
+}
+
+export function crackle(vol = 1) {
+  if (!ctx || !ambientOn) return;
+  burst(0.02 + Math.random() * 0.03, 'highpass', 1800 + Math.random() * 2500, 0.06 * vol, 0.7);
+  if (Math.random() < 0.3) burst(0.15, 'lowpass', 250, 0.05 * vol);
+}
