@@ -1499,6 +1499,7 @@ function updateCharge() {
 // Враг побеждён — монеты летят к рыцарю.
 function payCoins(e) {
   e.paid = true;
+  if (e.def.skull) sparks(e.x, groundY(e.z) - 16, 10, ['#e6e1d0', '#a39d8a', '#c8c2b0'], 90);  // кости брызнули
   seen(e.type).kills++;
   const n = COINS[e.type];
   game.coins += n;  // в сохранение — сразу; счётчик в HUD растёт, когда монета долетает
@@ -2432,6 +2433,7 @@ function renderEnemy(e, cam) {
   if (e.state === 'gone') return;
   const ex = e.x - cam;
   if (ex < -50 || ex > W + 50) return;
+  if (e.state === 'dead' && e.kind !== 'slime') { renderDeath(e, ex); return; }
   let alpha = 1;
   if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
   if (alpha <= 0) return;
@@ -2487,6 +2489,60 @@ function renderEnemy(e, cam) {
     }
   }
   g.globalAlpha = 1;
+}
+
+// смерть врага: скелет рассыпается в груду костей (лежит, пока рыцарь в комнате), живой — падает навзничь и тает
+function renderDeath(e, ex) {
+  const GROUND = groundY(e.z), t = e.t, f = e.facing;
+  const opts = {
+    x: ex, ground: GROUND, facing: f, pose: e.pose, colors: e.def.colors, weaponLen: e.def.weapon ?? 17,
+    skull: e.def.skull, shield: e.def.shield, bow: e.kind === 'archer', crossbow: e.def.crossbow, bladeHidden: true,
+    bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd, spear: e.def.spear,
+    wrap: e.def.wrap, veil: e.def.veil, robe: e.def.robe,
+  };
+  if (e.def.skull) {
+    if (t < 0.3) {
+      // оседает: фигура сплющивается к полу
+      const k = t / 0.3;
+      g.save();
+      g.translate(ex, GROUND);
+      g.scale(1, 1 - 0.75 * k);
+      g.translate(-ex, -GROUND);
+      drawFigureOutlined(g, opts);
+      g.restore();
+    }
+    if (t > 0.15) drawBonePile(ex, GROUND, f, e.def);
+    return;
+  }
+  // падает навзничь — от рыцаря; полежал — растаял
+  const k = ease(Math.min(1, t / 0.35));
+  const alpha = Math.max(0, 1 - Math.max(0, t - 2.2) / 0.8);
+  if (alpha <= 0) return;
+  g.save();
+  g.globalAlpha = alpha;
+  g.translate(ex, GROUND);
+  g.rotate(-f * k * Math.PI / 2);
+  g.translate(-ex, -GROUND);
+  drawFigureOutlined(g, opts);
+  g.restore();
+  g.globalAlpha = 1;
+}
+
+function drawBonePile(x, gy, f, def) {
+  x = Math.round(x);
+  const B = '#e6e1d0', S = '#a39d8a', D = '#14101e';
+  rect(g, x - 8, gy - 2, 16, 2, S);                          // россыпь
+  rect(g, x - 6, gy - 3, 5, 1, B); rect(g, x + 2, gy - 3, 6, 1, B);   // кости
+  rect(g, x - 7, gy - 4, 1, 2, B); rect(g, x + 7, gy - 4, 1, 2, B);
+  for (let i = 0; i < 3; i++) rect(g, x - 3 + i * 2, gy - 5, 1, 3, S);   // рёбра
+  const sx = x + f * 9;                                      // череп откатился
+  rect(g, sx - 2, gy - 5, 5, 4, B); rect(g, sx - 1, gy - 1, 3, 1, B);
+  rect(g, sx - 1, gy - 4, 1, 1, D); rect(g, sx + 1, gy - 4, 1, 1, D);
+  if (def.plate) { rect(g, x - 4, gy - 6, 8, 3, def.colors.plate ?? '#8e98a3'); rect(g, x - 4, gy - 6, 8, 1, def.colors.plateLight ?? '#c3ccd6'); }
+  if (def.shield) { rect(g, x - 12, gy - 4, 6, 4, def.colors.shield ?? '#5a2a2a'); rect(g, x - 12, gy - 4, 6, 1, '#8a8a8a'); }
+  // оружие на полу
+  const w = Math.min(22, def.weapon ?? 17);
+  rect(g, x - f * 4 - (f > 0 ? w : 0), gy - 1, w, 1, def.kind === 'archer' ? '#8a5a3b' : (def.colors.blade ?? '#c3ccd6'));
 }
 
 function renderPlayer(cam) {
