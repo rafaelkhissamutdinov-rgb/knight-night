@@ -67,6 +67,7 @@ export const sfx = {
   portal() { tone(440, 1.2, 'sine', 0.18, 1760); tone(660, 0.9, 'triangle', 0.08, 1320); burst(0.4, 'highpass', 3000, 0.2); },
   step() { burst(0.04, 'lowpass', 300, 0.12); },
   coin(k = 0) { tone(1500 + k * 90, 0.07, 'square', 0.035); tone(2250 + k * 120, 0.09, 'triangle', 0.04); },
+  thud() { burst(0.25, 'lowpass', 160, 0.35); tone(55, 0.3, 'sine', 0.2, 40); },
   clink() { tone(2600, 0.03, 'triangle', 0.03); },
   cue(height) { tone({ high: 990, mid: 660, low: 440 }[height], 0.06, 'triangle', 0.07); },
 };
