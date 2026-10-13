@@ -416,10 +416,18 @@ export const ROOMS = {
       { x: 290, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'spear', dx: 110, z: 32 }] },
     ],
   },
-  // фон нарисован целиком (картинка владельца): двери и факелы уже на нём, поверх — только мерцание огня
+  // караульная: стол караула (кости, кружки), табуреты, стойка, доска с ключами — одного не хватает
   guardroom: {
-    name: 'Караульная', length: 320, image: 'assets/backgrounds/guardroom.png', torches: [],
-    flames: [[19, 77], [90, 92], [143, 80], [232, 79], [252, 90], [303, 76]],
+    name: 'Караульная', length: 320, columns: false, torches: [100, 250],
+    props: [
+      { type: 'guardtable', x: 210, z: 14 }, { type: 'stool', x: 186, z: 10 }, { type: 'stool', x: 236, z: 20 },
+      { type: 'barrel', x: 296, z: 3 },
+    ],
+    decor: [
+      { type: 'rack', x: 140, items: ['spear', 'sword', null, 'spear'] },
+      { type: 'keys', x: 200, y: 44, look: 'look_keys', name: 'доска с ключами' },
+      { type: 'banner', x: 290, y: 10, h: 36, torn: true },
+    ],
     doors: [{ id: 'out', x: 50, kind: 'wood', to: 'gallery', toDoor: 'guard', name: 'Галерея' }],
     encounters: [
       { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'axe', dx: 80, z: 32 }] },
