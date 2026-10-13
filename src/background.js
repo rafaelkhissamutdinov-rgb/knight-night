@@ -488,6 +488,16 @@ export function drawProp(g, type, x, gy, opened = false, time = 0) {
     rect(g, x - 2, gy - 15, 1, 1, '#14101e'); rect(g, x + 3, gy - 14, 1, 1, '#14101e');
     rect(g, x + 14, gy - 18, 2, 5, '#ece4d0');
     rect(g, x + 14, gy - 20 - (Math.floor(time * 8) % 2), 2, 2, PAL.flame1);
+  } else if (type === 'armchair') {
+    // кресло начальника стражи: высокая спинка, подлокотники, красная обивка
+    rect(g, x - 9, gy - 24, 18, 16, '#4a3226'); rect(g, x - 7, gy - 22, 14, 12, '#7a2633');
+    rect(g, x - 10, gy - 11, 20, 4, '#5a3a28'); rect(g, x - 8, gy - 11, 16, 2, '#8e2b3a');
+    rect(g, x - 11, gy - 14, 3, 14, '#4a3226'); rect(g, x + 8, gy - 14, 3, 14, '#4a3226');
+    rect(g, x - 9, gy - 25, 18, 1, PAL.gold);
+  } else if (type === 'bench') {
+    // каменная скамья
+    rect(g, x - 16, gy - 8, 32, 4, '#6a6288'); rect(g, x - 16, gy - 8, 32, 1, '#8a82a8');
+    rect(g, x - 13, gy - 4, 5, 4, '#4f4868'); rect(g, x + 8, gy - 4, 5, 4, '#4f4868');
   } else if (type === 'pew') {
     // церковная скамья: сплошная спинка, сиденье, боковины со скруглённым верхом
     rect(g, x - 17, gy - 17, 34, 7, '#5a3a28');

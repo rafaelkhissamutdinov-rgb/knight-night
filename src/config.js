@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.50';
+export const VERSION = 'v0.51';
 
 export const CONFIG = {
   width: 320,
@@ -672,7 +672,7 @@ export const ROOMS = {
       { type: 'armor', x: 240 }, { type: 'banner', x: 140, y: 10 }, { type: 'banner', x: 340, y: 10 },
       { type: 'rack', x: 420, items: ['spear', 'sword', 'spear'] },
     ],
-    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }],
+    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }],
     encounters: [
       { x: 260, story: 'keyguard', before: 'keyguard_meet', enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'crossbow', dx: 170, z: 8 }] },
     ],
@@ -693,6 +693,8 @@ export const ROOMS = {
       { type: 'sigil', x: 150, y: 44 }, { type: 'sigil', x: 52, y: 54 },
       { type: 'doorglow', x: 272 }, { type: 'chains', x: 110, y: 44 },
     ],
+    // последний отдых перед колдуном — сохраниться у его двери
+    props: [{ type: 'bench', x: 210, z: 2, rest: { seat: 4, name: 'на каменной скамье', face: 1 } }],
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
       // за дверью — маг (финальный босс, решение владельца: пока не делаем) — здесь конец главы 1
