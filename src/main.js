@@ -11,7 +11,7 @@ import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
-import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient } from './audio.js';
+import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { BESTIARY } from './story/bestiary.js';
@@ -715,6 +715,7 @@ function showPause() {
     ...(game.arena ? [['Встреча заново', restartFight]] : []),
     ['Управление', () => showControls(showPause)],
     [`Звуки окружения: ${ambientOn ? 'вкл' : 'выкл'}`, () => { setAmbient(!ambientOn); game.ambRoom = null; showPause(); }],
+    [`Музыка: ${musicOn ? 'вкл' : 'выкл'}`, () => { setMusic(!musicOn); showPause(); }],
     [`Лёгкий режим: ${easyOn ? 'вкл' : 'выкл'}`, () => { setEasy(!easyOn); showPause(); }],
     ['Новая игра', askNewFromPause],
     ['Главное меню', toTitle],
@@ -1413,6 +1414,7 @@ function updateView(dt, engaged) {
 function update(dt) {
   if (game.mode === 'play') updateAim();  // высота — до нажатий этого кадра
   for (const code of input.take()) handlePress(code);
+  if (game.mode !== 'title') updateMusic(game.mode === 'play' && !!game.arena);  // играет и в разговорах, лавке, паузе
   if (game.mode !== 'play') return;
 
   game.time += dt;

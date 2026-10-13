@@ -125,3 +125,94 @@ export function crackle(vol = 1) {
   burst(0.02 + Math.random() * 0.03, 'highpass', 1800 + Math.random() * 2500, 0.06 * vol, 0.7);
   if (Math.random() < 0.3) burst(0.15, 'lowpass', 250, 0.05 * vol);
 }
+
+// ---------- музыка: тихий эмбиент ----------
+// Медленные аккорды (Dm — B♭ — C — Am) мягким треугольником, редкие колокольные ноты с отзвуком под сводами;
+// в бою — глухой ритм, как литавры. Всё синтезом, без файлов.
+export let musicOn = true;
+try { musicOn = localStorage.getItem('knightNight.music') !== 'off'; } catch { /* включена */ }
+let mus = null;
+const CHORDS = [[146.8, 174.6, 220.0], [116.5, 146.8, 174.6], [130.8, 164.8, 196.0], [110.0, 130.8, 164.8]];
+const BELL = [293.7, 349.2, 392.0, 440.0, 523.3, 587.3];
+
+function ensureMusic() {
+  if (mus || !ctx) return;
+  const out = ctx.createGain();
+  out.gain.value = musicOn ? 1 : 0;
+  // отзвук: задержка с обратной связью через фильтр
+  const delay = ctx.createDelay(1);
+  delay.delayTime.value = 0.38;
+  const fb = ctx.createGain();
+  fb.gain.value = 0.38;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 1800;
+  out.connect(master);
+  out.connect(delay);
+  delay.connect(lp).connect(fb).connect(delay);
+  lp.connect(master);
+  mus = { out, chord: -1, nextChord: 0, nextBell: 2, nextDrum: 0 };
+}
+
+function pad(freq, t0, dur) {
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(0.018, t0 + 1.6);
+  gain.gain.setValueAtTime(0.018, t0 + dur - 1.8);
+  gain.gain.linearRampToValueAtTime(0.0001, t0 + dur + 0.4);
+  osc.connect(gain).connect(mus.out);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.5);
+}
+
+function bell(freq, t0) {
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.03, t0);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.2);
+  osc.connect(gain).connect(mus.out);
+  osc.start(t0);
+  osc.stop(t0 + 2.3);
+}
+
+function drum(t0, accent) {
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(accent ? 90 : 70, t0);
+  osc.frequency.exponentialRampToValueAtTime(40, t0 + 0.3);
+  gain.gain.setValueAtTime(accent ? 0.09 : 0.06, t0);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+  osc.connect(gain).connect(mus.out);
+  osc.start(t0);
+  osc.stop(t0 + 0.4);
+}
+
+// вызывать каждый кадр: combat — идёт бой
+export function updateMusic(combat) {
+  if (!ctx) return;
+  ensureMusic();
+  const t = ctx.currentTime;
+  if (t >= mus.nextChord) {
+    mus.chord = (mus.chord + 1) % CHORDS.length;
+    for (const f of CHORDS[mus.chord]) pad(f, t, 6);
+    mus.nextChord = t + 6;
+  }
+  if (t >= mus.nextBell) {
+    if (Math.random() < 0.6) bell(BELL[Math.floor(Math.random() * BELL.length)], t);
+    mus.nextBell = t + 2.5 + Math.random() * 4;
+  }
+  if (combat && t >= mus.nextDrum) {
+    mus.beat = ((mus.beat ?? 0) + 1) % 4;
+    drum(t, mus.beat === 0);
+    mus.nextDrum = t + 0.75;
+  }
+}
+
+export function setMusic(on) {
+  musicOn = on;
+  try { localStorage.setItem('knightNight.music', on ? 'on' : 'off'); } catch { /* ничего */ }
+  if (mus) mus.out.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.3);
+}
