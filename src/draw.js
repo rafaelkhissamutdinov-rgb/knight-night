@@ -48,7 +48,7 @@ export function drawFigure(g, o) {
   const {
     x, ground, facing: f, pose, colors, step = 0, plume = false, weaponLen = 17,
     bladeHidden = false, scabbard = false, shield = false, skull = false,
-    bow = false, bowDraw = 0, airY = 0, trail = null, face = false, rapier = false, robe = false,
+    bow = false, bowDraw = 0, crossbow = false, airY = 0, trail = null, face = false, rapier = false, robe = false,
     offhandBack = false, sit = false, wrap = false, curved = false, slim = false, hood = false, pack = false,
     short = false, bob = false, coat = false, spear = false, bandit = false, axe = false, plate = false,
     bun = false, ornate = false,
@@ -305,6 +305,20 @@ export function drawFigure(g, o) {
   const a = pose.angle * Math.PI / 180;
   const dx = Math.cos(a) * f, dy = Math.sin(a);
 
+  if (bow && crossbow) {
+    // арбалет: ложе вдоль прицела, короткие плечи поперёк спереди, тетива взведена к орешку
+    const px = -dy, py = dx;
+    const back = [handX - dx * 5, handY - dy * 5], front = [handX + dx * 9, handY + dy * 9];
+    thick(g, back[0], back[1], front[0], front[1], 2, colors.hilt);
+    const lt = [front[0] - dx * 2 + px * 5, front[1] - dy * 2 + py * 5], lb = [front[0] - dx * 2 - px * 5, front[1] - dy * 2 - py * 5];
+    thick(g, lt[0], lt[1], front[0], front[1], 1, colors.blade);
+    thick(g, front[0], front[1], lb[0], lb[1], 1, colors.blade);
+    const nut = bowDraw > 0.5 ? [handX, handY] : [front[0] - dx * 3, front[1] - dy * 3];
+    thick(g, lt[0], lt[1], nut[0], nut[1], 1, colors.helm);
+    thick(g, nut[0], nut[1], lb[0], lb[1], 1, colors.helm);
+    if (bowDraw > 0.5) thick(g, handX + dx, handY + dy, front[0] + dx * 2, front[1] + dy * 2, 1, '#e6e1d0');  // болт на ложе
+    return { tipX: front[0], tipY: front[1], handX, handY };
+  }
   if (bow) {
     // лук поперёк линии прицела, тетива оттягивается к плечу
     const px = -dy, py = dx;
@@ -386,9 +400,16 @@ export function drawSlime(g, { x, ground, airY, size, squash, colors, facing, ho
 }
 
 // Стрела по направлению полёта; воткнувшаяся — наклонно в полу.
-export function drawArrow(g, x, y, vx, vy, stuck = false) {
+export function drawArrow(g, x, y, vx, vy, stuck = false, bolt = false) {
   const len = Math.hypot(vx, vy) || 1;
   const ux = stuck ? 0.6 : vx / len, uy = stuck ? 0.8 : vy / len;
+  if (bolt) {
+    // арбалетный болт: короче и толще, железный наконечник
+    thick(g, x - ux * 6, y - uy * 6, x, y, 2, '#7a5a3a');
+    rect(g, x, y, 2, 2, '#c3d0dc');
+    rect(g, x - ux * 6, y - uy * 6, 1, 2, '#3b3550');
+    return;
+  }
   thick(g, x - ux * 7, y - uy * 7, x, y, 1, '#a39d8a');
   rect(g, x, y, 1, 1, '#e6e1d0');
   rect(g, x - ux * 7 - uy, y - uy * 7 + ux, 1, 1, '#e8454f');

@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.26';
+export const VERSION = 'v0.27';
 
 export const CONFIG = {
   width: 320,
@@ -203,6 +203,14 @@ export const ENEMY_TYPES = {
     guardChance: 0.2, reaction: 0.15, skull: true,
     colors: { ...BONE, blade: '#8a5a3b' },
   },
+  // мародёр с арбалетом: долго целится (пунктир на высоте выстрела), болт сильный, перезарядка долгая — тогда и подходи
+  crossbow: {
+    kind: 'archer', name: 'Мародёр с арбалетом', shortName: 'Арбалетчик', hp: 3, damage: 2, aggro: 210, bandit: true, crossbow: true,
+    windup: 1.5, comboWindup: 1.5, recover: 2.4, wait: [0.6, 1.0],
+    heights: ['high', 'mid', 'low'], volleyChance: 0, minDist: 60, maxDist: 170, arrowSpeed: 240,
+    guardChance: 0.3, reaction: 0.12,
+    colors: { armor: '#5a5a3e', armorDark: '#3b3b2a', tabard: '#3b4a2e', helm: '#b88a68', visor: '#14101e', blade: '#8a8478', hilt: '#6b4532', boots: '#2e2420', bandana: '#4a5a3a', mask: '#3b3b2a' },
+  },
   // тренировочное чучело: не умирает, медленно и без урона показывает удары на трёх высотах
   dummy: {
     kind: 'melee', practice: true, name: 'Чучело', hp: 9999, damage: 0, aggro: 70, reach: 32, speed: 0, lunge: 0, weapon: 15,
@@ -287,7 +295,7 @@ export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amu
 export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
-export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, duelist: 10, mage: 15 };
+export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, duelist: 10, mage: 15 };
 
 // Мир: комнаты и переходы между ними.
 // edges — выход за край комнаты (left / right): to — комната, x — где рыцарь появится там.
@@ -431,7 +439,7 @@ export const ROOMS = {
       { type: 'armor', x: 810, rust: true, look: 'look_armor', name: 'доспех' },
     ],
     encounters: [
-      { x: 470, enemies: [{ type: 'merc', dx: 40, z: 16 }, { type: 'axe', dx: 110, z: 30 }] },
+      { x: 470, enemies: [{ type: 'merc', dx: 40, z: 16 }, { type: 'crossbow', dx: 170, z: 30 }] },
     ],
   },
   dining: {
