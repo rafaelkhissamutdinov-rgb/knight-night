@@ -262,8 +262,8 @@ const world = {
     return dir > 0 ? hi - e.x : e.x - lo;
   },
   dropWeapon(e, kind) {
-    game.pickups.push({ kind, room: game.room, x: e.x - e.facing * 10, z: e.z, t: 0 });
     callout('Рапира выбита!', 'counter');
+    if (owns(kind) || game.pickups.some(it => it.kind === kind)) return;  // рапира уже есть — второй не будет
   },
   // бьёт один враг, остальные ждут своей очереди
   requestToken(e) {
@@ -314,7 +314,10 @@ const world = {
       game.arrows.push({ who: e.def.name, x, y: y0, z: e.z, vz: (pz - e.z) / T, vx, vy, arc: true, height: 'high', damage: e.def.damage, resolved: false, falling: false, life: 4 });
       return;
     }
-    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz: 0, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3, bolt: !!e.def.crossbow });
+    // целится и по глубине: туда, где рыцарь стоит в момент выстрела, — попадание совпадает с тем, что видно
+    const T = Math.max(0.12, Math.abs(game.player.x - x) / e.def.arrowSpeed);
+    const vz = (game.player.z - e.z) / T;
+    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3, bolt: !!e.def.crossbow });
   },
   swallow(slime) {
     const p = game.player;
@@ -410,6 +413,8 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
       // Бубновый туз: удар засчитан, но здоровье не уходит; потом перезарядка
       game.wardReadyAt = game.time + ward.cooldown;
       game.wardFlash = 0.8;
+      game.wardSide = Math.sign(sourceX - p.x) || p.facing;  // щит встаёт со стороны удара
+      game.wardHeight = height;
       game.stats.ward++;
       sparks(p.x, y, 14, ['#e8454f', '#ffffff', '#ffb3b8'], 110);
       sfx.ward();
@@ -1619,7 +1624,7 @@ function updatePickups(dt) {
     if (Math.abs(it.x - p.x) < 10 && Math.abs(it.z - p.z) < 8) {
       it.taken = true;
       game.unlocked.add(it.kind);
-      game.bag.push(it.kind);
+      if (!owns(it.kind)) game.bag.push(it.kind);  // вторая рапира не нужна
       equipItem(it.kind);
       callout('Рапира! Q — сменить оружие, I — снаряжение', 'perfect');
       setTimeout(save, 0);
@@ -1635,7 +1640,8 @@ function updateArrows(dt) {
     a.life -= dt;
     if (a.stuck) continue;
     a.x += a.vx * dt;
-    a.z += (a.vz ?? 0) * dt;
+    a.z = Math.max(0, Math.min(CONFIG.depth, a.z + (a.vz ?? 0) * dt));
+    if (!a.falling && !a.arc) a.y = clashY(a.height, a.z);
     if (a.falling || a.arc) {
       a.vy += ARROW_G * dt;
       a.y += a.vy * dt;
@@ -1648,7 +1654,7 @@ function updateArrows(dt) {
       }
       if (a.falling) continue;
     }
-    const close = Math.abs(a.x - p.x) <= (a.arc ? 6 : 4) && Math.abs(a.z - p.z) <= CONFIG.depthReach - 3 && (!a.arc || a.y >= clashY('high', p.z) - 6);
+    const close = Math.abs(a.x - p.x) <= (a.arc ? 6 : 5) && Math.abs(a.z - p.z) <= CONFIG.depthReach - 3 && (!a.arc || a.y >= clashY('high', p.z) - 6);
     if (!a.resolved && close) {
       a.resolved = true;
       const result = applyImpact(a.height, a.damage, a.x - Math.sign(a.vx) * 20, false, false, false, a.who);
@@ -1836,7 +1842,7 @@ function nextShopLine() {
   const line = sh.queue.shift();
   if (!line) return;
   const text = typeof line === 'string' ? line : line.text;
-  if (line.knight) shopSay(`Найт: ${text}`, sh.mood);
+  if (line.knight) shopSay(`Найт: ${text}`, line.mood);  // Лика слушает с обычным лицом
   else shopSay(text, line.mood);
   renderShop();
 }
@@ -1869,14 +1875,16 @@ function shopOptions() {
   if (sh.view === 'buy') return [
     ...d.items.map(it => {
       const item = ITEMS[it.id];
-      return { label: item.name, right: `${item.price} мон.`, muted: it.soon || item.price > game.coins, hover: it.text, mood: d.moods?.item, go: () => buyItem(it) };
+      const have = onceOwned(it.id);
+      return { label: item.name, right: have ? 'есть' : `${item.price} мон.`, muted: have || it.soon || item.price > game.coins, hover: it.text, mood: d.moods?.item, go: () => buyItem(it) };
     }),
     back,
   ];
   if (sh.view === 'talk') {
     // идёт разговор по теме — только «Дальше», пока не кончатся реплики
     if (sh.queue?.length) return [{ label: 'Дальше ▸', go: nextShopLine }];
-    return [...d.talk.map(t => ({ label: t.topic, go: () => { sh.queue = t.lines.slice(); nextShopLine(); } })), back];
+    // need — тема появляется после события (флаг), например после боя с Илиа
+    return [...d.talk.filter(t => !t.need || game.flags[t.need]).map(t => ({ label: t.topic, go: () => { sh.queue = t.lines.slice(); nextShopLine(); } })), back];
   }
   return [
     { label: 'Купить', go: () => shopView('buy') },
@@ -1885,10 +1893,16 @@ function shopOptions() {
   ];
 }
 
+// вещь берут один раз (снаряжение, журнал, свиток, артефакт): уже есть — второй не продают
+function onceOwned(id) {
+  const item = ITEMS[id];
+  return !!(item.slot || item.journal || item.learn || item.artifact || item.weapon || item.once) && (owns(id) || (item.learn && owns(item.learn)));
+}
+
 function buyItem(it) {
   const d = game.shop.data, item = ITEMS[it.id];
   if (it.soon) return shopSay(d.soon, d.moods?.soon);
-  if ((item.slot || item.journal || item.learn || item.artifact) && (owns(it.id) || (item.learn && owns(item.learn)))) return shopSay(d.owned, d.moods?.soon);
+  if (onceOwned(it.id)) return shopSay(d.owned, d.moods?.soon);
   if (item.price > game.coins) return shopSay(d.poor, d.moods?.poor);
   game.coins -= item.price;
   game.bag.push(it.id);
@@ -2291,12 +2305,18 @@ function renderPlayer(cam) {
   } else p.trail = [];
 
   if (game.wardFlash > 0) {
-    // знак бубны над рыцарем: Бубновый туз погасил удар
-    g.globalAlpha = Math.min(1, game.wardFlash * 2);
-    const cy = GROUND - 44 - Math.round((0.8 - game.wardFlash) * 8);
-    for (let i = 0; i < 5; i++) rect(g, px - i, cy - 4 + i, i * 2 + 1, 1, '#e8454f');
-    for (let i = 0; i < 4; i++) rect(g, px - 3 + i, cy + 1 + i, 7 - i * 2, 1, '#e8454f');
-    rect(g, px, cy - 2, 1, 3, '#ffffff');
+    // Бубновый туз: большой щит-карта встаёт перед рыцарем со стороны удара и гаснет
+    const k = game.wardFlash / 0.8, grow = Math.min(1, (1 - k) * 6);
+    const sx = Math.round(px + (game.wardSide ?? p.facing) * 13), sy = GROUND - 22;
+    const hh = Math.round(16 * grow), hw = Math.round(9 * grow);
+    g.globalAlpha = Math.min(1, k * 1.6) * 0.85;
+    for (let y = -hh; y <= hh; y++) {
+      const w = Math.round(hw * (1 - Math.abs(y) / (hh + 1)));
+      rect(g, sx - w, sy + y, w * 2 + 1, 1, Math.abs(y) > hh - 2 || w < 2 ? '#ffb3b8' : '#c8303f');
+      if (w >= 2) { rect(g, sx - w, sy + y, 1, 1, '#ffb3b8'); rect(g, sx + w, sy + y, 1, 1, '#ffb3b8'); }
+    }
+    // белый ромб — масть
+    for (let y = -4; y <= 4; y++) { const w = 3 - Math.abs(Math.round(y * 0.75)); if (w >= 0) rect(g, sx - w, sy + y, w * 2 + 1, 1, '#ffffff'); }
     g.globalAlpha = 1;
   }
   // выбранная высота рядом с рыцарем; голубая — когда держишь защиту

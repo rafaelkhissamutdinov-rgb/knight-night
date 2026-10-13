@@ -465,6 +465,23 @@ export function drawProp(g, type, x, gy, opened = false, time = 0) {
     }
     rect(g, x - 18, gy - 15, 6, 1, '#a39d8a');  // тарелки
     rect(g, x + 14, gy - 15, 6, 1, '#a39d8a');
+  } else if (type === 'guardtable') {
+    // грубый стол караула: кости, кружки, огарок
+    rect(g, x - 22, gy - 13, 44, 3, '#6b4532');
+    rect(g, x - 22, gy - 13, 44, 1, '#8a5a3b');
+    rect(g, x - 19, gy - 10, 3, 10, '#4a3226');
+    rect(g, x + 16, gy - 10, 3, 10, '#4a3226');
+    rect(g, x - 12, gy - 17, 4, 4, '#8a7a6a'); rect(g, x - 12, gy - 17, 4, 1, '#a89a8a');  // кружка
+    rect(g, x - 8, gy - 16, 1, 2, '#8a7a6a');
+    rect(g, x + 8, gy - 16, 3, 3, '#8a7a6a');
+    rect(g, x - 2, gy - 15, 2, 2, '#e8e0d0'); rect(g, x + 2, gy - 15, 2, 2, '#e8e0d0');      // кости
+    rect(g, x - 2, gy - 15, 1, 1, '#14101e'); rect(g, x + 3, gy - 14, 1, 1, '#14101e');
+    rect(g, x + 14, gy - 18, 2, 5, '#ece4d0');
+    rect(g, x + 14, gy - 20 - (Math.floor(time * 8) % 2), 2, 2, PAL.flame1);
+  } else if (type === 'stool') {
+    rect(g, x - 4, gy - 7, 8, 2, '#6b4532');
+    rect(g, x - 3, gy - 5, 1, 5, '#4a3226');
+    rect(g, x + 2, gy - 5, 1, 5, '#4a3226');
   } else if (type === 'chair') {
     const f = opened ? -1 : 1;
     rect(g, x - 4, gy - 8, 8, 2, '#6b4532');

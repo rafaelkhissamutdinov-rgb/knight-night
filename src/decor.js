@@ -324,8 +324,25 @@ function note(g, d) {
   rect(g, x0 + 4, top - 1, 2, 2, IRON);
 }
 
+// доска с ключами на крючках: одного, самого большого, нет
+function keys(g, d) {
+  const x0 = Math.round(d.x - 18), top = d.y ?? 44;
+  rect(g, x0, top, 36, 14, '#6b4532');
+  rect(g, x0, top, 36, 1, '#8a5a3b');
+  rect(g, x0, top + 13, 36, 1, '#3b2a1e');
+  for (let i = 0; i < 5; i++) {
+    const x = x0 + 4 + i * 7;
+    rect(g, x, top + 2, 1, 2, IRON_L);
+    if (i === 3) { rect(g, x - 2, top + 5, 5, 7, '#4f3a2a'); continue; }  // светлый след — ключ висел долго
+    rect(g, x - 1, top + 4, 3, 3, '#c8a050');
+    rect(g, x, top + 7, 1, 4, '#c8a050');
+    rect(g, x + 1, top + 9, 1, 1, '#c8a050');
+  }
+}
+
 export function drawDecor(g, d, floorTop) {
   switch (d.type) {
+    case 'keys': return keys(g, d);
     case 'note': return note(g, d);
     case 'shelf': return shelf(g, d);
     case 'sign': return sign(g, d);

@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.31';
+export const VERSION = 'v0.32';
 
 export const CONFIG = {
   width: 320,
@@ -12,7 +12,7 @@ export const CONFIG = {
   floorTop: 118,        // где стена встречается с полом
   depth: 44,
   depthSpeed: 46,       // шаг вглубь медленнее, чем вбок
-  depthReach: 9,        // насколько можно разойтись по глубине, чтобы удар всё равно достал
+  depthReach: 12,       // насколько можно разойтись по глубине, чтобы удар всё равно достал (было 9 — удары «проходили сквозь»)
   tokenPause: 0.35,     // пауза между атаками разных врагов: бьёт один, остальные ждут
   tokenRepeat: 1.0,     // кто только что бил, пропускает других вперёд столько секунд
 
@@ -282,7 +282,7 @@ export const ITEMS = {
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
   bandage: { name: 'Бинт', price: 4, use: { heal: 1 } },
-  map: { name: 'Карта замка', price: 25 },
+  map: { name: 'Карта замка', price: 25, once: true },
   key_tower: { name: 'Ключ от башни', key: true },
   spell_bolt: { name: 'Магическая стрела', slot: 'spell' },
   // навыки — приёмы боя на колесе (вниз); learn — изучается чтением свитка, need — нужное оружие
@@ -416,10 +416,18 @@ export const ROOMS = {
       { x: 290, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'spear', dx: 110, z: 32 }] },
     ],
   },
-  // фон нарисован целиком (картинка владельца): двери и факелы уже на нём, поверх — только мерцание огня
+  // караульная: стол караула (кости, кружки), табуреты, стойка, доска с ключами — одного не хватает
   guardroom: {
-    name: 'Караульная', length: 320, image: 'assets/backgrounds/guardroom.png', torches: [],
-    flames: [[19, 77], [90, 92], [143, 80], [232, 79], [252, 90], [303, 76]],
+    name: 'Караульная', length: 320, columns: false, torches: [100, 250],
+    props: [
+      { type: 'guardtable', x: 210, z: 14 }, { type: 'stool', x: 186, z: 10 }, { type: 'stool', x: 236, z: 20 },
+      { type: 'barrel', x: 296, z: 3 },
+    ],
+    decor: [
+      { type: 'rack', x: 140, items: ['spear', 'sword', null, 'spear'] },
+      { type: 'keys', x: 200, y: 44, look: 'look_keys', name: 'доска с ключами' },
+      { type: 'banner', x: 290, y: 10, h: 36, torn: true },
+    ],
     doors: [{ id: 'out', x: 50, kind: 'wood', to: 'gallery', toDoor: 'guard', name: 'Галерея' }],
     encounters: [
       { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'axe', dx: 80, z: 32 }] },
