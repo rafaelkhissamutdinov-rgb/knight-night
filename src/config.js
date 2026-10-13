@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.42';
+export const VERSION = 'v0.43';
 
 export const CONFIG = {
   width: 320,
@@ -680,7 +680,7 @@ export const ROOMS = {
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
       // за дверью — маг (финальный босс, решение владельца: пока не делаем) — здесь конец главы 1
-      { id: 'up', x: 272, kind: 'wood', name: 'Вершина башни', finish: true,
+      { id: 'up', x: 272, kind: 'wood', name: 'Вершина башни', finish: true, finishTalk: 'tower_end',
         finishTitle: 'Конец главы 1 (черновик)', finishText: 'За дверью — вершина башни и скелет-колдун. Его сделаем дальше.' },
     ],
   },
