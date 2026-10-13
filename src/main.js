@@ -1141,7 +1141,7 @@ function hitWall(atk) {
 function updateAmbience(dt) {
   const r = room(), p = game.player;
   game.ambT = (game.ambT ?? 1) - dt;
-  const windLevel = r.balcony ? 1 : game.room === 'gallery' ? 0.35 : 0;
+  const windLevel = r.balcony ? 1 : game.room === 'gallery' || game.room === 'hall3' ? 0.35 : 0;
   if (game.ambRoom !== game.room) { game.ambRoom = game.room; setWind(windLevel, 0.3); }
   const fire = (r.decor ?? []).find(d => d.type === 'fireplace');
   const fireNear = fire ? Math.max(0, 1 - Math.abs(fire.x - p.x) / 220) : 0;
@@ -2518,6 +2518,7 @@ function renderEnemy(e, cam) {
     if (whirl) disc(ex, GROUND - 27 - e.airY, 20);
     const tip = drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
+      breathe: (e.state === 'idle' || e.state === 'dormant') && !e.def.skull && Math.sin(game.time * 2.2 + e.x * 0.37) > 0.3 ? 1 : 0,  // живые дышат, скелеты — нет
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
       bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0, crossbow: e.def.crossbow,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
@@ -2673,6 +2674,7 @@ function renderPlayer(cam) {
   }
   const tip = drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
+    breathe: p.state === 'ready' && !p.walking && Math.sin(game.time * 2.4) > 0.3 ? 1 : 0,  // дышит, когда стоит
     weaponLen: p.arms.length ?? 17, scabbard: !rapier, rapier, offhandBack: rapier && p.state !== 'hurt',
     bladeHidden: p.sheathed || drawing,
     trail: active ? p.trail : null,
