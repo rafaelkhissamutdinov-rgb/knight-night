@@ -305,7 +305,7 @@ const world = {
       game.arrows.push({ who: e.def.name, x, y: y0, z: e.z, vz: (pz - e.z) / T, vx, vy, arc: true, height: 'high', damage: e.def.damage, resolved: false, falling: false, life: 4 });
       return;
     }
-    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz: 0, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3 });
+    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz: 0, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3, bolt: !!e.def.crossbow });
   },
   swallow(slime) {
     const p = game.player;
@@ -1470,7 +1470,7 @@ function renderJournal() {
   if (d.kind === 'slime') drawSlime(journalCtx, { x: 24, ground: 40, airY: 0, size: 1.4, squash: 0, colors: d.colors, facing: -1 });
   else drawFigure(journalCtx, {
     x: 26, ground: 44, facing: -1, pose: POSES.idle, colors: d.colors, weaponLen: d.weapon ?? 17,
-    skull: d.skull, shield: d.shield, bow: d.kind === 'archer', face: t === 'duelist', rapier: t === 'duelist', robe: d.robe,
+    skull: d.skull, shield: d.shield, bow: d.kind === 'archer', crossbow: d.crossbow, bowDraw: d.crossbow ? 1 : 0, face: t === 'duelist', rapier: t === 'duelist', robe: d.robe,
     bandit: d.bandit, axe: d.axe, plate: d.plate, spear: d.spear,
   });
 }
@@ -1946,7 +1946,7 @@ function render() {
     const c = game.current;
     rect(g, c.x - cam - 1, groundY(c.z) + 2, 3, 1, PAL.gold);
   }
-  for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck);
+  for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck, a.bolt);
   for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
 
@@ -2053,12 +2053,22 @@ function renderEnemy(e, cam) {
     const tip = drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
-      bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0,
+      bow: e.kind === 'archer', bowDraw: e.bowDraw ?? 0, crossbow: e.def.crossbow,
       face: e.kind === 'duelist', rapier: e.kind === 'duelist', robe: e.def.robe, bladeHidden: !!e.disarmed,
       wrap: e.def.wrap, veil: e.def.veil, bun: e.def.bun, ornate: e.def.ornate, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate,
     });
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
+    if (e.def.crossbow && e.state === 'windup' && e.alive && e.t > e.windupTime * 0.35) {
+      // арбалетчик целится: пунктир на высоте выстрела, к концу замаха мигает
+      const y = clashY(e.height, e.z), end = game.player.x - cam;
+      const late = e.t > e.windupTime - 0.3;
+      if (!late || Math.floor(e.t * 20) % 2 === 0) {
+        g.globalAlpha = late ? 0.8 : 0.45;
+        for (let x = ex + e.facing * 12; e.facing > 0 ? x < end : x > end; x += e.facing * 4) rect(g, x, y, 2, 1, '#e8454f');
+        g.globalAlpha = 1;
+      }
+    }
     if (e.state === 'notice') {
       // «!» над головой: заметил рыцаря
       const pop = Math.min(1, e.t / 0.15);
