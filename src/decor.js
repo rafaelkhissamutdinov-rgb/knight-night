@@ -462,6 +462,30 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
       const x = Math.round(sx - w / 2 + i);
       for (let k = 0; k < h; k++) rect(g, x, floorTop - 5 - k, 2, 1, k < 3 ? PAL.flame0 : k < h - 3 ? PAL.flame1 : PAL.flame2);
     }
+  } else if (d.type === 'sigil') {
+    // знак на стене тлеет лиловым и медленно дышит
+    const y = d.y ?? 46, k = 0.4 + 0.3 * Math.sin(time * 1.3 + d.x);
+    g.save();
+    g.globalAlpha = k;
+    for (let a = 0; a < Math.PI * 2; a += 0.14) rect(g, sx + Math.cos(a) * 10, y + Math.sin(a) * 10, 1, 1, '#a46be0');
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI / 3 + time * 0.2;
+      thick(g, sx + Math.cos(a) * 4, y + Math.sin(a) * 4, sx + Math.cos(a) * 8, y + Math.sin(a) * 8, 1, '#7d4fb0');
+    }
+    rect(g, sx - 1, y - 1, 3, 3, '#d9b8ff');
+    g.restore();
+  } else if (d.type === 'doorglow') {
+    // лиловый свет из-под двери наверх — там маг
+    const pulse = 0.5 + 0.5 * Math.sin(time * 1.8);
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    const gr = g.createRadialGradient(sx, floorTop - 4, 1, sx, floorTop - 4, 34);
+    gr.addColorStop(0, `rgba(170,90,255,${0.18 + 0.14 * pulse})`);
+    gr.addColorStop(1, 'rgba(170,90,255,0)');
+    g.fillStyle = gr;
+    g.fillRect(sx - 34, floorTop - 40, 68, 60);
+    g.restore();
+    rect(g, sx - 10, floorTop - 1, 20, 1, pulse > 0.5 ? '#d9b8ff' : '#a46be0');  // щель под дверью
   } else if (d.type === 'chandelier') {
     const y = d.y ?? 30;
     for (const dx of CANDLES) {
@@ -480,7 +504,7 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
   }
 }
 
-export const DECOR_LIVE = new Set(['fireplace', 'chandelier', 'cracks', 'slab', 'stainedglass', 'shelfdoor']);
+export const DECOR_LIVE = new Set(['fireplace', 'chandelier', 'cracks', 'slab', 'stainedglass', 'shelfdoor', 'sigil', 'doorglow']);
 
 // Плита за алтарём: закрыта — стена; открыта — плита сдвинута вбок, за ней тёмный проход
 export function drawSlab(g, sx, floorTop, open) {
