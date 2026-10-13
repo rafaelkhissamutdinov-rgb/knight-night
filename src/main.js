@@ -413,6 +413,8 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
       // Бубновый туз: удар засчитан, но здоровье не уходит; потом перезарядка
       game.wardReadyAt = game.time + ward.cooldown;
       game.wardFlash = 0.8;
+      game.wardSide = Math.sign(sourceX - p.x) || p.facing;  // щит встаёт со стороны удара
+      game.wardHeight = height;
       game.stats.ward++;
       sparks(p.x, y, 14, ['#e8454f', '#ffffff', '#ffb3b8'], 110);
       sfx.ward();
@@ -2302,12 +2304,18 @@ function renderPlayer(cam) {
   } else p.trail = [];
 
   if (game.wardFlash > 0) {
-    // знак бубны над рыцарем: Бубновый туз погасил удар
-    g.globalAlpha = Math.min(1, game.wardFlash * 2);
-    const cy = GROUND - 44 - Math.round((0.8 - game.wardFlash) * 8);
-    for (let i = 0; i < 5; i++) rect(g, px - i, cy - 4 + i, i * 2 + 1, 1, '#e8454f');
-    for (let i = 0; i < 4; i++) rect(g, px - 3 + i, cy + 1 + i, 7 - i * 2, 1, '#e8454f');
-    rect(g, px, cy - 2, 1, 3, '#ffffff');
+    // Бубновый туз: большой щит-карта встаёт перед рыцарем со стороны удара и гаснет
+    const k = game.wardFlash / 0.8, grow = Math.min(1, (1 - k) * 6);
+    const sx = Math.round(px + (game.wardSide ?? p.facing) * 13), sy = GROUND - 22;
+    const hh = Math.round(16 * grow), hw = Math.round(9 * grow);
+    g.globalAlpha = Math.min(1, k * 1.6) * 0.85;
+    for (let y = -hh; y <= hh; y++) {
+      const w = Math.round(hw * (1 - Math.abs(y) / (hh + 1)));
+      rect(g, sx - w, sy + y, w * 2 + 1, 1, Math.abs(y) > hh - 2 || w < 2 ? '#ffb3b8' : '#c8303f');
+      if (w >= 2) { rect(g, sx - w, sy + y, 1, 1, '#ffb3b8'); rect(g, sx + w, sy + y, 1, 1, '#ffb3b8'); }
+    }
+    // белый ромб — масть
+    for (let y = -4; y <= 4; y++) { const w = 3 - Math.abs(Math.round(y * 0.75)); if (w >= 0) rect(g, sx - w, sy + y, w * 2 + 1, 1, '#ffffff'); }
     g.globalAlpha = 1;
   }
   // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
