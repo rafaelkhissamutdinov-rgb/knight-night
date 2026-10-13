@@ -276,8 +276,49 @@ function ivy(g, d) {
   }
 }
 
+// полка лавки: склянки, свитки, золотой череп — то, что продаёт Лика
+function shelf(g, d) {
+  const w = d.w ?? 60, x0 = Math.round(d.x - w / 2), top = d.y ?? 40;
+  for (const [k, row] of (d.rows ?? [['potion', 'potion', 'bottle', 'scroll', 'bottle', 'potion'], ['skull', 'book', 'bottle', 'box', 'potion']]).entries()) {
+    const y = top + k * 18;
+    rect(g, x0, y + 12, w, 2, '#8a5a3b');
+    rect(g, x0, y + 14, w, 1, '#3b2a1e');
+    rect(g, x0 + 2, y + 15, 2, 3, '#4a3226');
+    rect(g, x0 + w - 4, y + 15, 2, 3, '#4a3226');
+    row.forEach((it, i) => {
+      const x = x0 + 4 + Math.floor(i * (w - 8) / row.length);
+      if (it === 'potion') {
+        rect(g, x, y + 5, 5, 7, '#c8384a'); rect(g, x + 1, y + 3, 3, 2, '#d8d0c0'); rect(g, x + 1, y + 6, 1, 2, '#f08090');
+      } else if (it === 'bottle') {
+        rect(g, x, y + 6, 4, 6, '#3a7a5a'); rect(g, x + 1, y + 3, 2, 3, '#3a7a5a'); rect(g, x + 1, y + 2, 2, 1, '#8a5a3b');
+      } else if (it === 'scroll') {
+        rect(g, x, y + 8, 8, 4, '#e8dcb8'); rect(g, x, y + 8, 1, 4, '#c8b890'); rect(g, x + 3, y + 9, 2, 2, '#8e2b3a');
+      } else if (it === 'skull') {
+        rect(g, x, y + 5, 7, 5, PAL.gold); rect(g, x + 1, y + 10, 5, 2, PAL.gold);
+        rect(g, x + 1, y + 7, 2, 2, '#3b2a1e'); rect(g, x + 4, y + 7, 2, 2, '#3b2a1e'); rect(g, x + 1, y + 5, 3, 1, '#fff0b0');
+      } else if (it === 'book') {
+        rect(g, x, y + 4, 3, 8, '#5a2a30'); rect(g, x + 3, y + 5, 3, 7, '#2a3a5a'); rect(g, x + 6, y + 6, 2, 6, '#3a5a3a');
+      } else if (it === 'box') {
+        rect(g, x, y + 7, 8, 5, '#6b4532'); rect(g, x, y + 7, 8, 1, '#8a5a3b'); rect(g, x + 3, y + 9, 2, 1, PAL.gold);
+      }
+    });
+  }
+}
+
+// вывеска на цепочках
+function sign(g, d) {
+  const w = d.w ?? 34, x0 = Math.round(d.x - w / 2), top = d.y ?? 14;
+  rect(g, x0 + 4, top - 6, 1, 6, IRON); rect(g, x0 + w - 5, top - 6, 1, 6, IRON);
+  rect(g, x0, top, w, 12, '#6b4532'); rect(g, x0, top, w, 1, '#8a5a3b'); rect(g, x0, top + 11, w, 1, '#3b2a1e');
+  // монета и склянка вместо надписи
+  rect(g, x0 + 8, top + 3, 6, 6, PAL.gold); rect(g, x0 + 10, top + 5, 2, 2, GOLD_D);
+  rect(g, x0 + w - 13, top + 4, 5, 6, '#c8384a'); rect(g, x0 + w - 12, top + 2, 3, 2, '#d8d0c0');
+}
+
 export function drawDecor(g, d, floorTop) {
   switch (d.type) {
+    case 'shelf': return shelf(g, d);
+    case 'sign': return sign(g, d);
     case 'ivy': return ivy(g, d);
     case 'banner': return banner(g, d);
     case 'window': return windowArch(g, d);

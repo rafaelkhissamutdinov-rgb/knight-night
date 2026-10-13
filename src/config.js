@@ -364,9 +364,13 @@ export const ROOMS = {
     ],
   },
   shop: {
-    name: 'Лавка Лики', length: 320, columns: false, torches: [160],
+    name: 'Лавка Лики', length: 320, columns: false, torches: [110, 306],
     doors: [{ id: 'out', x: 64, kind: 'wood', to: 'gallery', toDoor: 'shop', name: 'Галерея' }],
     npcs: [{ type: 'lika', x: 214, z: 12 }],
+    decor: [
+      { type: 'sign', x: 214, y: 12 },
+      { type: 'shelf', x: 160, y: 50, w: 56 }, { type: 'shelf', x: 268, y: 50, w: 56, rows: [['bottle', 'scroll', 'potion', 'bottle', 'potion'], ['box', 'potion', 'book', 'bottle']] },
+    ],
     props: [
       { type: 'crate', x: 252, z: 2 }, { type: 'crate', x: 264, z: 10 }, { type: 'barrel', x: 282, z: 3 },
       { type: 'barrel', x: 120, z: 2 }, { type: 'sack', x: 236, z: 4 },
