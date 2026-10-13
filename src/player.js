@@ -244,7 +244,7 @@ export class Player {
         const moving = c.fwd || c.back || c.dz;
         this.runT = !c.engaged && moving ? (this.runT ?? 0) + dt : 0;
         const run = Math.min(1, Math.max(0, (this.runT - CONFIG.runDelay) / 0.25));
-        const walk = c.engaged ? CONFIG.walkSpeed : CONFIG.exploreSpeed + (CONFIG.runSpeed - CONFIG.exploreSpeed) * run;
+        const walk = (c.engaged ? CONFIG.walkSpeed : CONFIG.exploreSpeed + (CONFIG.runSpeed - CONFIG.exploreSpeed) * run) * (this.speedMult ?? 1);  // броня мародёра — быстрее
         this.stepRate = walk / 64;  // ноги быстрее, когда идёт быстрее
         if (c.back) v = -walk * CONFIG.backWalkFactor;
         else if (c.fwd) v = walk;

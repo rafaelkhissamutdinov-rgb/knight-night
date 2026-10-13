@@ -23,6 +23,12 @@ export function resolveImpact({ height, time, defense, lastPress, prevPress, bre
   return { result: 'perfect', mult: 0 };
 }
 
+// Щит от брони принимает урон первым; жизнь уходит только на то, что щит не удержал.
+export function splitDamage(dmg, shield) {
+  const absorbed = Math.min(Math.max(0, shield), dmg);
+  return { absorbed, hp: dmg - absorbed };
+}
+
 // Высота, на которой сейчас можно достать слизня: на земле — низом, в прыжке — серединой или верхом.
 export function slimeZone(airY, inflating) {
   if (inflating) return 'any';
