@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.24';
+export const VERSION = 'v0.25';
 
 export const CONFIG = {
   width: 320,
@@ -254,7 +254,7 @@ export const ENEMY_TYPES = {
 // Неигровые персонажи: стоят на месте, E — заговорить (shop — открыть лавку).
 export const NPC_TYPES = {
   // Лика — торговка: невысокая, длинные чёрные волосы с чёлкой до глаз, оливковый плащ с высоким воротом на пуговицах
-  // (по портрету владельца assets/portraits/lika.jpg)
+  // (по портрету владельца assets/portraits/lika.png)
   lika: {
     name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true,
     colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' },
