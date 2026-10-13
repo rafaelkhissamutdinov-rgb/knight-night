@@ -13,7 +13,7 @@
 
 ## Картинки
 
-- **Алкима** — картинка до меня не дошла. Пришли файлом отдельным сообщением, без текста. Сделаю: вырежу фон, волосы — чёрные, в диалоги.
+- **Алкима** — сделано (v0.55): фон вырезан, волосы чёрные, портрет в диалогах. Посмотри, не осталось ли рыжеватых прядей у лица — если да, скажи где.
 - **Лица Лики.** В v0.32 я подогнал все настроения под оригинал: тот же кадр, плечи и пальто, размер головы, тон кожи — меняется только лицо. Но черты в нижнем ряду (надутая, серьёзная, тревожная, злая) всё равно отличаются: лицо длиннее, глаза крупнее. Чтобы было точно, перегенерируй по одному настроению с оригиналом как образцом:
 
   > Use the attached portrait as the exact reference. Same girl: same round soft face, same narrow dark grey eyes, same skin tone and freckles, same black hair with bangs, same olive coat with high buttoned collar. Same framing: head and shoulders, the head the same size and in the same place. Same pixel art style, plain light grey background. Change ONLY the facial expression to: **worried** (затем: serious, sulky pouting, angry, surprised, sly smirk, laughing). One image, square.
