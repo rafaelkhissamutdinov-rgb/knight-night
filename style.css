@@ -74,7 +74,7 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
 }
 
 .hint {
-  position: absolute; left: 50%; top: 6.5cqw; transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: 2cqw; transform: translateX(-50%);
   max-width: 92%; text-align: center;
   font-family: var(--pixel); font-size: 2cqw; color: var(--muted);
   background: rgba(13, 11, 20, 0.75); padding: 0.6cqw 1.4cqw;
