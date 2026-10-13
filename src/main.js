@@ -1702,7 +1702,7 @@ function useSkill() {
   if (!id) { callout('Навыка нет — свиток у Лики', 'muted'); return; }
   const skill = ITEMS[id];
   const p = game.player;
-  if (skill.need && p.weapon !== skill.need) { callout(`${skill.name}: нужна ${skill.need === 'rapier' ? 'рапира' : 'другое оружие'}`, 'muted'); return; }
+  if (skill.need && p.weapon !== skill.need) { callout(`${skill.name}: ${WEAPON_NEED[skill.need] ?? 'нужно другое оружие'}`, 'muted'); return; }
   if (game.time < game.skillReadyAt) { callout(`${skill.name} не готов`, 'muted'); return; }
   if (!p.ready) return;
   p.startAttack(skill.attack);
@@ -1711,11 +1711,15 @@ function useSkill() {
   callout(skill.name, 'muted');
 }
 
+const WEAPON_NEED = { rapier: 'нужна рапира', sword: 'нужен меч' };
+// есть ли оружие такого вида (sword, rapier) — в руках или в сумке
+const ownsWeapon = kind => [...game.bag, ...Object.values(game.equip)].some(id => id && ITEMS[id]?.weapon === kind);
+
 // Прочитать свиток: выучить навык (если есть нужное оружие) и сразу поставить в слот
 function readScroll(id) {
   const scroll = ITEMS[id];
   const skill = ITEMS[scroll.learn];
-  if (skill.need && !owns(skill.need)) { callout(`Непонятно без оружия: нужна ${skill.need === 'rapier' ? 'рапира' : 'другое оружие'}`, 'muted'); return false; }
+  if (skill.need && !ownsWeapon(skill.need)) { callout(`Непонятно без оружия: ${WEAPON_NEED[skill.need] ?? 'нужно другое оружие'}`, 'muted'); return false; }
   game.bag.splice(game.bag.indexOf(id), 1);
   game.bag.push(scroll.learn);
   equipItem(scroll.learn);

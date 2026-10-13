@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.49';
+export const VERSION = 'v0.50';
 
 export const CONFIG = {
   width: 320,
@@ -74,6 +74,8 @@ export const WEAPON = {
     leap:     { name: 'Прыжок с ударом',  height: 'high', pose: 'high', windup: 0.26, active: 0.1,  recover: 0.34, reach: 30, damage: 3, move: 26 },
     rollCut:  { name: 'Подсечка',         height: 'low',  pose: 'sweep', windup: 0.1, active: 0.12, recover: 0.3, reach: 32, damage: 2 },
     spin:     { name: 'Вихрь',            height: 'any',  pose: 'spin', windup: 0.1,  active: 0.6,  recover: 0.32, reach: 34, damage: 1, hits: [0.2, 0.5] },
+    // навык из «Свитка тяжёлого удара» (слот навыка, колесо вниз): рубит сверху сквозь защиту
+    cleave:   { name: 'Тяжёлый удар',     height: 'high', pose: 'high', windup: 0.3,  active: 0.1,  recover: 0.36, reach: 32, damage: 3, move: 8, pierce: true },
   },
   dash:     { distance: 28, time: 0.2, cooldown: 0.45 },
   backdash: { distance: 26, time: 0.22, total: 0.6, ward: 0.35 },  // ward — сколько держится заслон от одного удара
@@ -299,6 +301,8 @@ export const ITEMS = {
   spell_bolt: { name: 'Магическая стрела', slot: 'spell' },
   // навыки — приёмы боя на колесе (вниз); learn — изучается чтением свитка, need — нужное оружие
   skill_triple: { name: 'Тройной выпад', slot: 'skill', attack: 'tripleLunge', need: 'rapier', cooldown: 5 },
+  skill_cleave: { name: 'Тяжёлый удар', slot: 'skill', attack: 'cleave', need: 'sword', cooldown: 6 },
+  scroll_cleave: { name: 'Свиток тяжёлого удара', learn: 'skill_cleave' },
   scroll_fencing: { name: 'Старый свиток фехтования', price: 25, learn: 'skill_triple' },
   golden_skull: { name: 'Золотой череп', price: 40, artifact: true },
   silver_cup: { name: 'Серебряная чаша', artifact: true },
@@ -617,7 +621,7 @@ export const ROOMS = {
     decor: [{ type: 'bookshelf', x: 150, gap: 3 }, { type: 'bookshelf', x: 196, gap: 0 }, { type: 'chandelier', x: 240, y: 30 }],
     props: [
       { type: 'desk', x: 240, z: 10, look: 'look_reading', name: 'стол' },
-      { type: 'chest', id: 'r', x: 290, z: 3, coins: 25, item: 'potion' },
+      { type: 'chest', id: 'r', x: 290, z: 3, coins: 25, item: 'scroll_cleave' },
     ],
   },
   vestry: {
