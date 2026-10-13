@@ -315,8 +315,18 @@ function sign(g, d) {
   rect(g, x0 + w - 13, top + 4, 5, 6, '#c8384a'); rect(g, x0 + w - 12, top + 2, 3, 2, '#d8d0c0');
 }
 
+// записка на гвозде
+function note(g, d) {
+  const x0 = Math.round(d.x - 5), top = d.y ?? 52;
+  rect(g, x0, top, 10, 12, '#d8ccb0');
+  rect(g, x0 + 9, top + 1, 1, 11, '#b0a488');
+  for (let y = top + 3; y < top + 11; y += 2) rect(g, x0 + 2, y, 5 + (y % 3), 1, '#6b5a4a');
+  rect(g, x0 + 4, top - 1, 2, 2, IRON);
+}
+
 export function drawDecor(g, d, floorTop) {
   switch (d.type) {
+    case 'note': return note(g, d);
     case 'shelf': return shelf(g, d);
     case 'sign': return sign(g, d);
     case 'ivy': return ivy(g, d);
@@ -372,4 +382,47 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
   }
 }
 
-export const DECOR_LIVE = new Set(['fireplace', 'chandelier']);
+export const DECOR_LIVE = new Set(['fireplace', 'chandelier', 'cracks']);
+
+// Замурованный проход: кладка светлее соседней и в трещинах (их больше с каждым ударом);
+// после трёх ударов — пролом с грудой камней. state: { open, hits }.
+export function drawCracks(g, sx, floorTop, state, time) {
+  const w = 26, h = 38, x0 = Math.round(sx - w / 2), top = floorTop - h;
+  if (state.open) {
+    // рваный край пролома
+    const edge = [3, 1, 0, 2, 0, 1, 3, 2, 0, 1, 0, 2, 1, 3];
+    for (let y = 0; y < h; y++) {
+      const l = edge[y % edge.length], r = edge[(y + 5) % edge.length];
+      rect(g, x0 + l - 2, top + y, w - l - r + 4, 1, STONE_L);
+      rect(g, x0 + l, top + y, w - l - r, 1, '#07060c');
+    }
+    rect(g, x0 + 2, top - 3, w - 4, 3, STONE_L);
+    // груда камней у порога
+    for (const [dx, dy, s] of [[-12, -3, 4], [-7, -2, 3], [9, -3, 4], [13, -2, 3], [-2, -2, 2], [4, -1, 3]]) {
+      rect(g, sx + dx, floorTop + dy, s, s - 1, '#6a6288');
+      rect(g, sx + dx, floorTop + dy, s, 1, '#8a82a8');
+    }
+    return;
+  }
+  // кладка свежее: светлее, швы ровнее
+  for (let row = 0; row * 7 < h; row++) {
+    const off = row % 2 ? 4 : 0;
+    for (let x = -off; x < w; x += 9) {
+      const bw = Math.min(8, w - Math.max(0, x)), bx = Math.max(0, x);
+      rect(g, x0 + bx, top + row * 7, bw, 6, '#4a4462');
+      rect(g, x0 + bx, top + row * 7, bw, 1, '#5e5878');
+    }
+  }
+  // трещины: базовые и новые после каждого удара
+  const lines = [
+    [[13, 4], [11, 12], [14, 20], [12, 30]],
+    [[5, 10], [9, 16], [7, 24]],
+    [[20, 8], [17, 17], [21, 26], [18, 35]],
+    [[3, 28], [10, 31], [16, 26], [24, 30]],
+  ];
+  const n = 1 + Math.min(3, state.hits ?? 0);
+  for (const pts of lines.slice(0, n)) {
+    for (let i = 1; i < pts.length; i++) thick(g, x0 + pts[i - 1][0], top + pts[i - 1][1], x0 + pts[i][0], top + pts[i][1], 1, '#1c1828');
+  }
+  if ((state.hits ?? 0) > 0 && Math.floor(time * 4) % 6 === 0) rect(g, x0 + 12, top + 16, 1, 1, '#8a82a8');  // сыплется крошка
+}

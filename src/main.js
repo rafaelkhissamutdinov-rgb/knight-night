@@ -8,7 +8,7 @@ import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutli
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
-import { drawDecorLive, DECOR_LIVE } from './decor.js';
+import { drawDecorLive, drawCracks, DECOR_LIVE } from './decor.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
@@ -494,6 +494,7 @@ function handlePlayerEvents() {
       if (ev.atk.key === 'vaultFlick') game.stats.vault++;
     } else if (ev.type === 'strike') {
       if (ev.atk.height === 'low') dust(p.x + p.facing * 22, groundY(p.z), p.facing);
+      if (!game.arena) hitWall(ev.atk);
       playerStrike(ev.atk);
     } else if (ev.type === 'dash' || ev.type === 'roll' || ev.type === 'backdash') {
       sfx.dash();
@@ -959,7 +960,8 @@ function trainerLeave() {
 
 // дверь, у которой стоит рыцарь (у самой стены, напротив проёма)
 function doorAt(p) {
-  return (room().doors ?? []).find(d => Math.abs(d.x - p.x) < DOOR_W / 2 + 2 && p.z < 14) ?? null;
+  // needs — проход появляется только после события (например, пролом в стене)
+  return (room().doors ?? []).find(d => (!d.needs || game.flags[d.needs]) && Math.abs(d.x - p.x) < DOOR_W / 2 + 2 && p.z < 14) ?? null;
 }
 const hasItem = id => game.bag.includes(id);
 const chestFlag = pr => `chest_${game.room}_${pr.id}`;
@@ -971,7 +973,27 @@ function nearChest() {
 // декор, который можно осмотреть (look — разговор в DIALOGUES): стоять у стены напротив
 function nearLook() {
   const p = game.player;
-  return (room().decor ?? []).find(d => d.look && Math.abs(d.x - p.x) < 20 && p.z < 14) ?? null;
+  return (room().decor ?? []).find(d => d.look && !(d.secret && game.flags[d.secret]) && Math.abs(d.x - p.x) < 20 && p.z < 14) ?? null;
+}
+// удар у замурованного прохода: три удара — стена рушится
+function hitWall(atk) {
+  const p = game.player;
+  const d = (room().decor ?? []).find(d => d.type === 'cracks' && !game.flags[d.secret] && Math.abs(d.x - p.x) < 22 && p.z < 10);
+  if (!d) return;
+  game.wallHits = (game.wallHits ?? 0) + 1;
+  const y = CONFIG.floorTop - 18;
+  sparks(d.x, y, 6, ['#8a82a8', '#5e5878', '#c8c0e0'], 70);
+  sfx.block();
+  shake(1.5);
+  if (game.wallHits < 3) { callout(game.wallHits === 1 ? 'Кладка дрогнула' : 'Ещё удар!', 'muted'); return; }
+  game.flags[d.secret] = true;
+  game.wallHits = 0;
+  for (let i = 0; i < 3; i++) dust(d.x + (i - 1) * 8, CONFIG.floorTop + 2, i - 1 || 1);
+  sparks(d.x, y, 16, ['#8a82a8', '#5e5878', '#4a4462'], 110);
+  shake(4);
+  sfx.door();
+  callout('Стена рухнула — за ней проход!', 'perfect');
+  save();
 }
 function nearNpc() {
   const p = game.player;
@@ -1149,7 +1171,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearLook() ? `E — осмотреть: ${nearLook().name}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().secret ? ' · ЛКМ — ударить' : ''}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -1944,7 +1966,10 @@ function render() {
   g.drawImage(bgFor(game.room), cam, 0, W, H, 0, 0, W, H);
   drawTorches(g, cam, r.torches ?? [], game.time);
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
-  for (const d of r.decor ?? []) if (DECOR_LIVE.has(d.type)) drawDecorLive(g, d, d.x - cam, CONFIG.floorTop, game.time);
+  for (const d of r.decor ?? []) {
+    if (d.type === 'cracks') drawCracks(g, d.x - cam, CONFIG.floorTop, { open: !!game.flags[d.secret], hits: game.wallHits }, game.time);
+    else if (DECOR_LIVE.has(d.type)) drawDecorLive(g, d, d.x - cam, CONFIG.floorTop, game.time);
+  }
   const tr = game.transition;
   if (tr?.kind === 'door' && (!r.image || r.tile)) {
     // проём открывается, пока рыцарь входит и выходит
