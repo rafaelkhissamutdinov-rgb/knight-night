@@ -346,6 +346,7 @@ export const ROOMS = {
       { id: 'armory', x: 377, kind: 'wood', to: 'armory', toDoor: 'out', name: 'Оружейная' },
       { id: 'guard', x: 567, kind: 'wood', to: 'guardroom', toDoor: 'out', name: 'Караульная' },
       { id: 'barracks', x: 849, kind: 'wood', to: 'barracks', toDoor: 'out', name: 'Казарма' },
+      // финальный босс (маг) — за этой дверью; ключ будет на втором или третьем этаже
       { id: 'tower', x: 1114, kind: 'iron', to: 'tower', toDoor: 'out', name: 'Башня', key: 'key_tower', locked: 'Заперто. Нужен ключ от башни' },
     ],
     encounters: [
@@ -379,12 +380,12 @@ export const ROOMS = {
       { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'axe', dx: 80, z: 32 }] },
     ],
   },
-  // капитан стражи стережёт сундук с ключом от башни
+  // капитан стражи стережёт сундук с монетами (ключ от башни — на втором или третьем этаже, решение владельца)
   barracks: {
     name: 'Казарма', length: 480, columns: false, torches: [120, 360],
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'barracks', name: 'Галерея' }],
     props: [
-      { type: 'chest', id: 'key', x: 446, z: 3, coins: 5, item: 'key_tower' },
+      { type: 'chest', id: 'key', x: 446, z: 3, coins: 25 },
       { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 175, z: 2 }, { type: 'barrel', x: 420, z: 16 },
     ],
     encounters: [
