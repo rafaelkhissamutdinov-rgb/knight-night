@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.53';
+export const VERSION = 'v0.54';
 
 export const CONFIG = {
   width: 320,
@@ -206,7 +206,7 @@ export const ENEMY_TYPES = {
   // Щит держит верх и середину; пробивают низом, захлёстом, контратакой после идеальной серии.
   commander: {
     kind: 'melee', name: 'Скелет — командир стражи', shortName: 'Командир стражи', hp: 12, damage: 1, aggro: 160, reach: 34, speed: 46, lunge: 6, weapon: 19,
-    skull: true, plate: true, shield: true,
+    skull: true, plate: true, shield: true, noRise: true,  // стоит на краю балкона — не встаёт из костей
     windup: 0.6, comboWindup: 0.42, gap: 0.08, recover: 0.9, wait: [0.6, 1.0],
     combos: [['high', 'mid'], ['diagDown'], ['mid', 'low', 'high'], ['heavyHigh'], ['thrust', 'diagUp'], ['low', 'low', 'high']],
     guardChance: 0.5, reaction: 0.1,
@@ -683,7 +683,7 @@ export const ROOMS = {
     ],
     props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }],
     encounters: [
-      { x: 260, story: 'keyguard', before: 'keyguard_meet', enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'crossbow', dx: 170, z: 8 }] },
+      { x: 260, story: 'keyguard', before: 'keyguard_meet', noRise: true, enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'crossbow', dx: 170, z: 8 }] },
     ],
   },
   // лестница на третий этаж — со второго этажа

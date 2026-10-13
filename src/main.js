@@ -101,7 +101,7 @@ const game = {};
 
 function spawnGroup(roomId, i) {
   const enc = ROOMS[roomId].encounters[i];
-  return enc.enemies.map(d => Object.assign(createEnemy(d.type, enc.x + d.dx, Math.random, d.z), { group: i }));
+  return enc.enemies.map(d => Object.assign(createEnemy(d.type, enc.x + d.dx, Math.random, d.z), { group: i, noRise: !!(d.noRise || enc.noRise) }));
 }
 // враги комнаты: непройденные встречи и наставница, если обучение ещё впереди
 function spawnRoom(roomId) {
@@ -2532,7 +2532,7 @@ function renderEnemy(e, cam) {
   if (ex < -50 || ex > W + 50) return;
   if (e.state === 'dead' && e.kind !== 'slime') { renderDeath(e, ex); return; }
   // спящий скелет лежит грудой костей; проснулся — встаёт (фигура вытягивается вверх)
-  const riser = e.def.skull && e.kind !== 'ghost' && !e.def.noRise;
+  const riser = e.def.skull && e.kind !== 'ghost' && !e.def.noRise && !e.noRise;
   if (riser && e.state === 'dormant') { drawBonePile(ex, groundY(e.z), e.facing, e.def); return; }
   const riseK = riser && e.state === 'rise' ? Math.min(1, e.t / RISE_TIME) : 1;
   let alpha = e.kind === 'ghost' ? (0.55 + 0.15 * Math.sin(game.time * 5 + e.x)) * (e.ghost ?? 1) : 1;  // призрак полупрозрачный и мерцает
