@@ -2525,9 +2525,9 @@ function renderEnemy(e, cam) {
   const ex = e.x - cam;
   if (ex < -50 || ex > W + 50) return;
   if (e.state === 'dead' && e.kind !== 'slime') { renderDeath(e, ex); return; }
-  let alpha = 1;
+  let alpha = e.kind === 'ghost' ? (0.55 + 0.15 * Math.sin(game.time * 5 + e.x)) * (e.ghost ?? 1) : 1;  // призрак полупрозрачный и мерцает
   if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
-  if (alpha <= 0) return;
+  if (alpha <= 0.02) return;
   g.globalAlpha = alpha;
   const GROUND = groundY(e.z);
   if (CONFIG.enemyBars && e.alive && !e.def.practice && e.hp < e.def.hp) {
@@ -2544,6 +2544,7 @@ function renderEnemy(e, cam) {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
     const whirl = e.state === 'strike' && e.strike?.pose === 'whirl';
     if (whirl) disc(ex, GROUND - 27 - e.airY, 20);
+    if (e.kind === 'ghost') g.globalCompositeOperation = 'lighter';  // призрак светится, а не темнеет
     const tip = drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       breathe: (e.state === 'idle' || e.state === 'dormant') && !e.def.skull && Math.sin(game.time * 2.2 + e.x * 0.37) > 0.3 ? 1 : 0,  // живые дышат, скелеты — нет
@@ -2553,6 +2554,7 @@ function renderEnemy(e, cam) {
       wrap: e.def.wrap, veil: e.def.veil, bun: e.def.bun, ornate: e.def.ornate, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd,
     });
+    g.globalCompositeOperation = 'source-over';
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (e.def.crossbow && e.state === 'windup' && e.alive && e.t > e.windupTime * 0.35) {
       // арбалетчик целится: пунктир на высоте выстрела, к концу замаха мигает
@@ -2592,6 +2594,17 @@ function renderDeath(e, ex) {
     bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd, spear: e.def.spear,
     wrap: e.def.wrap, veil: e.def.veil, robe: e.def.robe,
   };
+  if (e.kind === 'ghost') {
+    // призрак не оставляет костей: тает, поднимаясь
+    const a = Math.max(0, 0.6 * (1 - t / 0.7));
+    if (a <= 0) return;
+    g.save();
+    g.globalAlpha = a;
+    g.globalCompositeOperation = 'lighter';
+    drawFigureOutlined(g, { ...opts, ground: GROUND - Math.round(t * 30) });
+    g.restore();
+    return;
+  }
   if (e.def.skull) {
     if (t < 0.3) {
       // оседает: фигура сплющивается к полу

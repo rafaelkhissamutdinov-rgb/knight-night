@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.51';
+export const VERSION = 'v0.52';
 
 export const CONFIG = {
   width: 320,
@@ -174,6 +174,15 @@ export const ENEMY_TYPES = {
     guardChance: 0.35, reaction: 0.14,
     colors: { ...BONE, plate: '#8e98a3', plateDark: '#5f6873', plateLight: '#c3ccd6', tabard: '#3b3550' },
   },
+  // призрачный страж (третий этаж, ближе к колдуну): после серии растворяется и проявляется рядом — сбоку или за спиной
+  ghost: {
+    kind: 'ghost', name: 'Призрачный страж', shortName: 'Призрак', hp: 4, damage: 1, aggro: 170, reach: 32, speed: 40, lunge: 4, weapon: 18,
+    skull: true, blinkChance: 0.7,
+    windup: 0.6, comboWindup: 0.42, gap: 0.1, recover: 0.6, wait: [0.6, 1.0],
+    combos: [['high', 'mid'], ['low', 'high'], ['mid', 'mid', 'high'], ['diagDown']],
+    guardChance: 0.25, reaction: 0.12,
+    colors: { ...BONE, helm: '#bfe6f2', armor: '#bfe6f2', armorDark: '#7fb0c8', boots: '#7fb0c8', tabard: '#5a3a8a', blade: '#d9f4ff', hilt: '#8fd3ff' },
+  },
   // скелет-алебардист (второй этаж): длинный охват; подсечка низом и рубящий сверху сбивают блок, между ними — уколы.
   // Читать по замаху: тяжёлые — идеальное парирование или отойти; после тяжёлого он долго выпрямляется.
   halberd: {
@@ -313,7 +322,7 @@ export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amu
 export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
-export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, halberd: 3, duelist: 10, mage: 15 };
+export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, halberd: 3, ghost: 4, duelist: 10, mage: 15 };
 
 // Мир: комнаты и переходы между ними.
 // edges — выход за край комнаты (left / right): to — комната, x — где рыцарь появится там.
@@ -660,7 +669,7 @@ export const ROOMS = {
     props: [{ type: 'bones', x: 330, z: 24 }, { type: 'crate', x: 1080, z: 2 }, { type: 'sack', x: 1094, z: 6 }],
     encounters: [
       { x: 600, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'merc', dx: 90, z: 30 }, { type: 'crossbow', dx: 180, z: 8 }] },
-      { x: 1000, enemies: [{ type: 'skelLong', dx: 60, z: 22 }, { type: 'skelShield', dx: 100, z: 36 }] },
+      { x: 1000, enemies: [{ type: 'skelLong', dx: 60, z: 22 }, { type: 'ghost', dx: 110, z: 34 }] },
     ],
   },
   // зал стражи: тяжёлый бой, за ним — сундук с ключом от башни (решение владельца: ключ — на третьем этаже)

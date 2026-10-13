@@ -644,3 +644,19 @@ test('предметы: свитки учат навыки, у навыков е
     if (it.slot === 'weapon') assert.ok(attacks[it.weapon], `${id}: неизвестное оружие ${it.weapon}`);
   }
 });
+
+test('призрак: после серии растворяется, неуязвим, проявляется у рыцаря в пределах арены', () => {
+  const e = createEnemy('ghost', 140, () => 0.1);
+  const w = world(100);
+  w.answer = () => 'block';
+  w.roomBehind = (en, dir) => dir > 0 ? 300 - en.x : en.x - 20;  // арена 20…300
+  e.awake = true;
+  run(e, w, en => en.state === 'fade', 30);
+  assert.equal(e.receiveAttack({ height: 'mid', damage: 1 }).out, 'miss', 'прозрачного не задеть');
+  assert.equal(e.solid, false);
+  run(e, w, en => en.state === 'appear');
+  assert.ok(Math.abs(e.x - w.player.x) <= ENEMY_TYPES.ghost.reach, `проявился далеко: ${e.x}`);
+  assert.ok(e.x >= 32 && e.x <= 288, 'вне арены');
+  run(e, w, en => en.state === 'idle');
+  assert.equal(e.ghost, 1);
+});
