@@ -193,6 +193,9 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 }
 .shop-menu button:hover, .shop-menu button:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
 .shop-menu button.muted { color: var(--muted); }
+/* много пунктов (темы разговора) — плотнее, чтобы влезли в окно */
+.shop-menu.dense { gap: 0.35cqw; }
+.shop-menu.dense button { padding-top: 0.45cqw; padding-bottom: 0.45cqw; font-size: 1.85cqw; }
 .shop-keys { grid-column: 1 / -1; font-family: var(--pixel); font-size: 1.6cqw; color: var(--muted); justify-self: end; }
 
 /* отчёт тестера */
