@@ -631,13 +631,22 @@ async function copyReport() {
   }
 }
 
+const SECRETS = ['secret_hall', 'cup_placed', 'secret_library'];  // замурованный проход, алтарь, стеллаж
 function finish(d = {}) {
   game.mode = 'end';
   ui.reportBtn.hidden = false;
   const s = game.stats;
+  // находки: сундуки и вещи на полу по всем комнатам, тайники, время в игре
+  const chests = Object.entries(ROOMS).flatMap(([id, r]) => (r.props ?? []).filter(pr => pr.type === 'chest' || pr.pick).map(pr => `chest_${id}_${pr.id}`));
+  const found = chests.filter(f => game.flags[f]).length;
+  const secrets = SECRETS.filter(f => game.flags[f]).length;
+  const t = Math.round(game.flags.playTime ?? 0), time = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   showOverlay(d.finishTitle ?? 'Конец первого этажа',
-    `${d.finishText ?? 'Рыцарь поднимается на второй этаж — его мы сделаем дальше.'} Идеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter} · монет: ${game.coins}`,
+    `${d.finishText ?? 'Рыцарь поднимается на второй этаж — его мы сделаем дальше.'}\nСундуки: ${found} из ${chests.length} · тайники: ${secrets} из ${SECRETS.length} · время: ${time} · монет: ${game.coins}\nИдеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter}`,
     'R — пройти заново');
+  ui.overlayText.classList.add('controls');
+  setMenu([['Пройти заново', startNew], ['Главное меню', toTitle]]);
+  hint('');
 }
 
 // ---------- лёгкий режим ----------
@@ -1418,6 +1427,7 @@ function update(dt) {
   if (game.mode !== 'play') return;
 
   game.time += dt;
+  game.flags.playTime = (game.flags.playTime ?? 0) + dt;  // время в игре — копится в сохранении
   const p = game.player;
   updateMotes(dt);
   if (game.cutscene) { updateCutscene(dt); return; }
