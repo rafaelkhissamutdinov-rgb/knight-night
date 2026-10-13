@@ -102,6 +102,15 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
 .overlay p { margin: 0; font-size: 2.3cqw; max-width: 60ch; color: var(--fg); line-height: 1.45; }
 .overlay .press { font-family: var(--pixel); color: var(--muted); animation: blink 1.2s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0.3; } }
+/* кнопки меню на заставке и в паузе */
+.menu { display: grid; gap: 0.8cqw; justify-items: center; }
+.menu:empty { display: none; }
+.menu button {
+  font-family: var(--pixel); font-size: 2.2cqw; color: var(--fg); cursor: pointer; min-width: 30cqw;
+  background: rgba(30, 26, 43, 0.92); border: 0.3cqw solid var(--line); padding: 0.6cqw 2cqw;
+}
+.menu button:hover, .menu button:focus-visible { color: var(--gold); border-color: var(--gold); outline: none; }
+.overlay p.controls { white-space: pre-line; text-align: left; font-size: 1.9cqw; line-height: 1.6; }
 /* титульный экран: картинка замка сверху, текст — у нижнего края на затемнении */
 .overlay.title {
   place-content: end center; gap: 1.2cqw; padding-bottom: 4cqw;

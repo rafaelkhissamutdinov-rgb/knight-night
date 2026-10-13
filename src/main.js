@@ -43,8 +43,9 @@ const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin', 'figure8', 'vault
 // Управление (решение владельца после бета-теста): курсор выбирает высоту, ЛКМ — удар, держать ПКМ — защита, пробел — рывок.
 const HINT_WALK = 'WASD — ходить · курсор выше / ниже рыцаря — высота · ЛКМ удар · ПКМ защита · пробел рывок';
 const HINT_FIGHT = 'курсор — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок';
-const hintFight = () => HINT_FIGHT;
-const hintWalk = () => HINT_WALK;
+// подсказки управления — только поначалу: дальше они мешают, а управление есть в меню (Esc → Управление)
+const hintFight = () => game.cleared?.size >= 3 ? '' : HINT_FIGHT;
+const hintWalk = () => game.visited?.includes('gallery') || game.flags?.done_ilia || game.cleared?.size >= 3 ? '' : HINT_WALK;
 
 const canvas = document.getElementById('game');
 canvas.width = W;
@@ -62,7 +63,7 @@ const ui = {
   overlayTitle: $('overlay-title'), overlayText: $('overlay-text'), overlayPress: $('overlay-press'),
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkFace: $('talk-face'), talkName: $('talk-name'), talkText: $('talk-text'),
   talkChoices: $('talk-choices'), talkNext: $('talk-next'),
-  reportBtn: $('report-btn'), reportText: $('report-text'),
+  reportBtn: $('report-btn'), reportText: $('report-text'), overlayMenu: $('overlay-menu'),
   journal: $('journal'), journalList: $('journal-list'), journalPage: $('journal-page'), journalFig: $('journal-fig'),
   journalName: $('journal-name'), journalHow: $('journal-how'), journalWin: $('journal-win'), journalLore: $('journal-lore'), journalKills: $('journal-kills'),
   equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'),
@@ -618,16 +619,79 @@ function finish() {
 
 function showTitle() {
   const data = loadSave();
+  game.titleConfirm = false;
   showOverlay('Knight Night',
     'Рыцарь отмечает порталы на карте мира. Очередной портал перенёс его в заброшенный замок.',
-    data ? `Клик или Enter — продолжить (${ROOMS[data.flags?.restAt?.room ?? data.room]?.name ?? 'начало'}) · N — новая игра` : 'Нажми любую клавишу');
+    data ? `Enter — продолжить (${ROOMS[data.flags?.restAt?.room ?? data.room]?.name ?? 'начало'}) · N — новая игра` : 'Нажми любую клавишу');
+  setMenu(data ? [
+    ['Продолжить', () => { unlockAudio(); startContinue(loadSave()); }],
+    ['Новая игра', askNewFromTitle],
+    ['Управление', () => showControls(showTitle)],
+  ] : [
+    ['Начать', () => { unlockAudio(); startNew(); }],
+    ['Управление', () => showControls(showTitle)],
+  ]);
   ui.overlay.classList.add('title');  // текст внизу, картинка замка видна
+}
+
+function askNewFromTitle() {
+  showOverlay('Начать заново?', 'Сохранение сотрётся: монеты, вещи, пройденные комнаты. История начнётся с камеры.', 'N — да · Esc — нет');
+  setMenu([['Да, начать заново', () => { unlockAudio(); startNew(); }], ['Нет', showTitle]]);
+  ui.overlay.classList.add('title');
+  game.titleConfirm = true;
+}
+
+// кнопки меню: [подпись, действие]; клик по кнопке не доходит до игры
+function setMenu(items) {
+  ui.overlayMenu.innerHTML = '';
+  for (const [label, go] of items) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.addEventListener('pointerdown', e => e.stopPropagation());
+    b.addEventListener('click', e => { e.stopPropagation(); go(); });
+    ui.overlayMenu.appendChild(b);
+  }
+}
+
+const CONTROLS_TEXT = [
+  'WASD — ходить вбок и вглубь (вне боя — бег)',
+  'Курсор выше рыцаря — верх, на груди — середина, ниже пояса — низ',
+  'ЛКМ — удар на этой высоте · держать ПКМ — защита',
+  'Пробел — рывок (курсор внизу — кувырок, вверху — прыжок, с «назад» — отскок)',
+  'Колесо вверх — приём оружия · колесо вниз — навык · Q — сменить оружие',
+  'E — говорить, лавка, сундук, осмотреть, отдохнуть · W у двери — войти',
+  'I — снаряжение · H — зелье · B — журнал · Esc — пауза',
+].join('\n');
+
+function showControls(back) {
+  showOverlay('Управление', CONTROLS_TEXT, 'Esc — назад');
+  ui.overlayText.classList.add('controls');  // тёмный фон: текст поверх картинки замка не читается
+  setMenu([['Назад', back]]);
+  game.controlsBack = back;
 }
 
 function showPause() {
   game.confirmNew = false;
-  showOverlay('Пауза', 'R — начать встречу заново · N — новая игра (с начала истории) · M — главное меню', 'Esc — продолжить');
+  hint('');
+  showOverlay('Пауза', '', 'Esc — продолжить');
+  setMenu([
+    ['Продолжить', resumePlay],
+    ...(game.arena ? [['Встреча заново', restartFight]] : []),
+    ['Управление', () => showControls(showPause)],
+    ['Новая игра', askNewFromPause],
+    ['Главное меню', toTitle],
+  ]);
   ui.reportBtn.hidden = false;
+}
+function resumePlay() {
+  game.mode = 'play';
+  hideOverlay();
+}
+function askNewFromPause() {
+  game.confirmNew = true;
+  showOverlay('Начать заново?', 'Сохранение сотрётся: монеты, вещи, пройденные комнаты. История начнётся с камеры.', 'N — да · Esc — нет');
+  setMenu([['Да, начать заново', startNew], ['Нет', showPause]]);
 }
 
 // в главное меню: прогресс сохранён, там «продолжить» или N — новая игра
@@ -672,6 +736,18 @@ function handlePress(code) {
   if (game.mode === 'shop') { shopPress(code); return; }
   if (game.mode === 'equip') { equipPress(code); return; }
   if (game.mode === 'journal') { journalPress(code); return; }
+  if (code === 'Escape' && game.controlsBack) {
+    // из «Управления» — назад, откуда пришли
+    const back = game.controlsBack;
+    game.controlsBack = null;
+    back();
+    return;
+  }
+  if (game.mode === 'title' && game.titleConfirm) {
+    if (code === 'KeyN') { unlockAudio(); startNew(); }
+    else if (code === 'Escape') showTitle();
+    return;
+  }
   if (code === 'Escape' || code === 'KeyP') {
     if (game.mode === 'play') {
       game.mode = 'paused';
@@ -688,10 +764,7 @@ function handlePress(code) {
     else if (code === 'KeyN') {
       // новая игра — с подтверждением: сбрасывает сохранение
       if (game.confirmNew) startNew();
-      else {
-        game.confirmNew = true;
-        showOverlay('Начать заново?', 'Сохранение сотрётся: монеты, вещи, пройденные комнаты. История начнётся с камеры.', 'N — да, начать заново · Esc — нет');
-      }
+      else askNewFromPause();
     } else if (code === 'KeyM' && !game.confirmNew) toTitle();
     return;
   }
@@ -701,9 +774,11 @@ function handlePress(code) {
     return;
   }
   if (game.mode === 'title') {
+    if (code === 'Escape') return;
     unlockAudio();
     const data = loadSave();
-    if (data && code !== 'KeyN') startContinue(data);
+    if (data && code === 'KeyN') askNewFromTitle();  // сохранение есть — сначала спросить
+    else if (data) startContinue(data);
     else startNew();
     return;
   }
@@ -2053,6 +2128,9 @@ function hint(text) {
 
 function showOverlay(title, text, press) {
   ui.overlay.classList.remove('title');
+  ui.overlayText.classList.remove('controls');
+  game.controlsBack = null;
+  setMenu([]);
   ui.overlayTitle.textContent = title;
   ui.overlayText.textContent = text;
   ui.overlayPress.textContent = press;
