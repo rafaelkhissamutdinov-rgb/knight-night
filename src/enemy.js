@@ -16,6 +16,8 @@ export function createEnemy(type, x, rng = Math.random, z = 22) {
   return e;
 }
 
+export const RISE_TIME = 0.6;  // скелет встаёт из костей
+
 class Enemy {
   constructor(type, x, rng) {
     this.type = type;
@@ -88,6 +90,15 @@ class Enemy {
 
   // моя очередь бить? (бьёт один враг, остальные ждут)
   myTurn(w) { return w.requestToken ? w.requestToken(this) : true; }
+
+  // проснуться: скелеты сперва встают из груды костей (rise), потом — next ('approach' или 'rest')
+  wake(next) {
+    if (this.def.skull && this.kind !== 'ghost' && !this.def.noRise) {
+      this.afterRise = next;
+      this.enter('rise');
+    } else if (next === 'rest') this.rest();
+    else this.enter(next);
+  }
 
   rest(scale = 1) {
     const [a, b] = this.def.wait;
@@ -188,6 +199,14 @@ class Enemy {
         this.pose = approachPose(this.pose, POSES.idle, dt, 12);
         if (this.t >= this.def.recover) this.rest(0.5);
         return true;
+      case 'rise':
+        this.pose = approachPose(this.pose, this.restPose(), dt, 20);
+        if (this.t >= RISE_TIME) {
+          const next = this.afterRise;
+          this.afterRise = null;
+          if (next === 'rest') this.rest(); else this.enter(next ?? 'approach');
+        }
+        return true;
       case 'stagger':
         this.pose = approachPose(this.pose, POSES.stagger, dt, 25);
         if (this.t >= CONFIG.counterWindow) this.rest(0.5);
@@ -218,7 +237,7 @@ class Melee extends Enemy {
         this.pose = approachPose(this.pose, this.restPose(), dt, 20);
         if (this.awake || (this.group === undefined && dist < d.aggro)) {
           w.engage(this);
-          this.enter('approach');
+          this.wake('approach');
         }
         break;
 
@@ -325,7 +344,7 @@ class Archer extends Enemy {
         this.pose = approachPose(this.pose, POSES.aim_mid, dt, 20);
         if (this.awake || (this.group === undefined && dist < d.aggro)) {
           w.engage(this);
-          this.rest();
+          this.wake('rest');
         }
         break;
 
