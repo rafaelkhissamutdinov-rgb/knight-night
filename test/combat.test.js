@@ -629,3 +629,18 @@ test('сюжетные бои помечены story и не повторяют�
   }
   assert.deepEqual(story.sort(), ['ataman', 'commander', 'ilia', 'keyguard']);
 });
+
+test('предметы: свитки учат навыки, у навыков есть удар нужного оружия, у всех вещей есть описание', async () => {
+  const { ITEMS } = await import('../src/config.js');
+  const { ITEM_TEXTS } = await import('../src/story/dialogues.js');
+  const attacks = { sword: WEAPON.attacks, rapier: RAPIER.attacks };
+  for (const [id, it] of Object.entries(ITEMS)) {
+    assert.ok(ITEM_TEXTS[id], `нет описания у ${id}`);
+    if (it.learn) assert.equal(ITEMS[it.learn]?.slot, 'skill', `${id} учит не навык`);
+    if (it.slot === 'skill' && it.attack) {
+      assert.ok(it.need, `навык ${id} без нужного оружия`);
+      assert.ok(attacks[it.need]?.[it.attack], `у ${it.need} нет удара ${it.attack} (навык ${id})`);
+    }
+    if (it.slot === 'weapon') assert.ok(attacks[it.weapon], `${id}: неизвестное оружие ${it.weapon}`);
+  }
+});
