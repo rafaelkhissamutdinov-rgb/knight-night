@@ -48,6 +48,9 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
 .hearts { display: flex; gap: 0.8cqw; }
 .hearts i { width: 2.2cqw; height: 2.2cqw; background: #2d2838; display: block; clip-path: polygon(0 25%, 25% 0, 50% 25%, 75% 0, 100% 25%, 100% 50%, 50% 100%, 0 50%); }
 .hearts i.on { background: var(--red); }
+.hearts.low i.on { animation: low-hp 0.7s steps(2) infinite; }
+@keyframes low-hp { 50% { background: #ffb3b8; } }
+@media (prefers-reduced-motion: reduce) { .hearts.low i.on { animation: none; outline: 0.2cqw solid #ffb3b8; } }
 .foe { display: grid; gap: 0.6cqw; justify-items: end; font-size: 2.2cqw; color: var(--fg); }
 .foe .bar { width: 22cqw; height: 1.4cqw; background: #2d2838; }
 .foe .bar i { display: block; height: 100%; background: var(--red); transition: width 0.15s; }

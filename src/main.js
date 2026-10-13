@@ -1131,6 +1131,8 @@ function updateAmbience(dt) {
   const fire = (r.decor ?? []).find(d => d.type === 'fireplace');
   const fireNear = fire ? Math.max(0, 1 - Math.abs(fire.x - p.x) / 220) : 0;
   if (game.ambT > 0) return;
+  const rumble = (r.doors ?? []).find(d => d.rumble && Math.abs(d.x - p.x) < 110);
+  if (rumble && ambientOn && Math.random() < 0.5) { sfx.thud(); shake(0.6); game.ambT = 2.5 + Math.random() * 3; return; }
   if (fireNear > 0.05) { crackle(fireNear); game.ambT = 0.08 + Math.random() * 0.35; return; }
   if (windLevel) { setWind(windLevel * (0.7 + Math.random() * 0.6), Math.random()); game.ambT = 1.5 + Math.random() * 2; return; }
   if (r.dark || game.room === 'hall' || game.room === 'secret') { drip(); game.ambT = 2 + Math.random() * 4; return; }
@@ -2284,6 +2286,7 @@ function renderHearts() {
   const p = game.player;
   ui.hearts.innerHTML = Array.from({ length: CONFIG.playerHp }, (_, i) =>
     `<i class="${i < p.hp ? 'on' : ''}"></i>`).join('');
+  ui.hearts.classList.toggle('low', p.hp > 0 && p.hp <= 2);  // мало здоровья — сердца мигают
 }
 
 function renderFoe() {
@@ -2393,10 +2396,12 @@ function render() {
   if (r.cobwebs) {
     drawCobweb(g, -cam, 0, 1, 1, 34);
     drawCobweb(g, r.length - cam, 0, -1, 1, 26);
-    // свисающая цепь на переднем плане — тёмный силуэт
-    for (let y = 0; y < 52; y += 3) rect(g, 286 - cam + (y % 6 ? 0 : 1), y, 2, 2, '#07060c');
-    rect(g, -cam, H - 6, 60, 6, '#07060c');
-    rect(g, 8 - cam, H - 9, 26, 3, '#07060c');
+    if (r.dark) {
+      // свисающая цепь и камни на переднем плане — тёмный силуэт (только в тёмной камере)
+      for (let y = 0; y < 52; y += 3) rect(g, 286 - cam + (y % 6 ? 0 : 1), y, 2, 2, '#07060c');
+      rect(g, -cam, H - 6, 60, 6, '#07060c');
+      rect(g, 8 - cam, H - 9, 26, 3, '#07060c');
+    }
   }
 
   g.setTransform(1, 0, 0, 1, 0, 0);

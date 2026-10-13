@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.40';
+export const VERSION = 'v0.41';
 
 export const CONFIG = {
   width: 320,
@@ -538,7 +538,8 @@ export const ROOMS = {
     doors: [
       { id: 'library', x: 380, kind: 'wood', to: 'library', toDoor: 'out', name: 'Библиотека' },
       { id: 'chapel', x: 760, kind: 'wood', to: 'chapel', toDoor: 'out', name: 'Часовня' },
-      { id: 'royal', x: 1140, kind: 'iron', name: 'Покои', locked: 'Тяжёлая дверь заперта изнутри' },
+      // кто за дверью — решит владелец (босс этажа или ключ); пока — глухие удары изнутри
+      { id: 'royal', x: 1140, kind: 'iron', name: 'Покои', locked: 'Заперто изнутри. За дверью что-то скребётся', rumble: true },
     ],
     decor: [
       { type: 'window', x: 260, w: 26, h: 44, y: 18 },
