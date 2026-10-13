@@ -10,7 +10,7 @@ import { slimeZone } from './combat.js';
 
 export function createEnemy(type, x, rng = Math.random, z = 22) {
   const kind = ENEMY_TYPES[type].kind;
-  const Cls = kind === 'slime' ? Slime : kind === 'archer' ? Archer : kind === 'duelist' ? Duelist : kind === 'trainer' ? Trainer : Melee;
+  const Cls = kind === 'slime' ? Slime : kind === 'archer' ? Archer : kind === 'duelist' ? Duelist : kind === 'trainer' ? Trainer : kind === 'ghost' ? Ghost : Melee;
   const e = new Cls(type, x, rng);
   e.z = e.homeZ = z;
   return e;
@@ -560,6 +560,53 @@ class Slime extends Enemy {
 
 // Мини-босс с рапирой. Самый богатый набор ударов, отпрыгивает и врывается, меняет скорость шага.
 // Побеждённый не умирает: встаёт на колено, смотрит вверх и убегает — он ещё появится.
+// Призрачный страж: после своей серии растворяется (неуязвим), проявляется рядом с рыцарем — сбоку или за спиной.
+// ghost — непрозрачность для отрисовки (0…1).
+class Ghost extends Melee {
+  constructor(type, x, rng) {
+    super(type, x, rng);
+    this.ghost = 1;
+  }
+
+  get solid() { return this.alive && this.state !== 'fade' && this.state !== 'appear'; }
+
+  receiveAttack(atk) {
+    if (this.state === 'fade' || (this.state === 'appear' && this.t < 0.25)) return { out: 'miss' };  // удар проходит сквозь
+    return super.receiveAttack(atk);
+  }
+
+  update(dt, w) {
+    if (this.state === 'fade') {
+      this.baseUpdate(dt);
+      this.ghost = Math.max(0, 1 - this.t / 0.5);
+      if (this.t >= 0.5) {
+        // где проявиться: у рыцаря с одной из сторон, в пределах арены
+        const lo = this.x - (w.roomBehind?.(this, -1) ?? 999), hi = this.x + (w.roomBehind?.(this, 1) ?? 999);
+        const side = this.rng() < 0.5 ? -1 : 1;
+        let x = w.player.x + side * (this.def.reach - 6);
+        if (x < lo + 12 || x > hi - 12) x = w.player.x - side * (this.def.reach - 6);
+        this.x = Math.max(lo + 12, Math.min(hi - 12, x));
+        this.z = w.player.z;
+        this.faceTo(w);
+        this.enter('appear');
+      }
+      return;
+    }
+    if (this.state === 'appear') {
+      this.baseUpdate(dt);
+      this.ghost = Math.min(1, this.t / 0.35);
+      if (this.t >= 0.35) { this.ghost = 1; this.rest(0.35); }
+      return;
+    }
+    // серия кончилась — может раствориться вместо обычной передышки
+    if (this.state === 'recover' && this.alive && this.t + dt >= this.def.recover && this.rng() < (this.def.blinkChance ?? 0.6)) {
+      this.enter('fade');
+      return;
+    }
+    super.update(dt, w);
+  }
+}
+
 class Duelist extends Melee {
   get solid() { return this.alive && this.airY < 6; }
 
