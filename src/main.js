@@ -1842,7 +1842,7 @@ function nextShopLine() {
   const line = sh.queue.shift();
   if (!line) return;
   const text = typeof line === 'string' ? line : line.text;
-  if (line.knight) shopSay(`Найт: ${text}`, sh.mood);
+  if (line.knight) shopSay(`Найт: ${text}`, line.mood);  // Лика слушает с обычным лицом
   else shopSay(text, line.mood);
   renderShop();
 }
@@ -1883,7 +1883,8 @@ function shopOptions() {
   if (sh.view === 'talk') {
     // идёт разговор по теме — только «Дальше», пока не кончатся реплики
     if (sh.queue?.length) return [{ label: 'Дальше ▸', go: nextShopLine }];
-    return [...d.talk.map(t => ({ label: t.topic, go: () => { sh.queue = t.lines.slice(); nextShopLine(); } })), back];
+    // need — тема появляется после события (флаг), например после боя с Илиа
+    return [...d.talk.filter(t => !t.need || game.flags[t.need]).map(t => ({ label: t.topic, go: () => { sh.queue = t.lines.slice(); nextShopLine(); } })), back];
   }
   return [
     { label: 'Купить', go: () => shopView('buy') },
