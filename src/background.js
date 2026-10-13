@@ -102,6 +102,17 @@ export function buildRoom(room, height, floorTop) {
 // Дверь в задней стене: деревянная, решётчатая (камера) или железная.
 export function drawDoor(g, d, floorTop) {
   if (d.kind === 'none') return;  // проход без двери (например, у подножия лестницы)
+  if (d.kind === 'hole') {
+    // пролом в стене: рваный край, за ним темнота
+    const x0 = Math.round(d.x - 13), top = floorTop - 38;
+    const edge = [3, 1, 0, 2, 0, 1, 3, 2, 0, 1, 0, 2, 1, 3];
+    for (let y = 0; y < 38; y++) {
+      const l = edge[y % edge.length], r = edge[(y + 5) % edge.length];
+      rect(g, x0 + l - 2, top + y, 26 - l - r + 4, 1, '#5a5276');
+      rect(g, x0 + l, top + y, 26 - l - r, 1, '#07060c');
+    }
+    return;
+  }
   const x0 = Math.round(d.x - DOOR_W / 2), top = floorTop - DOOR_H;
   // каменный проём с аркой
   rect(g, x0 - 3, top - 2, DOOR_W + 6, DOOR_H + 2, PAL.wallDark);

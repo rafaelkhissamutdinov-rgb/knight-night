@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.28';
+export const VERSION = 'v0.29';
 
 export const CONFIG = {
   width: 320,
@@ -327,6 +327,7 @@ export const ROOMS = {
       { id: 'cellA', x: 470, kind: 'bars', locked: 'Пустая камера' },
       { id: 'cellB', x: 870, kind: 'bars', locked: 'Пустая камера', bones: true },
       { id: 'cellC', x: 1560, kind: 'bars', locked: 'Пустая камера' },
+      { id: 'secret', x: 1460, kind: 'none', needs: 'secret_hall', to: 'secret', toDoor: 'out', name: 'Тайник' },
     ],
     trainer: { x: 300, z: 22 },
     props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 }],
@@ -334,6 +335,8 @@ export const ROOMS = {
       { type: 'chains', x: 700, y: 46 }, { type: 'chains', x: 1150, y: 46 }, { type: 'chains', x: 1680, y: 46 },
       { type: 'tally', x: 1265, y: 50, n: 37, look: 'look_tally', name: 'зарубки на стене' },
       { type: 'chains', x: 2180, y: 46 },
+      // замурованный проход в тайник: осмотреть (E), три удара — пролом
+      { type: 'cracks', x: 1460, secret: 'secret_hall', look: 'look_cracks', name: 'трещины в кладке' },
     ],
     encounters: [
       { x: 660, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
@@ -341,6 +344,20 @@ export const ROOMS = {
       { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
       { x: 1740, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
       { x: 2100, story: 'ilia', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
+    ],
+  },
+  // тайник за замурованной стеной Темницы: кто-то спрятался здесь со всем, что успел вынести
+  secret: {
+    name: 'Тайник', length: 320, columns: false, torches: [200], cobwebs: true,
+    doors: [{ id: 'out', x: 60, kind: 'hole', to: 'hall', toDoor: 'secret', name: 'Темница' }],
+    props: [
+      { type: 'chest', id: 's', x: 262, z: 3, coins: 15, item: 'potion' },
+      { type: 'bones', x: 150, z: 8 }, { type: 'barrel', x: 290, z: 2 }, { type: 'sack', x: 120, z: 3 },
+    ],
+    decor: [
+      { type: 'tally', x: 140, y: 40, n: 37 },
+      { type: 'note', x: 170, y: 56, look: 'look_note', name: 'записка' },
+      { type: 'chains', x: 230, y: 44 },
     ],
   },
   // верхняя галерея с окнами на горы; отсюда — все комнаты и башня. Фон кодом: на картинке владельца
