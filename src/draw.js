@@ -182,7 +182,7 @@ export function drawFigure(g, o) {
   const headX = shX - 3 + f;
   const headY = shY - 9;
   if (bun) {
-    // Алкима: светло-русые волосы до подбородка, чёлка набок, пучок на макушке, серьга
+    // Алкима: чёрные волосы до подбородка, чёлка набок, пучок на макушке, серьга
     rect(g, f > 0 ? headX - 1 : headX + 5, headY, 3, 8, colors.hair);
     rect(g, headX, headY, 7, 7, colors.helm);
     rect(g, headX - 1, headY - 1, 9, 3, colors.hair);

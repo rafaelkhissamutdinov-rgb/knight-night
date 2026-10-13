@@ -231,8 +231,8 @@ export const ENEMY_TYPES = {
     combos: [['mid']],
     guardChance: 0, reaction: 0.1,
     robe: true, bun: true, ornate: true, curved: true, slim: true,
-    // по портрету владельца: светло-русые волосы с пучком, открытое лицо, бирюзовое восточное платье с золотым и красным узором
-    colors: { armor: '#2f6a80', armorDark: '#1f4a5c', tabard: '#c9a24a', robe: '#2c5d72', robeDark: '#1c3d4e', belt: '#8a3a2a', helm: '#f0c8b0', visor: '#3a2418', hair: '#9a7650', hairLight: '#c49a6a', lips: '#c06a6a', blade: '#e6edf3', hilt: '#e0b04a', boots: '#5a3a22' },
+    // по портрету владельца: чёрные волосы с пучком, открытое лицо, бирюзовое восточное платье с золотым и красным узором
+    colors: { armor: '#2f6a80', armorDark: '#1f4a5c', tabard: '#c9a24a', robe: '#2c5d72', robeDark: '#1c3d4e', belt: '#8a3a2a', helm: '#f0c8b0', visor: '#3a2418', hair: '#1c1820', hairLight: '#4a4050', lips: '#c06a6a', blade: '#e6edf3', hilt: '#e0b04a', boots: '#5a3a22' },
   },
   // из первого прототипа, пока не на уровне
   guard: {
