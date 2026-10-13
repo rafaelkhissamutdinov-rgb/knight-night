@@ -154,11 +154,12 @@ export class Player {
   }
 
   // Рапира: прыжок через врага (на targetX) и захлёст сзади. false — ещё перезаряжается.
-  requestVault(targetX) {
+  requestVault(targetX, turn = true) {
     if (this.weapon !== 'rapier' || this.clock < this.vaultReadyAt || this.state !== 'ready') return false;
     this.startAttack('vaultFlick');
     this.atk.from = this.x;
     this.atk.to = targetX + this.facing * 22;
+    this.atk.turn = turn;
     this.vaultReadyAt = this.clock + this.arms.vaultCooldown;
     return true;
   }
@@ -271,7 +272,7 @@ export class Player {
           } else if (!a.turned) {
             a.turned = true;
             this.airY = 0;
-            this.facing = -this.facing;
+            if (a.turn) this.facing = -this.facing;
           }
         }
         if (t < a.windup) {

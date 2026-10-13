@@ -477,6 +477,13 @@ test('рапира: прыжок через врага — приземляет�
   assert.equal(s.requestVault(40), false, 'с мечом прыжка нет');
 });
 
+test('рапира: прыжок без цели — без разворота, бьёт вперёд', () => {
+  const p = new Player(0, 'rapier');
+  assert.ok(p.requestVault(44, false));
+  for (let t = 0; t < 1.5; t += 1 / 60) p.update(1 / 60, idle);
+  assert.equal(p.facing, 1);
+});
+
 test('захлёст и рипост рапиры проходят сквозь защиту врага', () => {
   for (const atk of [RAPIER.attacks.overhead, RAPIER.attacks.riposte]) {
     const e = createEnemy('skelShield', 100);
