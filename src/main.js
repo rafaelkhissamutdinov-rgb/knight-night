@@ -9,6 +9,7 @@ import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, DECOR_LIVE } from './decor.js';
+import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
@@ -609,6 +610,7 @@ function showTitle() {
   showOverlay('Knight Night',
     'Рыцарь отмечает порталы на карте мира. Очередной портал перенёс его в заброшенный замок.',
     data ? `Клик или Enter — продолжить (${ROOMS[data.room]?.name ?? 'начало'}) · N — новая игра` : 'Нажми любую клавишу');
+  ui.overlay.classList.add('title');  // текст внизу, картинка замка видна
 }
 
 function showPause() {
@@ -1927,6 +1929,7 @@ function hint(text) {
 }
 
 function showOverlay(title, text, press) {
+  ui.overlay.classList.remove('title');
   ui.overlayTitle.textContent = title;
   ui.overlayText.textContent = text;
   ui.overlayPress.textContent = press;
@@ -1961,6 +1964,12 @@ function render() {
   g.fillStyle = PAL.bg;
   g.fillRect(-4, -4, W + 8, H + 8);
 
+  if (game.mode === 'title') {
+    // титульный экран: замок на горе под луной
+    drawTitle(g, performance.now() / 1000);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    return;
+  }
   const r = room();
   const cam = Math.round(game.camX);
   g.drawImage(bgFor(game.room), cam, 0, W, H, 0, 0, W, H);

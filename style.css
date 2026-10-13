@@ -102,6 +102,13 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
 .overlay p { margin: 0; font-size: 2.3cqw; max-width: 60ch; color: var(--fg); line-height: 1.45; }
 .overlay .press { font-family: var(--pixel); color: var(--muted); animation: blink 1.2s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0.3; } }
+/* титульный экран: картинка замка сверху, текст — у нижнего края на затемнении */
+.overlay.title {
+  place-content: end center; gap: 1.2cqw; padding-bottom: 4cqw;
+  background: linear-gradient(to bottom, rgba(13, 11, 20, 0) 45%, rgba(13, 11, 20, 0.88) 85%);
+}
+.overlay.title h1 { font-size: 7cqw; text-shadow: 0 0.4cqw 0 #000; }
+.overlay.title p { font-size: 2cqw; }
 @media (prefers-reduced-motion: reduce) {
   .overlay .press { animation: none; }
 }
@@ -202,3 +209,5 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 .journal-text b { color: var(--gold); font-weight: 500; }
 .journal-text .journal-lore { color: var(--muted); font-style: italic; }
 .shop-menu button.sel { border-color: var(--gold); color: var(--gold); }
+/* на титульном экране HUD не нужен */
+#game-box:has(.overlay.title:not([hidden])) .hud { visibility: hidden; }
