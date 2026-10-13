@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.41';
+export const VERSION = 'v0.42';
 
 export const CONFIG = {
   width: 320,
@@ -325,6 +325,7 @@ export const MAP = {
   cell: [1, 2, 14, 3], hall: [1, 5, 14, 19], secret: [1, 16.2, 17, 2.6],
   gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], balcony: [1, 44.5, 9, 3.2],
   shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4],
+  landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8],
   landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
   library: [2, 12.6, 5, 4.2], reading: [2, 14.4, 2, 2.4], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
 };
@@ -621,13 +622,56 @@ export const ROOMS = {
     ],
     decor: [{ type: 'shelf', x: 150, y: 50, w: 50, rows: [['bottle', 'scroll', 'bottle', 'book'], ['box', 'bottle', 'scroll']] }],
   },
-  // лестница на третий этаж — пока конец демо
+  // ---------- третий этаж (по плану владельца: ключ от башни, выше — завал, пролом в полу — вниз к башне) ----------
+  landing3: {
+    name: 'Верхний этаж', floor: 3, length: 360, columns: false, torches: [150, 300], stairs: 'up', stairsX: 0, cobwebs: true,
+    doors: [{ id: 'down', x: 60, kind: 'none', to: 'stairs3', toDoor: 'up3', name: 'Лестница вниз' }],
+    edges: { right: { to: 'hall3', x: 30, name: 'Северное крыло' } },
+    decor: [{ type: 'window', x: 230, w: 24, h: 40, y: 22 }],
+    encounters: [{ x: 230, enemies: [{ type: 'halberd', dx: 60, z: 18 }, { type: 'skelArcher', dx: 110, z: 34 }] }],
+  },
+  // выбитые окна, дырявый потолок; пролом в полу — спрыгнуть к двери башни; в конце лестница наверх завалена
+  hall3: {
+    name: 'Северное крыло', floor: 3, length: 1300, torches: [150, 360, 560, 980, 1160],
+    stairs: 'up', stairsX: 1190,
+    edges: { left: { to: 'landing3', x: 330, name: 'Верхний этаж' } },
+    doors: [
+      { id: 'guardhall', x: 420, kind: 'wood', to: 'guardhall', toDoor: 'out', name: 'Зал стражи' },
+      { id: 'pit', x: 780, kind: 'none', to: 'gallery', toDoor: 'tower', oneWay: true, fall: true, name: 'спрыгнуть в пролом (вниз, к башне)' },
+      { id: 'rubble', x: 1240, kind: 'none', name: 'Лестница наверх', locked: 'Лестница наверх завалена — не пройти' },
+    ],
+    decor: [
+      { type: 'window', x: 260, w: 26, h: 44, y: 18 }, { type: 'window', x: 660, w: 26, h: 44, y: 18, moon: true },
+      { type: 'pit', x: 780 }, { type: 'rubble', x: 1268 },
+      { type: 'banner', x: 520, y: 10, torn: true }, { type: 'banner', x: 900, y: 10, torn: true },
+      { type: 'ivy', x: 640, y: 0, len: 60, w: 14, n: 3 },
+    ],
+    props: [{ type: 'bones', x: 330, z: 24 }, { type: 'crate', x: 1080, z: 2 }, { type: 'sack', x: 1094, z: 6 }],
+    encounters: [
+      { x: 600, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'merc', dx: 90, z: 30 }, { type: 'crossbow', dx: 180, z: 8 }] },
+      { x: 1000, enemies: [{ type: 'skelLong', dx: 60, z: 22 }, { type: 'skelShield', dx: 100, z: 36 }] },
+    ],
+  },
+  // зал стражи: тяжёлый бой, за ним — сундук с ключом от башни (решение владельца: ключ — на третьем этаже)
+  guardhall: {
+    name: 'Зал стражи', floor: 3, length: 480, columns: false, torches: [120, 360],
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall3', toDoor: 'guardhall', name: 'Северное крыло' }],
+    decor: [
+      { type: 'shield', x: 180, y: 40 }, { type: 'shield', x: 300, y: 40 },
+      { type: 'armor', x: 240 }, { type: 'banner', x: 140, y: 10 }, { type: 'banner', x: 340, y: 10 },
+      { type: 'rack', x: 420, items: ['spear', 'sword', 'spear'] },
+    ],
+    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }],
+    encounters: [
+      { x: 260, story: 'keyguard', before: 'keyguard_meet', enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'crossbow', dx: 170, z: 8 }] },
+    ],
+  },
+  // лестница на третий этаж — со второго этажа
   stairs3: {
     name: 'Лестница на третий этаж', floor: 2, length: 320, columns: false, torches: [90], stairs: 'up', stairsX: 200, cobwebs: true,
     edges: { left: { to: 'hall2', x: 1470, name: 'Жилое крыло' } },
     doors: [
-      { id: 'up3', x: 220, kind: 'none', name: 'Лестница на третий этаж', finish: true,
-        finishTitle: 'Конец второго этажа (черновик)', finishText: 'Найт поднимается на третий этаж — его сделаем дальше.' },
+      { id: 'up3', x: 220, kind: 'none', to: 'landing3', toDoor: 'down', name: 'Лестница на третий этаж' },
     ],
     props: [{ type: 'bones', x: 120, z: 20 }, { type: 'crate', x: 60, z: 3 }],
   },
@@ -635,11 +679,13 @@ export const ROOMS = {
     name: 'Лестница башни', length: 320, columns: false, torches: [100, 230], stairs: 'up',
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
-      { id: 'up', x: 272, kind: 'wood', to: 'mage', toDoor: 'in', name: 'Вершина башни' },
+      // за дверью — маг (финальный босс, решение владельца: пока не делаем) — здесь конец главы 1
+      { id: 'up', x: 272, kind: 'wood', name: 'Вершина башни', finish: true,
+        finishTitle: 'Конец главы 1 (черновик)', finishText: 'За дверью — вершина башни и скелет-колдун. Его сделаем дальше.' },
     ],
   },
   mage: {
     name: 'Вершина башни', length: 480, columns: false, torches: [100, 240, 380], magic: true,
-    doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни' }],
+    doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни', oneWay: true }],  // маг — потом; сюда пока не попасть
   },
 };

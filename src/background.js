@@ -85,11 +85,11 @@ export function buildRoom(room, height, floorTop) {
   g.fillRect(0, wallBottom - 6, length, 6);
   g.fillStyle = PAL.wallDark;
   g.fillRect(0, wallBottom - 3, length, 3);  // плинтус
-  for (const d of room.decor ?? []) drawDecor(g, d, floorTop);
   for (const d of doors) drawDoor(g, d, floorTop);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
   if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop);
   if (room.balcony) drawBalcony(g, length, height, floorTop, rand);
+  for (const d of room.decor ?? []) drawDecor(g, d, floorTop);  // поверх лестниц и дверей (завал на лестнице)
   if (room.magic) {
     // вершина башни: стены в лиловом отсвете, на стене знаки
     g.fillStyle = 'rgba(120,60,170,0.18)';

@@ -557,6 +557,7 @@ test('комнаты: двери ведут друг к другу, края и 
   for (const [id, r] of Object.entries(ROOMS)) {
     for (const d of r.doors ?? []) {
       if (d.finish || (d.locked && !d.key && !d.requires && !d.needs)) continue;  // глухие запертые двери и выход-финиш
+      if (d.oneWay) { assert.ok(ROOMS[d.to]?.doors?.find(x => x.id === d.toDoor), `${id}:${d.id} → ${d.to}:${d.toDoor}`); continue; }  // пролом — только вниз
       const back = ROOMS[d.to]?.doors?.find(x => x.id === d.toDoor);
       assert.ok(back, `${id}:${d.id} → ${d.to}:${d.toDoor}`);
       assert.equal(back.to, id, `обратная дверь ${d.to}:${back.id} ведёт в ${id}`);
@@ -626,5 +627,5 @@ test('сюжетные бои помечены story и не повторяют�
     if (enc.enemies.some(e => ['duelist', 'captain', 'commander'].includes(e.type))) assert.ok(enc.story, `нет story у встречи с ${enc.enemies.map(e => e.type)}`);
     if (enc.story) story.push(enc.story);
   }
-  assert.deepEqual(story.sort(), ['ataman', 'commander', 'ilia']);
+  assert.deepEqual(story.sort(), ['ataman', 'commander', 'ilia', 'keyguard']);
 });

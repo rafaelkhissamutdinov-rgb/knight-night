@@ -185,6 +185,7 @@ function newGame() {
     tutorial: null,
     cutscene: null,
     rest: null,
+    fallY: 0,
     transition: null,
     view: 'side',
     viewPrev: 'side',
@@ -1227,6 +1228,7 @@ function updateDoors(dt) {
     return;
   }
   if (d.finish) { finish(d); return; }
+  if (d.fall) { game.transition = { kind: 'fall', door: d, phase: 'drop', t: 0 }; sfx.dash(); return; }
   game.transition = { kind: 'door', door: d, phase: 'turn', t: 0, x0: p.x, z0: p.z };
   sfx.door();
 }
@@ -1248,6 +1250,31 @@ function updateTransition(dt) {
   const tr = game.transition;
   const p = game.player;
   tr.t += dt;
+  if (tr.kind === 'fall') {
+    // прыжок в пролом: падает вниз за край экрана, темнота, падает сверху в другой комнате, пыль
+    if (tr.phase === 'drop') {
+      game.fallY = 300 * tr.t * tr.t;
+      if (tr.t >= 0.45) {
+        const to = ROOMS[tr.door.to];
+        const out = to.doors.find(x => x.id === tr.door.toDoor);
+        loadRoom(tr.door.to, { x: out.x + 24, z: 8 });
+        callout(`${to.name} — внизу`, 'muted');
+        tr.phase = 'land';
+        tr.t = 0;
+      }
+    } else {
+      game.fallY = -160 * (1 - Math.min(1, tr.t / 0.3)) ** 2;
+      if (tr.t >= 0.3) {
+        game.fallY = 0;
+        game.transition = null;
+        shake(4);
+        sfx.heavy();
+        dust(p.x - 6, groundY(p.z), -1); dust(p.x + 6, groundY(p.z), 1);
+        save();
+      }
+    }
+    return;
+  }
   if (tr.kind === 'edge') {
     const v = Math.max(CONFIG.exploreSpeed, p.speedNow ?? 0);
     p.x += tr.dir * v * dt;
@@ -1375,7 +1402,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -1757,8 +1784,8 @@ function openMap() {
 }
 function mapPress(code) {
   if (code === 'KeyM' || code === 'Escape' || code === 'Enter') { game.mode = 'play'; ui.box.classList.remove('mapping'); return; }
-  if (code === 'KeyA' || code === 'ArrowLeft') game.mapFloor = 1;
-  if (code === 'KeyD' || code === 'ArrowRight') game.mapFloor = 2;
+  if (code === 'KeyA' || code === 'ArrowLeft') game.mapFloor = Math.max(1, game.mapFloor - 1);
+  if (code === 'KeyD' || code === 'ArrowRight') game.mapFloor = Math.min(3, game.mapFloor + 1);
 }
 function renderMap() {
   const f = game.mapFloor, U = 6, X0 = 14, Y0 = 26;
@@ -2571,7 +2598,7 @@ function renderPlayer(cam) {
   const p = game.player;
   if (p.state === 'swallowed') return;
   const px = p.x - cam;
-  const GROUND = groundY(p.z);
+  const GROUND = groundY(p.z) + Math.round(game.fallY ?? 0);  // падение сквозь пролом
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   if (p.state === 'roll') {
     // кувырок: сгруппированный рыцарь делает полный оборот
