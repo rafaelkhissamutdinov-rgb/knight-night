@@ -262,8 +262,8 @@ const world = {
     return dir > 0 ? hi - e.x : e.x - lo;
   },
   dropWeapon(e, kind) {
-    game.pickups.push({ kind, room: game.room, x: e.x - e.facing * 10, z: e.z, t: 0 });
     callout('Рапира выбита!', 'counter');
+    if (owns(kind) || game.pickups.some(it => it.kind === kind)) return;  // рапира уже есть — второй не будет
   },
   // бьёт один враг, остальные ждут своей очереди
   requestToken(e) {
@@ -314,7 +314,10 @@ const world = {
       game.arrows.push({ who: e.def.name, x, y: y0, z: e.z, vz: (pz - e.z) / T, vx, vy, arc: true, height: 'high', damage: e.def.damage, resolved: false, falling: false, life: 4 });
       return;
     }
-    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz: 0, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3, bolt: !!e.def.crossbow });
+    // целится и по глубине: туда, где рыцарь стоит в момент выстрела, — попадание совпадает с тем, что видно
+    const T = Math.max(0.12, Math.abs(game.player.x - x) / e.def.arrowSpeed);
+    const vz = (game.player.z - e.z) / T;
+    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3, bolt: !!e.def.crossbow });
   },
   swallow(slime) {
     const p = game.player;
@@ -1619,7 +1622,7 @@ function updatePickups(dt) {
     if (Math.abs(it.x - p.x) < 10 && Math.abs(it.z - p.z) < 8) {
       it.taken = true;
       game.unlocked.add(it.kind);
-      game.bag.push(it.kind);
+      if (!owns(it.kind)) game.bag.push(it.kind);  // вторая рапира не нужна
       equipItem(it.kind);
       callout('Рапира! Q — сменить оружие, I — снаряжение', 'perfect');
       setTimeout(save, 0);
@@ -1635,7 +1638,8 @@ function updateArrows(dt) {
     a.life -= dt;
     if (a.stuck) continue;
     a.x += a.vx * dt;
-    a.z += (a.vz ?? 0) * dt;
+    a.z = Math.max(0, Math.min(CONFIG.depth, a.z + (a.vz ?? 0) * dt));
+    if (!a.falling && !a.arc) a.y = clashY(a.height, a.z);
     if (a.falling || a.arc) {
       a.vy += ARROW_G * dt;
       a.y += a.vy * dt;
@@ -1648,7 +1652,7 @@ function updateArrows(dt) {
       }
       if (a.falling) continue;
     }
-    const close = Math.abs(a.x - p.x) <= (a.arc ? 6 : 4) && Math.abs(a.z - p.z) <= CONFIG.depthReach - 3 && (!a.arc || a.y >= clashY('high', p.z) - 6);
+    const close = Math.abs(a.x - p.x) <= (a.arc ? 6 : 5) && Math.abs(a.z - p.z) <= CONFIG.depthReach - 3 && (!a.arc || a.y >= clashY('high', p.z) - 6);
     if (!a.resolved && close) {
       a.resolved = true;
       const result = applyImpact(a.height, a.damage, a.x - Math.sign(a.vx) * 20, false, false, false, a.who);
