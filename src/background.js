@@ -488,6 +488,32 @@ export function drawProp(g, type, x, gy, opened = false, time = 0) {
     rect(g, x - 2, gy - 15, 1, 1, '#14101e'); rect(g, x + 3, gy - 14, 1, 1, '#14101e');
     rect(g, x + 14, gy - 18, 2, 5, '#ece4d0');
     rect(g, x + 14, gy - 20 - (Math.floor(time * 8) % 2), 2, 2, PAL.flame1);
+  } else if (type === 'pew') {
+    // церковная скамья: сплошная спинка, сиденье, боковины со скруглённым верхом
+    rect(g, x - 17, gy - 17, 34, 7, '#5a3a28');
+    rect(g, x - 17, gy - 17, 34, 1, '#7a5238');
+    rect(g, x - 17, gy - 10, 34, 3, '#6b4532');
+    rect(g, x - 17, gy - 10, 34, 1, '#8a5a3b');
+    for (const sx of [x - 19, x + 16]) {
+      rect(g, sx, gy - 18, 3, 18, '#4a3226');
+      rect(g, sx, gy - 19, 3, 1, '#5a3a28');
+    }
+    rect(g, x - 17, gy - 7, 34, 1, '#3b2a1e');
+  } else if (type === 'altar') {
+    // алтарь: каменная плита, белое покрывало, свечи; на подставке — чаша, если поставили (opened)
+    rect(g, x - 16, gy - 16, 32, 16, '#6a6288');
+    rect(g, x - 16, gy - 16, 32, 1, '#8a82a8');
+    rect(g, x - 13, gy - 15, 26, 9, '#e8e0d0');
+    rect(g, x - 2, gy - 13, 4, 6, PAL.gold);
+    for (const cx of [-12, 10]) {
+      rect(g, x + cx, gy - 21, 2, 5, '#ece4d0');
+      rect(g, x + cx, gy - 23 - (Math.floor(time * 6 + cx) % 2), 2, 2, PAL.flame1);
+    }
+    rect(g, x - 3, gy - 18, 6, 2, '#a8822e');  // подставка
+    if (opened) {
+      rect(g, x - 1, gy - 23, 3, 3, '#d8dde6'); rect(g, x, gy - 20, 1, 2, '#a3aab4');
+      if (Math.floor(time * 3) % 3 === 0) rect(g, x + 1, gy - 24, 1, 1, '#ffffff');
+    }
   } else if (type === 'desk') {
     // стол для чтения: раскрытая книга, свеча, чернильница
     rect(g, x - 16, gy - 13, 32, 3, '#6b4532');
