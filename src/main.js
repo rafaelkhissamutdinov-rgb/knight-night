@@ -606,12 +606,12 @@ async function copyReport() {
   }
 }
 
-function finish() {
+function finish(d = {}) {
   game.mode = 'end';
   ui.reportBtn.hidden = false;
   const s = game.stats;
-  showOverlay('Конец первого этажа',
-    `Рыцарь поднимается на второй этаж — его мы сделаем дальше. Идеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter} · монет: ${game.coins}`,
+  showOverlay(d.finishTitle ?? 'Конец первого этажа',
+    `${d.finishText ?? 'Рыцарь поднимается на второй этаж — его мы сделаем дальше.'} Идеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter} · монет: ${game.coins}`,
     'R — пройти заново');
 }
 
@@ -1178,7 +1178,7 @@ function updateDoors(dt) {
     }
     return;
   }
-  if (d.finish) { finish(); return; }
+  if (d.finish) { finish(d); return; }
   game.transition = { kind: 'door', door: d, phase: 'turn', t: 0, x0: p.x, z0: p.z };
   sfx.door();
 }
@@ -1210,7 +1210,7 @@ function updateTransition(dt) {
       loadRoom(tr.edge.to, { x: tr.edge.x - tr.dir * 18, z: p.z, facing: tr.dir });
       tr.phase = 'in';
       tr.t = 0;
-      callout(tr.edge.name && tr.dir > 0 ? `${tr.edge.name} → ${room().name}` : room().name, 'muted');
+      callout(tr.edge.name && tr.dir > 0 && tr.edge.name !== room().name ? `${tr.edge.name} → ${room().name}` : room().name, 'muted');
     } else if (tr.phase === 'in' && tr.t >= EDGE_PHASES.in) {
       game.transition = null;
       p.walking = false;

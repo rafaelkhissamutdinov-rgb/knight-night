@@ -89,7 +89,14 @@ function portrait(g, d) {
   rect(g, x0 + 2, top + 15, w - 4, 7, d.robe ?? '#4a2a5a');
   rect(g, cx - 3, top + 13, 6, 3, d.robe ?? '#4a2a5a');
   rect(g, cx - 3, top + 6, 6, 7, '#c8a088');
-  if (d.who === 'king') {
+  if (d.who === 'lady') {
+    // дама в красном: длинные тёмные волосы, высокий ворот
+    rect(g, cx - 4, top + 4, 8, 3, '#2a1a1a');
+    rect(g, cx - 4, top + 6, 2, 10, '#2a1a1a'); rect(g, cx + 2, top + 6, 2, 10, '#2a1a1a');
+    rect(g, x0 + 2, top + 15, w - 4, 7, '#8e2b3a');
+    rect(g, cx - 2, top + 13, 4, 2, '#e8e0d0');
+    rect(g, cx - 1, top + 8, 1, 1, '#3b2a1e'); rect(g, cx + 1, top + 8, 1, 1, '#3b2a1e');
+  } else if (d.who === 'king') {
     rect(g, cx - 3, top + 4, 6, 2, PAL.gold);
     rect(g, cx - 3, top + 3, 1, 1, PAL.gold); rect(g, cx, top + 3, 1, 1, PAL.gold); rect(g, cx + 2, top + 3, 1, 1, PAL.gold);
     rect(g, cx - 3, top + 11, 6, 3, '#8a7a6a');  // борода

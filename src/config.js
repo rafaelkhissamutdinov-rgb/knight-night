@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.34';
+export const VERSION = 'v0.35';
 
 export const CONFIG = {
   width: 320,
@@ -473,7 +473,7 @@ export const ROOMS = {
     edges: { left: { to: 'corridor', x: 870, name: 'Коридор' }, right: { to: 'balcony', x: 30, name: 'Балкон' } },
     doors: [
       // у подножия лестницы: наверх можно, когда осмотрел этаж до конца (балкон)
-      { id: 'up', x: 60, kind: 'none', name: 'Лестница на второй этаж', requires: 'balcony_done', locked: 'Сначала осмотри этаж до конца', finish: true },
+      { id: 'up', x: 60, kind: 'none', to: 'landing2', toDoor: 'down', name: 'Лестница на второй этаж', requires: 'balcony_done', locked: 'Сначала осмотри этаж до конца' },
     ],
     props: [
       { type: 'table', x: 300, z: 16 }, { type: 'chair', x: 252, z: 10 }, { type: 'chair', x: 348, z: 24, flip: true },
@@ -494,6 +494,54 @@ export const ROOMS = {
     encounters: [
       { x: 240, story: 'commander', before: 'commander_meet', after: 'balcony_after', enemies: [{ type: 'commander', dx: 40, z: 22 }] },
     ],
+  },
+  // ---------- второй этаж (черновик Claude: лор и комнаты владелец поправит) ----------
+  // площадка у лестницы из Столовой; дальше — Жилое крыло
+  landing2: {
+    name: 'Лестничная площадка', floor: 2, length: 400, columns: false, torches: [150, 330], stairs: 'up', stairsX: 0,
+    doors: [{ id: 'down', x: 60, kind: 'none', to: 'dining', toDoor: 'up', name: 'Лестница вниз, в Столовую' }],
+    edges: { right: { to: 'hall2', x: 30, name: 'Жилое крыло' } },
+    decor: [
+      { type: 'window', x: 240, w: 24, h: 40, y: 22, moon: true },
+      { type: 'banner', x: 110, y: 10, h: 40, color: '#2a3a6a', dark: '#1a2448' },
+    ],
+    encounters: [
+      { x: 280, enemies: [{ type: 'skelLong', dx: 60, z: 20 }] },
+    ],
+  },
+  // длинный коридор покоев: портреты, окна, доспехи; двери в Библиотеку, Часовню и запертые покои
+  hall2: {
+    name: 'Жилое крыло', floor: 2, length: 1500, torches: [150, 450, 640, 850, 1030, 1250, 1430],
+    edges: { left: { to: 'landing2', x: 370, name: 'Лестничная площадка' }, right: { to: 'stairs3', x: 30, name: 'Лестница наверх' } },
+    doors: [
+      { id: 'library', x: 380, kind: 'wood', name: 'Библиотека', locked: 'Дверь заперта' },
+      { id: 'chapel', x: 760, kind: 'wood', name: 'Часовня', locked: 'Дверь заперта' },
+      { id: 'royal', x: 1140, kind: 'iron', name: 'Покои', locked: 'Тяжёлая дверь заперта изнутри' },
+    ],
+    decor: [
+      { type: 'window', x: 260, w: 26, h: 44, y: 18 },
+      { type: 'portrait', x: 520, y: 34, who: 'king', look: 'look_king', name: 'портрет' },
+      { type: 'portrait', x: 560, y: 34, who: 'lady', look: 'look_lady', name: 'портрет' },
+      { type: 'tapestry', x: 940, y: 12, w: 60, h: 36, torn: true },
+      { type: 'armor', x: 690, look: 'look_armor', name: 'доспех' }, { type: 'armor', x: 830 },
+      { type: 'window', x: 1330, w: 26, h: 44, y: 18, moon: true },
+      { type: 'banner', x: 1100, y: 10 }, { type: 'banner', x: 1180, y: 10, torn: true },
+    ],
+    props: [{ type: 'bones', x: 600, z: 26 }, { type: 'crate', x: 1000, z: 3 }, { type: 'barrel', x: 1400, z: 2 }],
+    encounters: [
+      { x: 560, enemies: [{ type: 'merc', dx: 60, z: 18 }, { type: 'crossbow', dx: 190, z: 30 }] },
+      { x: 960, enemies: [{ type: 'skelShield', dx: 60, z: 24 }, { type: 'spear', dx: 110, z: 12 }, { type: 'skelArcher', dx: 200, z: 34 }] },
+    ],
+  },
+  // лестница на третий этаж — пока конец демо
+  stairs3: {
+    name: 'Лестница на третий этаж', floor: 2, length: 320, columns: false, torches: [90], stairs: 'up', stairsX: 200, cobwebs: true,
+    edges: { left: { to: 'hall2', x: 1470, name: 'Жилое крыло' } },
+    doors: [
+      { id: 'up3', x: 220, kind: 'none', name: 'Лестница на третий этаж', finish: true,
+        finishTitle: 'Конец второго этажа (черновик)', finishText: 'Найт поднимается на третий этаж — его сделаем дальше.' },
+    ],
+    props: [{ type: 'bones', x: 120, z: 20 }, { type: 'crate', x: 60, z: 3 }],
   },
   tower: {
     name: 'Лестница башни', length: 320, columns: false, torches: [100, 230], stairs: 'up',
