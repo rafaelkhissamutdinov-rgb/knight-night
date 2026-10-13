@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.55';
+export const VERSION = 'v0.56';
 
 export const CONFIG = {
   width: 320,
@@ -516,7 +516,7 @@ export const ROOMS = {
     edges: { left: { to: 'corridor', x: 870, name: 'Коридор' }, right: { to: 'balcony', x: 30, name: 'Балкон' } },
     doors: [
       // у подножия лестницы: наверх можно, когда осмотрел этаж до конца (балкон)
-      { id: 'up', x: 60, kind: 'none', to: 'landing2', toDoor: 'down', name: 'Лестница на второй этаж', requires: 'balcony_done', locked: 'Сначала осмотри этаж до конца' },
+      { id: 'up', x: 60, kind: 'none', stairs: true, to: 'landing2', toDoor: 'down', name: 'Лестница на второй этаж', requires: 'balcony_done', locked: 'Сначала осмотри этаж до конца' },
     ],
     props: [
       { type: 'table', x: 300, z: 16 }, { type: 'chair', x: 252, z: 10 }, { type: 'chair', x: 348, z: 24, flip: true },
@@ -542,7 +542,7 @@ export const ROOMS = {
   // площадка у лестницы из Столовой; дальше — Жилое крыло
   landing2: {
     name: 'Лестничная площадка', floor: 2, length: 400, columns: false, torches: [150, 330], stairs: 'up', stairsX: 0,
-    doors: [{ id: 'down', x: 60, kind: 'none', to: 'dining', toDoor: 'up', name: 'Лестница вниз, в Столовую' }],
+    doors: [{ id: 'down', x: 60, kind: 'none', stairs: true, to: 'dining', toDoor: 'up', name: 'Лестница вниз, в Столовую' }],
     edges: { right: { to: 'hall2', x: 30, name: 'Жилое крыло' } },
     decor: [
       { type: 'window', x: 240, w: 24, h: 40, y: 22, moon: true },
@@ -645,7 +645,7 @@ export const ROOMS = {
   // ---------- третий этаж (по плану владельца: ключ от башни, выше — завал, пролом в полу — вниз к башне) ----------
   landing3: {
     name: 'Верхний этаж', floor: 3, length: 360, columns: false, torches: [150, 300], stairs: 'up', stairsX: 0, cobwebs: true,
-    doors: [{ id: 'down', x: 60, kind: 'none', to: 'stairs3', toDoor: 'up3', name: 'Лестница вниз' }],
+    doors: [{ id: 'down', x: 60, kind: 'none', stairs: true, to: 'stairs3', toDoor: 'up3', name: 'Лестница вниз' }],
     edges: { right: { to: 'hall3', x: 30, name: 'Северное крыло' } },
     decor: [{ type: 'window', x: 230, w: 24, h: 40, y: 22 }],
     encounters: [{ x: 230, enemies: [{ type: 'halberd', dx: 60, z: 18 }, { type: 'skelArcher', dx: 110, z: 34 }] }],
@@ -691,7 +691,7 @@ export const ROOMS = {
     name: 'Лестница на третий этаж', floor: 2, length: 320, columns: false, torches: [90], stairs: 'up', stairsX: 200, cobwebs: true,
     edges: { left: { to: 'hall2', x: 1470, name: 'Жилое крыло' } },
     doors: [
-      { id: 'up3', x: 220, kind: 'none', to: 'landing3', toDoor: 'down', name: 'Лестница на третий этаж' },
+      { id: 'up3', x: 220, kind: 'none', stairs: true, to: 'landing3', toDoor: 'down', name: 'Лестница на третий этаж' },
     ],
     props: [{ type: 'bones', x: 120, z: 20 }, { type: 'crate', x: 60, z: 3 }],
   },

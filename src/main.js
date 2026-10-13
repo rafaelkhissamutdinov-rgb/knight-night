@@ -261,6 +261,8 @@ function continueGame(data) {
   // старые сохранения: бои помнились по номеру встречи — рапира у рыцаря значит, что Илиа уже побеждён
   if (game.unlocked.has('rapier') || game.bag.includes('rapier') || game.equip.weapon === 'rapier') game.flags.done_ilia = true;
   if (game.flags.balcony_done) game.flags.done_commander = true;
+  // v0.32–v0.55: рапира не выпадала после победы над Илиа — выдать её тем, кто остался без неё
+  if (game.flags.done_ilia && !owns('rapier') && !game.pickups.some(it => it.kind === 'rapier')) { game.unlocked.add('rapier'); game.bag.push('rapier'); }
   game.player = new Player(data.x, ITEMS[game.equip.weapon].weapon);
   game.player.sheathed = false;
   game.player.hp = Math.max(1, Math.min(CONFIG.playerHp, data.hp ?? CONFIG.playerHp));
@@ -284,6 +286,7 @@ const world = {
   dropWeapon(e, kind) {
     callout('Рапира выбита!', 'counter');
     if (owns(kind) || game.pickups.some(it => it.kind === kind)) return;  // рапира уже есть — второй не будет
+    game.pickups.push({ kind, room: game.room, x: e.x - e.facing * 10, z: e.z, t: 0 });
   },
   // бьёт один враг, остальные ждут своей очереди
   requestToken(e) {
@@ -704,7 +707,7 @@ const CONTROLS_TEXT = [
   'ЛКМ — удар на этой высоте · держать ПКМ — защита',
   'Пробел — рывок (курсор внизу — кувырок, вверху — прыжок, с «назад» — отскок)',
   'Колесо вверх — приём оружия · колесо вниз — навык · Q — сменить оружие',
-  'E — говорить, лавка, сундук, осмотреть, отдохнуть · W у двери — войти',
+  'E — говорить, лавка, сундук, осмотреть, отдохнуть · W у двери или лестницы — пройти',
   'I — снаряжение · H — зелье · B — журнал · M — карта · Esc — пауза',
 ].join('\n');
 
@@ -1252,7 +1255,7 @@ function updateDoors(dt) {
   const opensWithKey = (d.key && hasItem(d.key)) || (d.requires && game.flags[d.requires]);
   if (opensWithKey && !game.flags['opened_' + d.id]) {
     game.flags['opened_' + d.id] = true;
-    callout('Ключ подошёл', 'perfect');
+    if (!d.stairs) callout('Ключ подошёл', 'perfect');
   }
   if (d.locked && !opensWithKey) {
     if (game.time - game.lockedSaidAt > 1.5) {
@@ -1264,6 +1267,12 @@ function updateDoors(dt) {
   }
   if (d.finish) { if (d.finishTalk) startTalk(d.finishTalk, () => finish(d)); else finish(d); return; }
   if (d.fall) { game.transition = { kind: 'fall', door: d, phase: 'drop', t: 0 }; sfx.dash(); return; }
+  if (d.stairs) {
+    // лестница: шаг к ступеням, затемнение — и уже на другом этаже, без проёма в стене
+    const up = (ROOMS[d.to].floor ?? 1) > (room().floor ?? 1);
+    game.transition = { kind: 'stairs', door: d, dir: up ? 1 : -1, phase: 'out', t: 0 };
+    return;
+  }
   game.transition = { kind: 'door', door: d, phase: 'turn', t: 0, x0: p.x, z0: p.z };
   sfx.door();
 }
@@ -1280,6 +1289,7 @@ function updateEdges() {
 
 const DOOR_PHASES = { turn: 0.14, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.12 };
 const EDGE_PHASES = { out: 0.3, in: 0.3 };
+const STAIR_PHASES = { out: 0.4, in: 0.35 };
 
 function updateTransition(dt) {
   const tr = game.transition;
@@ -1307,6 +1317,30 @@ function updateTransition(dt) {
         dust(p.x - 6, groundY(p.z), -1); dust(p.x + 6, groundY(p.z), 1);
         save();
       }
+    }
+    return;
+  }
+  if (tr.kind === 'stairs') {
+    if (tr.phase === 'out') {
+      p.facing = tr.dir;
+      p.x += tr.dir * CONFIG.exploreSpeed * 0.6 * dt;
+      p.step += dt * CONFIG.exploreSpeed * 0.6 / gaitCycle(0);
+      p.walking = true;
+      if (tr.t >= STAIR_PHASES.out) {
+        const to = ROOMS[tr.door.to];
+        const out = to.doors.find(x => x.id === tr.door.toDoor);
+        loadRoom(tr.door.to, { x: out.x, z: 8, facing: 1 });
+        p.walking = false;
+        p.step = 0;
+        if (ui.floorcard.hidden) callout(to.name, 'muted');
+        sfx.step();
+        tr.phase = 'in';
+        tr.t = 0;
+      }
+    } else if (tr.t >= STAIR_PHASES.in) {
+      game.transition = null;
+      game.doorLock = true;
+      save();
     }
     return;
   }
@@ -1439,7 +1473,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -2492,6 +2526,7 @@ function render() {
   let fade = 0;
   if (tr?.kind === 'door') fade = tr.phase === 'fadeOut' ? tr.t / DOOR_PHASES.fadeOut : tr.phase === 'fadeIn' ? 1 - tr.t / DOOR_PHASES.fadeIn : 0;
   if (tr?.kind === 'edge') fade = tr.phase === 'out' ? tr.t / EDGE_PHASES.out : 1 - tr.t / EDGE_PHASES.in;
+  if (tr?.kind === 'stairs') fade = tr.phase === 'out' ? tr.t / STAIR_PHASES.out : 1 - tr.t / STAIR_PHASES.in;
   if (game.cutscene && game.cutscene.t < WAKE.flash) fade = Math.max(fade, 0.55);
   if (fade > 0) {
     g.globalAlpha = Math.min(1, fade);
