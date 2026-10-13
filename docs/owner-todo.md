@@ -27,7 +27,7 @@
 
 ## Картинки
 
-- **Алкима** — сделано (v0.55): фон вырезан, волосы чёрные, портрет в диалогах. Посмотри, не осталось ли рыжеватых прядей у лица — если да, скажи где.
+- **Алкима** — сделано (v0.58): портрет перерисован в PixelLab по твоей картинке в стиле Лики. Остальные 15 вариантов — у меня, если захочешь другой.
 - **Лица Лики.** В v0.32 я подогнал все настроения под оригинал: тот же кадр, плечи и пальто, размер головы, тон кожи — меняется только лицо. Но черты в нижнем ряду (надутая, серьёзная, тревожная, злая) всё равно отличаются: лицо длиннее, глаза крупнее. Чтобы было точно, перегенерируй по одному настроению с оригиналом как образцом:
 
   > Use the attached portrait as the exact reference. Same girl: same round soft face, same narrow dark grey eyes, same skin tone and freckles, same black hair with bangs, same olive coat with high buttoned collar. Same framing: head and shoulders, the head the same size and in the same place. Same pixel art style, plain light grey background. Change ONLY the facial expression to: **worried** (затем: serious, sulky pouting, angry, surprised, sly smirk, laughing). One image, square.

@@ -2088,8 +2088,6 @@ const FACES = {
     .map(m => [m, m === 'default' ? 'assets/portraits/lika.png' : `assets/portraits/lika-${m}.png`])),
 };
 for (const set of Object.values(FACES)) for (const src of Object.values(set)) new Image().src = src;  // загрузить заранее
-// портреты-крупные планы (обрезаны краем исходной картинки) — в рамке со своим фоном
-const FRAMED = new Set(['trainer']);
 
 const PORTRAITS = {
   knight: { colors: KNIGHT_COLORS, plume: true },
@@ -2127,7 +2125,6 @@ function showLine() {
   ui.talkName.textContent = who.name;
   const face = FACES[who.portrait];
   ui.talkFace.hidden = !face;
-  ui.talkFace.classList.toggle('framed', FRAMED.has(who.portrait));
   if (face) {
     const src = face[line.mood] ?? face.default;
     if (!ui.talkFace.src.endsWith(src)) ui.talkFace.src = src;

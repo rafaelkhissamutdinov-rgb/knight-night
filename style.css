@@ -160,7 +160,6 @@ kbd {
 /* портрет без фона: вырезанный персонаж стоит прямо в окне диалога */
 .talk-face { width: 19cqw; height: 19cqw; flex: none; object-fit: contain; margin: -6cqw 0 -1.6cqw -1cqw; align-self: flex-end; filter: drop-shadow(0 0.4cqw 0 rgba(0,0,0,0.5)); }
 .talk-face[hidden] { display: none; }
-.talk-face.framed { width: 15cqw; height: 15cqw; margin: 0 0.4cqw 0 0; align-self: center; background: #1e1a2b; border: 0.3cqw solid var(--line); image-rendering: pixelated; filter: none; }
 .talk-body { display: grid; gap: 0.8cqw; min-width: 0; flex: 1; }
 .talk-name { font-family: var(--pixel); font-size: 2.2cqw; color: var(--gold); }
 .talk-text { margin: 0; font-size: 2.3cqw; line-height: 1.45; color: var(--fg); min-height: 3.3cqw; }
