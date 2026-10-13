@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.32';
+export const VERSION = 'v0.33';
 
 export const CONFIG = {
   width: 320,
@@ -392,13 +392,14 @@ export const ROOMS = {
     name: 'Лавка Лики', length: 320, columns: false, torches: [110, 306],
     doors: [{ id: 'out', x: 64, kind: 'wood', to: 'gallery', toDoor: 'shop', name: 'Галерея' }],
     npcs: [{ type: 'lika', x: 214, z: 12 }],
+    // место отдыха: сесть (E) — лечение и сохранение; «продолжить» начнётся отсюда
     decor: [
       { type: 'sign', x: 214, y: 12 },
       { type: 'shelf', x: 160, y: 50, w: 56 }, { type: 'shelf', x: 268, y: 50, w: 56, rows: [['bottle', 'scroll', 'potion', 'bottle', 'potion'], ['box', 'potion', 'book', 'bottle']] },
     ],
     props: [
       { type: 'crate', x: 252, z: 2 }, { type: 'crate', x: 264, z: 10 }, { type: 'barrel', x: 282, z: 3 },
-      { type: 'barrel', x: 120, z: 2 }, { type: 'sack', x: 236, z: 4 },
+      { type: 'sofa', x: 122, z: 2, rest: { seat: 5, name: 'на диване', face: 1 } }, { type: 'sack', x: 236, z: 4 },
     ],
   },
   // испытать рапиру на копейщиках; в сундуке монеты для лавки
@@ -480,7 +481,7 @@ export const ROOMS = {
       { type: 'barrel', x: 452, z: 3 },
     ],
     decor: [
-      { type: 'fireplace', x: 200, look: 'look_fire', name: 'камин' },
+      { type: 'fireplace', x: 200, look: 'look_fire', name: 'камин', rest: { seat: 0, name: 'у камина', z: 10, dx: 36, face: -1 } },
       { type: 'tapestry', x: 200, y: 10, w: 56, h: 34, look: 'look_tapestry', name: 'гобелен' },
       { type: 'chandelier', x: 300, y: 28 },
       { type: 'banner', x: 395, y: 10 },

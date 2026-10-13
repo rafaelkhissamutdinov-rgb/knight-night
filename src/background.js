@@ -465,6 +465,16 @@ export function drawProp(g, type, x, gy, opened = false, time = 0) {
     }
     rect(g, x - 18, gy - 15, 6, 1, '#a39d8a');  // тарелки
     rect(g, x + 14, gy - 15, 6, 1, '#a39d8a');
+  } else if (type === 'sofa') {
+    // продавленный диван Лики: спинка, подлокотники, две подушки, заплатка
+    rect(g, x - 18, gy - 18, 36, 9, '#5a2a3a');
+    rect(g, x - 18, gy - 18, 36, 1, '#7a3a4e');
+    rect(g, x - 20, gy - 12, 5, 10, '#4a2230'); rect(g, x + 15, gy - 12, 5, 10, '#4a2230');
+    rect(g, x - 15, gy - 10, 15, 5, '#6a3446'); rect(g, x + 1, gy - 10, 14, 5, '#6a3446');
+    rect(g, x - 15, gy - 10, 15, 1, '#8a4a5e'); rect(g, x + 1, gy - 10, 14, 1, '#8a4a5e');
+    rect(g, x - 16, gy - 5, 32, 3, '#4a2230');
+    rect(g, x + 6, gy - 16, 5, 4, '#8a7a58');  // заплатка
+    rect(g, x - 17, gy - 2, 2, 2, '#3b2a1e'); rect(g, x + 15, gy - 2, 2, 2, '#3b2a1e');
   } else if (type === 'guardtable') {
     // грубый стол караула: кости, кружки, огарок
     rect(g, x - 22, gy - 13, 44, 3, '#6b4532');
