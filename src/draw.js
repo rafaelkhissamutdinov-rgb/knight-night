@@ -51,7 +51,7 @@ export function drawFigure(g, o) {
     bladeHidden = false, scabbard = false, shield = false, skull = false,
     bow = false, bowDraw = 0, crossbow = false, gaitRun = null, airY = 0, trail = null, face = false, rapier = false, robe = false,
     offhandBack = false, sit = false, seat = null, wrap = false, curved = false, slim = false, hood = false, pack = false,
-    short = false, bob = false, coat = false, spear = false, bandit = false, axe = false, plate = false,
+    short = false, bob = false, coat = false, spear = false, halberd = false, bandit = false, axe = false, plate = false,
     bun = false, ornate = false,
   } = o;
   const gy = ground - airY;
@@ -381,6 +381,18 @@ export function drawFigure(g, o) {
   if (!bladeHidden) {
     if (trail) for (const [i, p] of trail.entries()) {
       withAlpha(g, 0.15 + 0.12 * i, () => thick(g, handX, handY, p.tipX, p.tipY, 1, '#ffffff'));
+    }
+    if (halberd) {
+      // алебарда: длинное древко, у конца — топор с одной стороны и крюк с другой, остриё
+      thick(g, handX - dx * 8, handY - dy * 8, tipX, tipY, 1, colors.hilt);
+      const px = -dy, py = dx;
+      for (let i = 2; i < 8; i++) {
+        const bx = tipX - dx * i, by = tipY - dy * i, w = 5 - Math.abs(i - 4.5) * 0.9;
+        thick(g, bx + px, by + py, bx + px * w, by + py * w, 1, colors.blade);
+      }
+      thick(g, tipX - dx * 5 - px, tipY - dy * 5 - py, tipX - dx * 4 - px * 3, tipY - dy * 4 - py * 3, 1, colors.blade);  // крюк
+      thick(g, tipX, tipY, tipX + dx * 3, tipY + dy * 3, 1, colors.blade);  // остриё
+      return { tipX: tipX + dx * 3, tipY: tipY + dy * 3, handX, handY };
     }
     if (spear) {
       // древко назад от кисти, наконечник на конце

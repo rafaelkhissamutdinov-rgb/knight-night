@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.35';
+export const VERSION = 'v0.36';
 
 export const CONFIG = {
   width: 320,
@@ -170,6 +170,16 @@ export const ENEMY_TYPES = {
     guardChance: 0.35, reaction: 0.14,
     colors: { ...BONE, plate: '#8e98a3', plateDark: '#5f6873', plateLight: '#c3ccd6', tabard: '#3b3550' },
   },
+  // скелет-алебардист (второй этаж): длинный охват; подсечка низом и рубящий сверху сбивают блок, между ними — уколы.
+  // Читать по замаху: тяжёлые — идеальное парирование или отойти; после тяжёлого он долго выпрямляется.
+  halberd: {
+    kind: 'melee', name: 'Скелет-алебардист', shortName: 'Алебардист', hp: 5, damage: 1, aggro: 160, reach: 50, speed: 34, lunge: 6, weapon: 32,
+    skull: true, halberd: true,
+    windup: 0.75, comboWindup: 0.5, gap: 0.12, recover: 1.3, wait: [0.8, 1.2],
+    combos: [['heavyLow'], ['thrust', 'thrust'], ['heavyHigh'], ['thrust', 'heavyLow'], ['low', 'heavyHigh']],
+    guardChance: 0.35, reaction: 0.12,
+    colors: { ...BONE, tabard: '#4a2a5a', blade: '#c3ccd6', hilt: '#6b4532' },
+  },
   // наёмник с копьём: лёгкая кожаная броня, длинные уколы и круговой взмах «тык-тык — диск».
   // Нижних ударов нет и снизу не закрывается — его берут скоростью и кувырком с подсечкой.
   spear: {
@@ -295,7 +305,7 @@ export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amu
 export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
-export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, duelist: 10, mage: 15 };
+export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, halberd: 3, duelist: 10, mage: 15 };
 
 // Мир: комнаты и переходы между ними.
 // edges — выход за край комнаты (left / right): to — комната, x — где рыцарь появится там.
@@ -514,7 +524,7 @@ export const ROOMS = {
     name: 'Жилое крыло', floor: 2, length: 1500, torches: [150, 450, 640, 850, 1030, 1250, 1430],
     edges: { left: { to: 'landing2', x: 370, name: 'Лестничная площадка' }, right: { to: 'stairs3', x: 30, name: 'Лестница наверх' } },
     doors: [
-      { id: 'library', x: 380, kind: 'wood', name: 'Библиотека', locked: 'Дверь заперта' },
+      { id: 'library', x: 380, kind: 'wood', to: 'library', toDoor: 'out', name: 'Библиотека' },
       { id: 'chapel', x: 760, kind: 'wood', name: 'Часовня', locked: 'Дверь заперта' },
       { id: 'royal', x: 1140, kind: 'iron', name: 'Покои', locked: 'Тяжёлая дверь заперта изнутри' },
     ],
@@ -531,6 +541,24 @@ export const ROOMS = {
     encounters: [
       { x: 560, enemies: [{ type: 'merc', dx: 60, z: 18 }, { type: 'crossbow', dx: 190, z: 30 }] },
       { x: 960, enemies: [{ type: 'skelShield', dx: 60, z: 24 }, { type: 'spear', dx: 110, z: 12 }, { type: 'skelArcher', dx: 200, z: 34 }] },
+    ],
+  },
+  // библиотека: стеллажи, стремянка, стол с раскрытой книгой; алебардист и лучник; сундук в глубине
+  library: {
+    name: 'Библиотека', floor: 2, length: 640, columns: false, torches: [130, 470],
+    doors: [{ id: 'out', x: 60, kind: 'wood', to: 'hall2', toDoor: 'library', name: 'Жилое крыло' }],
+    decor: [
+      { type: 'bookshelf', x: 200 }, { type: 'bookshelf', x: 250, gap: 2 }, { type: 'ladder', x: 268 },
+      { type: 'bookshelf', x: 400, gap: 1 }, { type: 'bookshelf', x: 540 }, { type: 'bookshelf', x: 590, skull: true },
+      { type: 'chandelier', x: 320, y: 26 },
+    ],
+    props: [
+      { type: 'desk', x: 330, z: 12, look: 'look_book', name: 'раскрытая книга' },
+      { type: 'chair', x: 352, z: 14, flip: true },
+      { type: 'chest', id: 'l', x: 610, z: 3, coins: 15, item: 'bandage' },
+    ],
+    encounters: [
+      { x: 380, enemies: [{ type: 'halberd', dx: 70, z: 20 }, { type: 'skelArcher', dx: 180, z: 8 }] },
     ],
   },
   // лестница на третий этаж — пока конец демо
