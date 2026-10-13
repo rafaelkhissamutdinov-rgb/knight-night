@@ -443,7 +443,62 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
   }
 }
 
-export const DECOR_LIVE = new Set(['fireplace', 'chandelier', 'cracks']);
+export const DECOR_LIVE = new Set(['fireplace', 'chandelier', 'cracks', 'slab', 'stainedglass']);
+
+// Плита за алтарём: закрыта — стена; открыта — плита сдвинута вбок, за ней тёмный проход
+export function drawSlab(g, sx, floorTop, open) {
+  const w = 22, h = 36, x0 = Math.round(sx - w / 2), top = floorTop - h;
+  rect(g, x0 - 2, top - 2, w + 4, 2, STONE_L);
+  if (!open) {
+    rect(g, x0, top, w, h, '#4a4462');
+    rect(g, x0, top, w, 1, '#5e5878');
+    rect(g, x0 + 3, top + 10, w - 6, 1, '#3a3550'); rect(g, x0 + 3, top + 24, w - 6, 1, '#3a3550');
+    return;
+  }
+  rect(g, x0, top, w, h, '#07060c');
+  rect(g, x0 + w, top, 8, h, '#4a4462');   // плита отъехала вправо
+  rect(g, x0 + w, top, 8, 1, '#5e5878');
+}
+
+// Витраж: стрельчатое окно, цветные стёкла в свинцовой сетке; на полу — цветные пятна света
+export function drawStainedGlass(g, sx, floorTop, time, y = 10) {
+  const w = 34, h = 58, x0 = Math.round(sx - w / 2), top = y, r = w / 2;
+  const PANES = ['#c8303f', '#2a5ab8', '#e0b030', '#3a8a4a', '#8a3ab0'];
+  rect(g, x0 - 3, top - 3, w + 6, h + 6, STONE_L);
+  // роза: золотое солнце в центре, лучи красные и синие по кругу; ниже — три узких ланцета
+  const cy = 20;
+  for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+    if (yy < r && (xx - r + 0.5) ** 2 + (yy - r) ** 2 > r * r) continue;
+    const dx = xx - r + 0.5, dy = yy - cy, d = Math.hypot(dx, dy);
+    let c;
+    if (yy < 36) {
+      const ray = Math.floor(((Math.atan2(dy, dx) + Math.PI) / (Math.PI * 2)) * 12);
+      if (d < 4) c = '#ffe080';
+      else if (d < 5) c = '#1c1828';
+      else if (d < 12) c = ray % 2 ? '#c8303f' : '#e0b030';
+      else if (d < 13) c = '#1c1828';
+      else c = ray % 2 ? '#2a5ab8' : '#3a3a9a';
+      if (d >= 5 && d < 13 && Math.abs(((Math.atan2(dy, dx) + Math.PI) / (Math.PI * 2)) * 12 - ray) < 0.12) c = '#1c1828';  // свинец между лучами
+    } else if (yy === 36) c = '#1c1828';
+    else {
+      const lane = Math.floor(xx / (w / 3));
+      const edge = xx % Math.round(w / 3) === 0;
+      c = edge ? '#1c1828' : (yy % 6 === 0 ? '#1c1828' : [PANES[0], PANES[3], PANES[0]][lane] ?? PANES[1]);
+      if (!edge && lane === 1 && yy > 44 && yy < 52) c = '#e8e0d0';  // белая лилия в среднем ланцете
+    }
+    rect(g, x0 + xx, top + yy, 1, 1, c);
+  }
+  // свет на полу: цветные пятна чуть дрожат
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const flick = 0.85 + 0.15 * Math.sin(time * 0.7);
+  PANES.forEach((c, i) => {
+    g.globalAlpha = 0.07 * flick;
+    g.fillStyle = c;
+    g.fillRect(Math.round(sx - 30 + i * 12), floorTop + 8 + (i % 2) * 6, 14, 10);
+  });
+  g.restore();
+}
 
 // Замурованный проход: кладка светлее соседней и в трещинах (их больше с каждым ударом);
 // после трёх ударов — пролом с грудой камней. state: { open, hits }.

@@ -8,7 +8,7 @@ import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutli
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
 import { Tutorial } from './tutorial.js';
-import { drawDecorLive, drawCracks, DECOR_LIVE } from './decor.js';
+import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient } from './audio.js';
@@ -373,6 +373,15 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
     shake(1.5);
     flash('#fff4c2', 0.35);
     callout('Идеально', 'perfect');
+    const ph = ITEMS[game.equip.amulet]?.parryHeal;
+    if (ph && game.time >= (game.parryHealAt ?? 0) && p.hp < CONFIG.playerHp) {
+      // Чётки монаха: идеальное парирование лечит
+      game.parryHealAt = game.time + ph.cooldown;
+      p.hp = Math.min(CONFIG.playerHp, p.hp + ph.heal);
+      renderHearts();
+      sparks(p.x, groundY(p.z) - 22, 6, ['#8fd3ff', '#ffffff'], 50);
+      setTimeout(() => callout(`Чётки  +${ph.heal}`, 'perfect'), 350);
+    }
   } else if (result === 'block') {
     game.stats.block++;
     sparks(x, y, 6, [PAL.sparkHot, PAL.flame2], 70);
@@ -827,6 +836,8 @@ function handlePress(code) {
       }
       if (chest.item) {
         game.bag.push(chest.item);
+        const slot = ITEMS[chest.item].slot;
+        if (slot && slot !== 'weapon' && !game.equip[slot]) equipItem(chest.item);  // амулет в пустой слот — сразу надеть
         callout(`Сундук: ${ITEMS[chest.item].name}${chest.coins ? ` и ${chest.coins} монет` : ''}`, 'perfect');
       } else callout(`Сундук: +${chest.coins} монет`, 'perfect');
       sfx.perfect();
@@ -834,6 +845,8 @@ function handlePress(code) {
       save();
       return;
     }
+    const altar = !game.doorNear && nearAltar();
+    if (altar) { useAltar(altar); return; }
     const rest = !game.doorNear && nearRest();
     if (rest) { startRest(rest); return; }
     const look = !game.doorNear && nearLook();
@@ -1110,6 +1123,24 @@ function updateAmbience(dt) {
   game.ambT = 2;
 }
 
+// алтарь: поставить Серебряную чашу — за алтарём открывается проход
+function nearAltar() {
+  const p = game.player;
+  return (room().props ?? []).find(pr => pr.altar && Math.abs(pr.x - p.x) < 20 && Math.abs(pr.z - p.z) < 12) ?? null;
+}
+function useAltar(pr) {
+  if (game.flags[pr.altar]) { startTalk('look_altar_done'); return; }
+  if (!hasItem('silver_cup')) { startTalk('look_altar'); return; }
+  game.bag.splice(game.bag.indexOf('silver_cup'), 1);
+  game.flags[pr.altar] = true;
+  sparks(pr.x, groundY(pr.z) - 20, 18, ['#ffe080', '#ffffff', '#8fd3ff'], 90);
+  flash('#fff4c2', 0.4);
+  sfx.portal();
+  shake(2);
+  callout('Чаша на алтаре. За алтарём сдвинулась плита', 'perfect');
+  save();
+}
+
 // место отдыха (rest у вещи или убранства): диван, камин
 function nearRest() {
   const p = game.player;
@@ -1328,7 +1359,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().secret ? ' · ЛКМ — ударить' : ''}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().secret ? ' · ЛКМ — ударить' : ''}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -2196,6 +2227,8 @@ function render() {
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   for (const d of r.decor ?? []) {
     if (d.type === 'cracks') drawCracks(g, d.x - cam, CONFIG.floorTop, { open: !!game.flags[d.secret], hits: game.wallHits }, game.time);
+    else if (d.type === 'slab') drawSlab(g, d.x - cam, CONFIG.floorTop, !!game.flags[d.secret]);
+    else if (d.type === 'stainedglass') drawStainedGlass(g, d.x - cam, CONFIG.floorTop, game.time, d.y);
     else if (DECOR_LIVE.has(d.type)) drawDecorLive(g, d, d.x - cam, CONFIG.floorTop, game.time);
   }
   const tr = game.transition;
@@ -2231,7 +2264,7 @@ function render() {
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => a.z - b.z);
   for (const a of things) {
-    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : !!game.flags[chestFlag(a.prop)], game.time);
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time);
     else if (a === game.player) renderPlayer(cam);
     else if (a.npc) renderNpc(a, cam);
     else renderEnemy(a, cam);

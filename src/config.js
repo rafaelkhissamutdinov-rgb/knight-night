@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.36';
+export const VERSION = 'v0.37';
 
 export const CONFIG = {
   width: 320,
@@ -300,6 +300,8 @@ export const ITEMS = {
   scroll_fencing: { name: 'Старый свиток фехтования', price: 25, learn: 'skill_triple' },
   golden_skull: { name: 'Золотой череп', price: 40, artifact: true },
   silver_cup: { name: 'Серебряная чаша', artifact: true },
+  // из Ризницы за алтарём Часовни: идеальное парирование лечит; слот амулета один — туз или чётки
+  rosary: { name: 'Чётки монаха', slot: 'amulet', parryHeal: { heal: 1, cooldown: 8 } },
 };
 export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amulet', 'Амулет'], ['spell', 'Заклинание'], ['skill', 'Навык']];
 export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
@@ -525,7 +527,7 @@ export const ROOMS = {
     edges: { left: { to: 'landing2', x: 370, name: 'Лестничная площадка' }, right: { to: 'stairs3', x: 30, name: 'Лестница наверх' } },
     doors: [
       { id: 'library', x: 380, kind: 'wood', to: 'library', toDoor: 'out', name: 'Библиотека' },
-      { id: 'chapel', x: 760, kind: 'wood', name: 'Часовня', locked: 'Дверь заперта' },
+      { id: 'chapel', x: 760, kind: 'wood', to: 'chapel', toDoor: 'out', name: 'Часовня' },
       { id: 'royal', x: 1140, kind: 'iron', name: 'Покои', locked: 'Тяжёлая дверь заперта изнутри' },
     ],
     decor: [
@@ -560,6 +562,36 @@ export const ROOMS = {
     encounters: [
       { x: 380, enemies: [{ type: 'halberd', dx: 70, z: 20 }, { type: 'skelArcher', dx: 180, z: 8 }] },
     ],
+  },
+  // часовня: витраж (цветной свет на полу), скамьи, алтарь с пустой подставкой — для Серебряной чаши.
+  // Чаша на алтаре — за алтарём отъезжает плита, проход в Ризницу
+  chapel: {
+    name: 'Часовня', floor: 2, length: 480, columns: false, torches: [90, 430],
+    doors: [
+      { id: 'out', x: 50, kind: 'wood', to: 'hall2', toDoor: 'chapel', name: 'Жилое крыло' },
+      { id: 'vestry', x: 400, kind: 'none', needs: 'cup_placed', to: 'vestry', toDoor: 'out', name: 'Ризница' },
+    ],
+    decor: [
+      { type: 'stainedglass', x: 340, y: 10 },
+      { type: 'slab', x: 400, secret: 'cup_placed' },
+      { type: 'banner', x: 160, y: 10, h: 40, color: '#e8e0d0', dark: '#a89a8a' },
+    ],
+    props: [
+      { type: 'pew', x: 170, z: 14 }, { type: 'pew', x: 170, z: 30 }, { type: 'pew', x: 250, z: 14 }, { type: 'pew', x: 250, z: 30 },
+      { type: 'altar', id: 'altar', x: 340, z: 4, altar: 'cup_placed' },
+    ],
+    encounters: [
+      { x: 200, enemies: [{ type: 'skelShield', dx: 60, z: 20 }, { type: 'halberd', dx: 120, z: 30 }] },
+    ],
+  },
+  vestry: {
+    name: 'Ризница', floor: 2, length: 320, columns: false, torches: [200], cobwebs: true,
+    doors: [{ id: 'out', x: 60, kind: 'hole', to: 'chapel', toDoor: 'vestry', name: 'Часовня' }],
+    props: [
+      { type: 'chest', id: 'v', x: 250, z: 3, coins: 20, item: 'rosary' },
+      { type: 'bones', x: 160, z: 10 }, { type: 'sack', x: 290, z: 3 },
+    ],
+    decor: [{ type: 'shelf', x: 150, y: 50, w: 50, rows: [['bottle', 'scroll', 'bottle', 'book'], ['box', 'bottle', 'scroll']] }],
   },
   // лестница на третий этаж — пока конец демо
   stairs3: {
