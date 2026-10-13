@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Knight Night: проба света</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;600&family=Golos+Text:wght@400;500&display=swap">
@@ -38,29 +39,28 @@ kbd { font-family: var(--pixel); font-size: 13px; color: var(--fg); background: 
 
 <div class="wrap">
   <h1>Темница при живом свете</h1>
-  <p class="lead">Фон и Найт — из PixelLab, цвета их собственные, без фильтров. Свет считает шейдер по картам нормалей: факелы мерцают, курсор — фонарь в руке, свет ложится по рельефу кладки и брони.</p>
+  <p class="lead">Фон и Найт — из PixelLab, цвета их собственные, без фильтров. Свет считает шейдер по картам нормалей: факелы мерцают, свет ложится по рельефу кладки и брони.</p>
 
   <div class="stage" id="stage">
-    <canvas id="gl" width="320" height="180" aria-label="Комната Темницы с рыцарем; свет от факелов и фонаря"></canvas>
+    <canvas id="gl" width="320" height="180" aria-label="Комната Темницы с рыцарем; свет от факелов"></canvas>
     <canvas id="fx" width="320" height="180" aria-hidden="true"></canvas>
   </div>
 
   <div class="controls" role="group" aria-label="Настройки света">
     <button id="b-light" aria-pressed="true">Живой свет</button>
-    <button id="b-lamp" aria-pressed="true">Фонарь за курсором</button>
-    <button id="b-steps" aria-pressed="false">Свет ступенями</button>
+    <button id="b-steps" aria-pressed="true">Свет ступенями</button>
     <button id="b-dust" aria-pressed="true">Пыль в воздухе</button>
     <span class="keys"><kbd>A</kbd> <kbd>D</kbd> — Найт ходит</span>
   </div>
   <div class="controls" role="group" aria-label="Настроение света">
-    <button id="m-blue" data-mood="blue" aria-pressed="true">Синий вечер</button>
+    <button id="m-warm" data-mood="warm" aria-pressed="true">Тёплый</button>
+    <button id="m-blue" data-mood="blue" aria-pressed="false">Синий вечер</button>
     <button id="m-moon" data-mood="moon" aria-pressed="false">Лунная ночь</button>
-    <button id="m-warm" data-mood="warm" aria-pressed="false">Тёплый</button>
   </div>
 
   <div class="notes">
     <p><b>Живой свет выкл.</b> — так картинка выглядит сейчас: свет нарисован в самом фоне.</p>
-    <p><b>Настроение</b> — это цвет общего света и теней, а не фильтр поверх картинки: факелы и фонарь остаются тёплыми.</p>
+    <p><b>Настроение</b> — это цвет общего света и теней, а не фильтр поверх картинки: факелы остаются тёплыми.</p>
     <p><b>Свет ступенями</b> — переходы света делаются пиксельными полосами, как в старых играх. Без него — плавные полутона.</p>
     <p id="err" class="err" hidden></p>
   </div>
@@ -153,7 +153,7 @@ kbd { font-family: var(--pixel); font-size: 13px; color: var(--fg); background: 
   gl.uniform1i(U('albedo'), 0); gl.uniform1i(U('normals'), 1); gl.uniform1i(U('emis'), 2);
   gl.uniform2f(U('res'), W, H);
 
-  const state = { light: true, lamp: true, steps: false, dust: true, mood: 'blue' };
+  const state = { light: true, lamp: false, steps: true, dust: true, mood: 'warm' };   // фонаря пока нет — решение владельца
   // настроения: общий свет, холодная подсветка сбоку, оттенок теней
   const MOODS = {
     blue: { ambient: [0.34, 0.42, 0.66], fill: [0.45, 0.62, 1.0, 0.55], tint: [0.02, 0.05, 0.12], amt: 1.0 },
@@ -165,7 +165,7 @@ kbd { font-family: var(--pixel); font-size: 13px; color: var(--fg); background: 
     for (const o of document.querySelectorAll('[data-mood]')) o.setAttribute('aria-pressed', String(o === b));
   });
   const bind = (id, key) => { const b = document.getElementById(id); b.addEventListener('click', () => { state[key] = !state[key]; b.setAttribute('aria-pressed', String(state[key])); }); };
-  bind('b-light', 'light'); bind('b-lamp', 'lamp'); bind('b-steps', 'steps'); bind('b-dust', 'dust');
+  bind('b-light', 'light'); bind('b-steps', 'steps'); bind('b-dust', 'dust');
 
   // фонарь: где курсор (или палец); по умолчанию — у Найта
   const lamp = { x: 175, y: 120, set: false };
