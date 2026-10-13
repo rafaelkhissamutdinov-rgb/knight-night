@@ -1605,9 +1605,10 @@ function updateCharge() {
   }
   if (heldFor < WEAPONS.rapier.chargeTime) return;
   game.charge = null;
-  const cur = game.current?.alive ? game.current : null;
-  const target = cur && Math.abs(cur.x - p.x) < 70 && Math.sign(cur.x - p.x) === p.facing ? cur.x : p.x + p.facing * 44;
-  if (!p.requestVault(target)) {
+  // цель — ближайший враг впереди на линии рыцаря; нет такого — прыжок вперёд без разворота
+  const ahead = game.enemies.filter(e => e.alive && near(p, e) && (e.x - p.x) * p.facing > 0 && Math.abs(e.x - p.x) < 90);
+  const cur = ahead.sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
+  if (!p.requestVault(cur ? cur.x : p.x + p.facing * 44, !!cur)) {
     callout('Прыжок не готов', 'muted');
     p.requestAttack('up', false);
   }
@@ -2087,6 +2088,8 @@ const FACES = {
     .map(m => [m, m === 'default' ? 'assets/portraits/lika.png' : `assets/portraits/lika-${m}.png`])),
 };
 for (const set of Object.values(FACES)) for (const src of Object.values(set)) new Image().src = src;  // загрузить заранее
+// портреты-крупные планы (обрезаны краем исходной картинки) — в рамке со своим фоном
+const FRAMED = new Set(['trainer']);
 
 const PORTRAITS = {
   knight: { colors: KNIGHT_COLORS, plume: true },
@@ -2124,6 +2127,7 @@ function showLine() {
   ui.talkName.textContent = who.name;
   const face = FACES[who.portrait];
   ui.talkFace.hidden = !face;
+  ui.talkFace.classList.toggle('framed', FRAMED.has(who.portrait));
   if (face) {
     const src = face[line.mood] ?? face.default;
     if (!ui.talkFace.src.endsWith(src)) ui.talkFace.src = src;
@@ -2136,6 +2140,7 @@ function showLine() {
     drawFigure(portraitCtx, { x: 7, ground: 40, facing: 1, pose: POSES.idle, bladeHidden: true, ...PORTRAITS[who.portrait] });
   }
   game.talkShown = 0;
+  game.lineAt = performance.now();
   ui.talkText.textContent = '';
   ui.talkChoices.innerHTML = '';
   ui.talkNext.hidden = !!line.choices;
@@ -2160,9 +2165,13 @@ function tickTalk(dt) {
   }
 }
 
+// новая реплика не пролистывается сразу: клики, которыми только что били, не съедают текст
+const TALK_GUARD = 350;
+
 function advanceTalk() {
   const line = game.talk?.current;
   if (!line) return;
+  if (performance.now() - (game.lineAt ?? 0) < TALK_GUARD) return;
   if (line.choices) return;
   if (line.text && game.talkShown < line.text.length) {
     game.talkShown = line.text.length;
@@ -2176,6 +2185,7 @@ function advanceTalk() {
 function chooseTalk(i) {
   const line = game.talk?.current;
   if (!line?.choices?.[i]) return;
+  if (performance.now() - (game.lineAt ?? 0) < TALK_GUARD) return;
   game.talk.choose(i);
   showLine();
 }

@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.56';
+export const VERSION = 'v0.57';
 
 export const CONFIG = {
   width: 320,
@@ -202,10 +202,10 @@ export const ENEMY_TYPES = {
     guardChance: 0.5, reaction: 0.1, noLowGuard: true,
     colors: { armor: '#8a6a48', armorDark: '#5e4630', tabard: '#6b4532', helm: '#c49a76', visor: '#14101e', blade: '#c9d2dc', hilt: '#7a5a3a', boots: '#3b2a1e', bandana: '#2e3b4a', mask: '#5e4630' },
   },
-  // скелет — командир стражи: хороший полуторный меч и щит, сражается на обрушенном балконе.
+  // скелет — сотник стражи (до v0.57 — «командир»): хороший полуторный меч и щит, сражается на обрушенном балконе.
   // Щит держит верх и середину; пробивают низом, захлёстом, контратакой после идеальной серии.
   commander: {
-    kind: 'melee', name: 'Скелет — командир стражи', shortName: 'Командир стражи', hp: 12, damage: 1, aggro: 160, reach: 34, speed: 46, lunge: 6, weapon: 19,
+    kind: 'melee', name: 'Скелет — сотник стражи', shortName: 'Сотник стражи', hp: 12, damage: 1, aggro: 160, reach: 34, speed: 46, lunge: 6, weapon: 19,
     skull: true, plate: true, shield: true, noRise: true,  // стоит на краю балкона — не встаёт из костей
     windup: 0.6, comboWindup: 0.42, gap: 0.08, recover: 0.9, wait: [0.6, 1.0],
     combos: [['high', 'mid'], ['diagDown'], ['mid', 'low', 'high'], ['heavyHigh'], ['thrust', 'diagUp'], ['low', 'low', 'high']],
@@ -494,8 +494,8 @@ export const ROOMS = {
       { x: 270, story: 'ataman', before: 'captain_meet', enemies: [{ type: 'captain', dx: 60, z: 22 }, { type: 'merc', dx: 110, z: 36 }] },
     ],
   },
-  // лестница башни: наверх — к магу
-  // за Галереей: коридор с мародёрами → столовая (чаша, лестница на второй этаж) → обрушенный балкон (тупик, командир стражи)
+  // лестница башни: наверх — покои принцессы, там призрак главы стражи
+  // за Галереей: коридор с мародёрами → столовая (чаша, лестница на второй этаж) → обрушенный балкон (тупик, сотник стражи)
   corridor: {
     name: 'Коридор', length: 900, torches: [120, 330, 540, 760],
     edges: { left: { to: 'gallery', x: 1150, name: 'Галерея' }, right: { to: 'dining', x: 30, name: 'Столовая' } },
@@ -702,17 +702,17 @@ export const ROOMS = {
       { type: 'sigil', x: 150, y: 44 }, { type: 'sigil', x: 52, y: 54 },
       { type: 'doorglow', x: 272 }, { type: 'chains', x: 110, y: 44 },
     ],
-    // последний отдых перед колдуном — сохраниться у его двери
+    // последний отдых перед боссом — сохраниться у двери покоев
     props: [{ type: 'bench', x: 210, z: 2, rest: { seat: 4, name: 'на каменной скамье', face: 1 } }],
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
-      // за дверью — маг (финальный босс, решение владельца: пока не делаем) — здесь конец главы 1
-      { id: 'up', x: 272, kind: 'wood', name: 'Вершина башни', finish: true, finishTalk: 'tower_end',
-        finishTitle: 'Конец главы 1 (черновик)', finishText: 'За дверью — вершина башни и скелет-колдун. Его сделаем дальше.' },
+      // за дверью — покои принцессы и призрак главы королевской стражи (финальный босс главы 1, решение владельца v0.57; маг — позже)
+      { id: 'up', x: 272, kind: 'wood', name: 'Покои принцессы', finish: true, finishTalk: 'tower_end',
+        finishTitle: 'Конец главы 1 (черновик)', finishText: 'За дверью — покои принцессы и призрак главы стражи. Его сделаем дальше.' },
     ],
   },
   mage: {
-    name: 'Вершина башни', length: 480, columns: false, torches: [100, 240, 380], magic: true,
+    name: 'Покои принцессы', length: 480, columns: false, torches: [100, 240, 380], magic: true,
     doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни', oneWay: true }],  // маг — потом; сюда пока не попасть
   },
 };
