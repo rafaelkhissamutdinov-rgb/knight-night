@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.47';
+export const VERSION = 'v0.48';
 
 export const CONFIG = {
   width: 320,
@@ -683,7 +683,12 @@ export const ROOMS = {
     props: [{ type: 'bones', x: 120, z: 20 }, { type: 'crate', x: 60, z: 3 }],
   },
   tower: {
-    name: 'Лестница башни', length: 320, columns: false, torches: [100, 230], stairs: 'up',
+    name: 'Лестница башни', length: 320, columns: false, torches: [100, 230], stairs: 'up', cobwebs: true,
+    // перед финалом: знаки на стенах тлеют, из-под двери наверх пробивается лиловый свет
+    decor: [
+      { type: 'sigil', x: 150, y: 44 }, { type: 'sigil', x: 52, y: 54 },
+      { type: 'doorglow', x: 272 }, { type: 'chains', x: 110, y: 44 },
+    ],
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
       // за дверью — маг (финальный босс, решение владельца: пока не делаем) — здесь конец главы 1
