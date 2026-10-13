@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONFIG, WEAPON, RAPIER, ENEMY_TYPES } from '../src/config.js';
+import { CONFIG, WEAPON, RAPIER, ENEMY_TYPES, ROOMS } from '../src/config.js';
 import { resolveImpact, slimeZone } from '../src/combat.js';
 import { createEnemy } from '../src/enemy.js';
 import { chooseAttack, attackWindup, Player } from '../src/player.js';
@@ -618,4 +618,13 @@ test('тройной выпад: три укола за один приём', ()
   tick(p, 1, ev => { if (ev.type === 'strike') strikes++; });
   assert.equal(strikes, 3);
   assert.ok(p.x > 10, 'выпад вперёд');
+});
+
+test('сюжетные бои помечены story и не повторяются по имени', () => {
+  const story = [];
+  for (const r of Object.values(ROOMS)) for (const enc of r.encounters ?? []) {
+    if (enc.enemies.some(e => ['duelist', 'captain', 'commander'].includes(e.type))) assert.ok(enc.story, `нет story у встречи с ${enc.enemies.map(e => e.type)}`);
+    if (enc.story) story.push(enc.story);
+  }
+  assert.deepEqual(story.sort(), ['ataman', 'commander', 'ilia']);
 });

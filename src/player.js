@@ -1,5 +1,5 @@
 import { CONFIG, WEAPON, WEAPONS } from './config.js';
-import { POSES, approachPose, lerpPose, spinPose, eightPose, ease } from './poses.js';
+import { POSES, approachPose, lerpPose, spinPose, eightPose, ease, gaitCycle } from './poses.js';
 
 // Какой удар выйдет при нажатии атаки. vert — зажатое направление ('up' | 'down' | null),
 // spin — только что нажато вперёд → назад, state / t — что рыцарь делает сейчас, sinceRoll — сколько прошло после кувырка.
@@ -248,11 +248,14 @@ export class Player {
         if (c.back) v = -walk * CONFIG.backWalkFactor;
         else if (c.fwd) v = walk;
         if (v) forward(v * slow * dt);
+        this.gaitRun = run;
+        this.speedNow = Math.hypot(v * slow, (c.dz ?? 0) * (c.engaged ? CONFIG.depthSpeed : CONFIG.exploreDepthSpeed) * slow);
+        if (run > 0.5 && this.weapon === 'sword' && !g) this.sheathed = true;  // на бегу меч в ножнах, руки свободны
         if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * (c.engaged ? CONFIG.depthSpeed : CONFIG.exploreDepthSpeed) * slow * dt));
         this.walking = !!(v || c.dz);
         if (this.weapon === 'sword' && !c.engaged && !g && this.idleT > CONFIG.autoSheathe) this.sheathed = true;
         const rest = this.weapon === 'rapier' ? POSES.fence : POSES.idle;
-        target = this.broken ? POSES.broken : this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : rest;
+        target = this.broken ? POSES.broken : this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : run > 0.5 && this.weapon === 'rapier' ? POSES.run_rapier : rest;
         break;
       }
 
@@ -337,6 +340,6 @@ export class Player {
     }
 
     if (target) this.pose = approachPose(this.pose, target, dt, this.state === 'attack' ? 55 : 40);
-    this.step = this.walking ? this.step + dt * 12 * (this.stepRate ?? 1) : 0;
+    this.step = this.walking ? this.step + dt * (this.speedNow ?? 60) / gaitCycle(this.gaitRun ?? 0) : 0;
   }
 }

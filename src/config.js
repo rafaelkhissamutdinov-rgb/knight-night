@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.27';
+export const VERSION = 'v0.28';
 
 export const CONFIG = {
   width: 320,
@@ -340,7 +340,7 @@ export const ROOMS = {
       { x: 1020, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
       { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
       { x: 1740, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
-      { x: 2100, enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
+      { x: 2100, story: 'ilia', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
     ],
   },
   // верхняя галерея с окнами на горы; отсюда — все комнаты и башня. Фон кодом: на картинке владельца
@@ -422,7 +422,7 @@ export const ROOMS = {
       { type: 'banner', x: 318, y: 10, h: 40, torn: true },
     ],
     encounters: [
-      { x: 270, before: 'captain_meet', enemies: [{ type: 'captain', dx: 60, z: 22 }, { type: 'merc', dx: 110, z: 36 }] },
+      { x: 270, story: 'ataman', before: 'captain_meet', enemies: [{ type: 'captain', dx: 60, z: 22 }, { type: 'merc', dx: 110, z: 36 }] },
     ],
   },
   // лестница башни: наверх — к магу
@@ -466,7 +466,7 @@ export const ROOMS = {
     name: 'Обрушенный балкон', length: 400, balcony: true, torches: [], limitRight: 348,  // дальше — обрыв
     edges: { left: { to: 'dining', x: 450, name: 'Столовая' } },
     encounters: [
-      { x: 240, before: 'commander_meet', after: 'balcony_after', enemies: [{ type: 'commander', dx: 40, z: 22 }] },
+      { x: 240, story: 'commander', before: 'commander_meet', after: 'balcony_after', enemies: [{ type: 'commander', dx: 40, z: 22 }] },
     ],
   },
   tower: {

@@ -1,4 +1,5 @@
 // Простые пиксельные примитивы и фигуры-заглушки. Позже их заменят спрайты.
+import { gaitFoot } from './poses.js';
 
 export function rect(g, x, y, w, h, color) {
   g.fillStyle = color;
@@ -48,15 +49,18 @@ export function drawFigure(g, o) {
   const {
     x, ground, facing: f, pose, colors, step = 0, plume = false, weaponLen = 17,
     bladeHidden = false, scabbard = false, shield = false, skull = false,
-    bow = false, bowDraw = 0, crossbow = false, airY = 0, trail = null, face = false, rapier = false, robe = false,
+    bow = false, bowDraw = 0, crossbow = false, gaitRun = null, airY = 0, trail = null, face = false, rapier = false, robe = false,
     offhandBack = false, sit = false, wrap = false, curved = false, slim = false, hood = false, pack = false,
     short = false, bob = false, coat = false, spear = false, bandit = false, axe = false, plate = false,
     bun = false, ornate = false,
   } = o;
   const gy = ground - airY;
   const hipX = x;
-  const hipY = gy - (short ? 10 : 13) + pose.crouch;  // short — невысокая фигура
-  const shX = hipX + pose.lean * f;
+  // gaitRun — походка по фазе step (циклы); на бегу корпус подпрыгивает дважды за цикл и наклоняется вперёд
+  const gaitOn = gaitRun !== null && !sit;
+  const hop = gaitOn ? Math.round(gaitRun * 1.5 * Math.cos(step * Math.PI * 4)) : 0;
+  const hipY = gy - (short ? 10 : 13) + pose.crouch + hop;  // short — невысокая фигура
+  const shX = hipX + (pose.lean + (gaitOn ? Math.round(gaitRun * 2.5) : 0)) * f;
   const shY = hipY - (short ? 10 : 12);
 
   // ноги (сидя на полу — вытянуты вперёд, одна согнута)
@@ -67,6 +71,27 @@ export function drawFigure(g, o) {
     thick(g, hipX + f, hipY, hipX + 6 * f, hipY - 4, 3, colors.armor);
     thick(g, hipX + 6 * f, hipY - 4, hipX + 9 * f, gy - 2, 3, colors.armor);
     rect(g, hipX + 9 * f - 1, gy - 2, 4, 2, colors.boots);
+  } else if (gaitOn) {
+    // две кости с коленом вперёд: колено находим по длинам бедра и голени
+    const len = (gy - 2 - (hipY - hop)) / 2 + 0.6;
+    const legIK = (hx, fx, fy, color) => {
+      const vx = fx - hx, vy = fy - hipY, d = Math.min(len * 2 - 0.01, Math.hypot(vx, vy));
+      const h = Math.sqrt(Math.max(0, len * len - (d / 2) ** 2));
+      let px = -vy / (d || 1), py = vx / (d || 1);
+      if (px * f < 0) { px = -px; py = -py; }
+      const kx = hx + vx / 2 + px * h, ky = hipY + vy / 2 + py * h;
+      thick(g, hx, hipY, kx, ky, 3, color);
+      thick(g, kx, ky, fx, fy, 3, color);
+      rect(g, kx - 1 + (f > 0 ? 1 : 0), ky - 1, 1, 2, shade(color, skull ? -0.25 : 0.25));
+    };
+    const feet = [[gaitFoot(step + 0.5, gaitRun), -2, shade(colors.boots, -0.2), colors.armorDark], [gaitFoot(step, gaitRun), 2, colors.boots, colors.armor]];
+    for (const [ft, off, boot, color] of feet) {
+      const fx = Math.round(hipX + off * f * 0.5 + ft.dx * f), fy = Math.round(gy - 2 - ft.lift);
+      legIK(hipX + off * 0.5 * f, fx, fy, color);
+      rect(g, fx - 2 + (f > 0 ? 0 : -1), fy - 1, 5, 3, boot);
+      rect(g, fx + (f > 0 ? 2 : -3), fy + 1, 1, 1, boot);
+      rect(g, fx - 2 + (f > 0 ? 0 : -1), fy - 1, 5, 1, shade(boot, 0.25));
+    }
   } else {
     // бедро и голень с коленом: колено чуть вперёд, сильнее — в приседе
     const leg = (hx, fx, color) => {
@@ -123,7 +148,9 @@ export function drawFigure(g, o) {
 
   // вторая рука — за корпусом, в тени
   if (!offhandBack && !bow) {
-    const ex = shX - 3 * f, ey = shY + 7;
+    // на ходу рука качается против ноги
+    const swing = gaitOn ? Math.round(Math.cos(step * Math.PI * 2) * (1 + 3 * gaitRun)) : 0;
+    const ex = shX - 3 * f + swing * f, ey = shY + 7 - Math.abs(swing) * gaitRun * 0.5;
     thick(g, shX - f, shY + 2, ex, ey, 2, shade(colors.armorDark, -0.25));
     thick(g, ex, ey, ex + f, ey + 5, 2, shade(colors.armorDark, -0.25));
   }
