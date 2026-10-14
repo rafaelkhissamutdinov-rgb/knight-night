@@ -392,14 +392,17 @@ export function drawDoor(g, d, floorTop, tiled = false) {
 // наверху площадка и дверь (та же, что в залах). Рыцарь поднимается по ступеням наискось, сбоку.
 export const STAIR_DROP = 6;                                        // низ ступеней — на линии шага у стены (z = 0)
 export const STAIR_PATH = [[0.03, 0.95], [0.64, 0.19], [0.84, 0.17]];   // v0.74: дверь — вровень с правым краем площадки   // нижняя ступень → верхняя → к двери
+// у картинки лестницы слева поле под нижний столб перил (v0.74, 24 px картинки = 12 мира): x0 и w — по самим ступеням
+export const STAIR_PAD = 12;
+const stairW = im => im.width / 2 - STAIR_PAD;
 export function stairsX(room, length) {
-  const w = (objImg('stairs')?.width ?? 140) / 2;
+  const im = objImg('stairs'), w = im ? stairW(im) : 70;
   return room.stairsX ?? (room.stairs === 'right' ? length - w - 4 : length / 2 - w / 2);
 }
 export function stairsGeom(room, floorTop) {
   const im = objImg('stairs');
   if (!im || !room.stairs || !room.tiles) return null;
-  const x0 = stairsX(room, room.length), w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
+  const x0 = stairsX(room, room.length), w = stairW(im), h = im.height / 2, top = floorTop + STAIR_DROP - h;
   return { x0, w, h, top, pts: STAIR_PATH.map(([fx, fy]) => [x0 + fx * w, top + fy * h]) };
 }
 // картинка, подкрашенная к среднему цвету стены слева от x0 (холст фона в масштабе 2: пиксели = мир × 2)
@@ -431,7 +434,7 @@ function tintToWall(g, im, x0, floorTop, k = 0.3) {
 function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
   const im = tiled && objImg('stairs');
   if (im) {
-    const w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
+    const w = stairW(im), h = im.height / 2, top = floorTop + STAIR_DROP - h;
     // тень на стене справа от кладки лестницы (она выступает из стены) — до двери и ступеней
     const sh = g.createLinearGradient(x0 + w, 0, x0 + w + 10, 0);
     sh.addColorStop(0, 'rgba(10,8,18,0.45)');
@@ -445,13 +448,13 @@ function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
     // цвет кладки — к цвету стен комнаты: средний цвет стены рядом подмешивается к картинке (v0.74, владелец:
     // «вставленная картинка не вписывается»)
     const tinted = tintToWall(g, im, x0, floorTop);
-    drawObj(g, tinted ?? im, x0 + w / 2, floorTop + STAIR_DROP);
+    drawObj(g, tinted ?? im, x0 - STAIR_PAD + im.width / 4, floorTop + STAIR_DROP);
     // тень касания: пол у основания ступеней темнее
     const cs = g.createLinearGradient(0, floorTop + STAIR_DROP - 2, 0, floorTop + STAIR_DROP + 7);
     cs.addColorStop(0, 'rgba(10,8,18,0.5)');
     cs.addColorStop(1, 'rgba(10,8,18,0)');
     g.fillStyle = cs;
-    g.fillRect(x0 + 2, floorTop + STAIR_DROP - 2, w - 2, 9);
+    g.fillRect(x0 - STAIR_PAD + 2, floorTop + STAIR_DROP - 2, w + STAIR_PAD - 2, 9);
     return;
   }
   const steps = 9, sw = 8, sh = 9;
