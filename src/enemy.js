@@ -10,7 +10,7 @@ import { slimeZone } from './combat.js';
 
 export function createEnemy(type, x, rng = Math.random, z = 22) {
   const kind = ENEMY_TYPES[type].kind;
-  const Cls = kind === 'slime' ? Slime : kind === 'archer' ? Archer : kind === 'duelist' ? Duelist : kind === 'trainer' ? Trainer : kind === 'ghost' ? Ghost : Melee;
+  const Cls = kind === 'slime' ? Slime : kind === 'archer' ? Archer : kind === 'duelist' ? Duelist : kind === 'trainer' ? Trainer : kind === 'ghost' ? Ghost : kind === 'boss' ? Boss : Melee;
   const e = new Cls(type, x, rng);
   e.z = e.homeZ = z;
   return e;
@@ -621,6 +621,186 @@ class Ghost extends Melee {
     if (this.state === 'recover' && this.alive && this.t + dt >= this.def.recover && this.rng() < (this.def.blinkChance ?? 0.6)) {
       this.enter('fade');
       return;
+    }
+    super.update(dt, w);
+  }
+}
+
+// Босс главы 1 — призрак главы королевской стражи (механика владельца, docs/design.md «Босс главы 1»).
+// Приёмы — patterns в ENEMY_TYPES.boss. Сверх призрака: перелёт на другую сторону посреди двойки (swapOut → swapIn),
+// стойка «Оби-Ван» (stance) перед мощной парой, удушение (cast → choking, world.choke), отлёт назад перед телепортом,
+// вторая фаза с половины жизни (быстрее, телепорт чаще, комбо с разворотом). Не вздрагивает от ударов посреди приёма.
+const BOSS_BUSY = ['stance', 'cast', 'choking', 'swapOut', 'swapIn', 'windup', 'strike'];
+class Boss extends Ghost {
+  constructor(type, x, rng) {
+    super(type, x, rng);
+    this.pat = null;
+    this.lastPat = -1;
+    this.eyes = 0;       // свечение глаз (удушение), 0…1
+    this.phase2 = false;
+  }
+
+  get phase() { return this.hp <= this.def.hp / 2 ? 2 : 1; }
+
+  get windupTime() {
+    const w = this.pat?.windup;
+    const base = this.windupOverride ?? (w ? w[this.idx === 0 ? 0 : 1] : this.idx === 0 ? this.def.windup : this.def.comboWindup);
+    return base * CONFIG.windupMult * (this.phase === 2 ? this.def.phase2Speed : 1);
+  }
+
+  get solid() { return super.solid && this.state !== 'swapOut' && this.state !== 'swapIn'; }
+
+  receiveAttack(atk) {
+    if (this.state === 'swapOut' || this.state === 'swapIn') return { out: 'miss' };  // перелетает — удар сквозь
+    return super.receiveAttack(atk);
+  }
+
+  damage(dmg) {
+    if (this.alive && this.hp > dmg && BOSS_BUSY.includes(this.state)) {
+      // посреди приёма не вздрагивает: урон проходит, приём продолжается
+      this.hp -= dmg;
+      this.flashT = 0.1;
+      return;
+    }
+    super.damage(dmg);
+    if (!this.alive) { this.pat = null; this.eyes = 0; }
+  }
+
+  pickPattern() {
+    const list = this.def.patterns.map((p, i) => [p, i]).filter(([p, i]) => (p.phase ?? 1) <= this.phase && i !== this.lastPat);
+    let r = this.rng() * list.reduce((s, [p]) => s + p.weight, 0);
+    for (const [p, i] of list) {
+      r -= p.weight;
+      if (r <= 0) { this.lastPat = i; return p; }
+    }
+    this.lastPat = list[0][1];
+    return list[0][0];
+  }
+
+  // решение в паузе: удушение (и издалека) или приём, если рыцарь рядом
+  decide(w, dist) {
+    if (this.t < this.waitFor) return false;
+    const d = this.def;
+    if (dist < d.chokeRange && this.rng() < (dist > d.reach + 10 ? d.chokeChance * 2 : d.chokeChance) * (this.phase === 2 ? 1.3 : 1)) {
+      this.enter('cast');
+      return true;
+    }
+    if (dist > d.reach + 4 || Math.abs(this.z - w.player.z) > CONFIG.depthReach) return false;
+    this.pat = this.pickPattern();
+    this.combo = this.pat.combo;
+    this.idx = 0;
+    this.allPerfect = true;
+    this.enter(this.pat.stance ? 'stance' : 'windup');
+    return true;
+  }
+
+  // где проявиться: по другую сторону рыцаря, в пределах арены
+  otherSide(w) {
+    const lo = this.x - (w.roomBehind?.(this, -1) ?? 999), hi = this.x + (w.roomBehind?.(this, 1) ?? 999);
+    const side = this.x < w.player.x ? 1 : -1;
+    let x = w.player.x + side * (this.def.reach - 8);
+    if (x < lo + 12 || x > hi - 12) x = w.player.x - side * (this.def.reach - 8);
+    return Math.max(lo + 12, Math.min(hi - 12, x));
+  }
+
+  update(dt, w) {
+    const d = this.def;
+    if (this.alive && !this.phase2 && this.phase === 2) {
+      // вторая фаза: маска треснула — отлетает и исчезает
+      this.phase2 = true;
+      w.bossPhase?.(this);
+      if (!BOSS_BUSY.includes(this.state)) { this.pat = null; this.combo = null; this.enter('fade'); }
+    }
+    this.eyes = Math.max(0, this.eyes - dt * 2);
+    switch (this.state) {
+      case 'stance':
+        // «Оби-Ван»: меч вверх, рука к рыцарю — сигнал мощной пары
+        this.baseUpdate(dt);
+        this.faceTo(w);
+        this.pose = approachPose(this.pose, POSES.obiwan, dt, 14);
+        if (!this.cued) { this.cued = true; w.cue?.('high', { heavy: true }); }
+        if (this.t >= this.pat.stance * (this.phase === 2 ? d.phase2Speed : 1)) {
+          this.enter('windup');
+          this.windupOverride = 0.3;
+        }
+        return;
+
+      case 'cast': {
+        // удушение: глаза вспыхивают, рука тянется — под рыцарем круг; кувырок или рывок назад спасают
+        this.baseUpdate(dt);
+        this.faceTo(w);
+        this.eyes = Math.min(1, this.t / 0.25);
+        this.pose = approachPose(this.pose, POSES.cast, dt, 12);
+        if (!this.cued) { this.cued = true; w.chokeCue?.(this); }
+        if (this.t >= d.chokeCast * (this.phase === 2 ? d.phase2Speed : 1)) {
+          if (w.choke?.(this)) this.enter('choking');
+          else this.rest(0.5);
+        }
+        return;
+      }
+
+      case 'choking':
+        this.baseUpdate(dt);
+        this.eyes = 1;
+        this.pose = approachPose(this.pose, POSES.cast, dt, 12);
+        if (this.t >= 1.2) this.rest(0.7);
+        return;
+
+      case 'swapOut':
+        // растворяется посреди двойки и перелетает за спину рыцаря
+        this.baseUpdate(dt);
+        this.ghost = Math.max(0.15, 1 - this.t / 0.14);
+        if (this.t >= 0.14) {
+          this.x = this.otherSide(w);
+          this.z = w.player.z;
+          this.faceTo(w);
+          this.enter('swapIn');
+        }
+        return;
+
+      case 'swapIn':
+        this.baseUpdate(dt);
+        this.ghost = Math.min(1, 0.15 + this.t / 0.12);
+        if (this.t >= 0.12) {
+          this.ghost = 1;
+          this.enter('windup');
+          this.windupOverride = d.comboWindup * 1.35;   // успеть развернуться
+        }
+        return;
+
+      case 'fade':
+        // отлёт назад: отталкивается от воздуха и тает
+        this.x -= this.facing * 90 * dt * Math.max(0, 1 - this.t / 0.5);
+        break;
+
+      case 'recover':
+        if (this.alive && this.t + dt >= d.recover && this.rng() < (this.phase === 2 ? d.phase2Blink : d.blink)) {
+          this.baseUpdate(dt);
+          this.enter('fade');
+          return;
+        }
+        break;
+
+      case 'strike': {
+        this.baseUpdate(dt);
+        this.pose = lerpPose(this.from, POSES['strike_' + this.strike.pose], ease(Math.min(1, this.t / 0.07)));
+        if (this.t < 0.1) this.x += this.facing * (d.lunge + (this.pat?.step ?? 0)) * dt / 0.1;
+        if (this.t >= 0.1 + (this.pat?.gap ?? d.gap)) {
+          const swap = this.pat?.swap?.includes(this.idx);
+          this.idx++;
+          if (this.idx < this.combo.length) {
+            this.enter(swap ? 'swapOut' : this.lastResult === 'perfect' ? 'reel' : 'windup');
+          } else {
+            this.combo = null;
+            this.pat = null;
+            if (this.allPerfect) {
+              this.enter('stagger');
+              w.staggered(this);
+            } else this.enter('recover');
+          }
+        }
+        return;
+      }
     }
     super.update(dt, w);
   }

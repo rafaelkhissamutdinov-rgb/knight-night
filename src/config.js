@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.64';
+export const VERSION = 'v0.65';
 
 export const CONFIG = {
   width: 320,
@@ -130,6 +130,7 @@ export const STRIKES = {
   heavyHigh: { guard: 'high', pose: 'high', breaks: true, mult: 1.5, heavy: true },
   heavyMid:  { guard: 'mid',  pose: 'mid',  breaks: true, mult: 1.5, heavy: true },
   heavyLow:  { guard: 'low',  pose: 'low',  breaks: true, mult: 1.5, heavy: true },
+  spin:      { guard: 'mid',  pose: 'whirl', breaks: true, mult: 2, heavy: true },   // босс: разворот и мощный удар на амплитуде
 };
 
 const BONE = { armor: '#d9d4c3', armorDark: '#a39d8a', tabard: '#2b2633', helm: '#e6e1d0', visor: '#14101e', boots: '#a39d8a', blade: '#b9c2cc', hilt: '#6b4532', shield: '#5a3726' };
@@ -184,6 +185,26 @@ export const ENEMY_TYPES = {
     combos: [['high', 'mid'], ['low', 'high'], ['mid', 'mid', 'high'], ['diagDown']],
     guardChance: 0.25, reaction: 0.12,
     colors: { ...BONE, helm: '#bfe6f2', armor: '#bfe6f2', armorDark: '#7fb0c8', boots: '#7fb0c8', tabard: '#5a3a8a', blade: '#d9f4ff', hilt: '#8fd3ff' },
+  },
+  // Босс главы 1 — призрак главы королевской стражи (механика владельца, docs/design.md «Босс главы 1»).
+  // patterns — приёмы: combo — удары подряд; swap — после удара перелетает на другую сторону рыцаря;
+  // stance — «Оби-Ван» перед серией; step — шаг вперёд с каждым ударом; windup/gap — свои темпы.
+  // Вторая фаза — с половины жизни: темп ×phase2Speed, телепорт чаще.
+  boss: {
+    kind: 'boss', name: 'Призрак главы стражи', shortName: 'Глава стражи', hp: 36, damage: 1, aggro: 220, reach: 32, speed: 46, lunge: 5, weapon: 21,
+    windup: 0.55, comboWindup: 0.36, gap: 0.1, recover: 0.75, wait: [0.4, 0.9],
+    guardChance: 0.6, reaction: 0.1, blinkChance: 0, blink: 0.35, phase2Speed: 0.82, phase2Blink: 0.6,
+    chokeChance: 0.18, chokeCast: 1.1, chokeRange: 140,
+    patterns: [
+      { id: 'twoSides', weight: 3, combo: ['mid', 'mid'], swap: [0] },
+      { id: 'sideHigh', weight: 2, combo: ['mid', 'high'] },
+      { id: 'sideLow', weight: 2, combo: ['mid', 'low'] },
+      { id: 'steps', weight: 2, combo: ['high', 'low', 'high'], step: 14 },
+      { id: 'turnPower', weight: 2, combo: ['high', 'mid', 'mid', 'high', 'spin'], phase: 2 },
+      { id: 'obiwan', weight: 2, combo: ['heavyHigh', 'heavyMid'], stance: 0.9 },
+      { id: 'flurry', weight: 1, combo: ['whirl', 'whirl', 'whirl'], windup: [0.45, 0.2], gap: 0.04 },
+    ],
+    colors: { armor: '#e8e4d8', armorDark: '#a8b4c8', tabard: '#f2eee4', helm: '#c9d2de', visor: '#f4f4f4', boots: '#7fb0c8', blade: '#d9f4ff', hilt: '#c9a24a' },
   },
   // скелет-алебардист (второй этаж): длинный охват; подсечка низом и рубящий сверху сбивают блок, между ними — уколы.
   // Читать по замаху: тяжёлые — идеальное парирование или отойти; после тяжёлого он долго выпрямляется.
@@ -338,7 +359,7 @@ export const SETS = {
 export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
-export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, halberd: 3, ghost: 4, duelist: 10, mage: 15 };
+export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, halberd: 3, ghost: 4, duelist: 10, mage: 15, boss: 25 };
 
 // Мир: комнаты и переходы между ними.
 // edges — выход за край комнаты (left / right): to — комната, x — где рыцарь появится там.
@@ -744,12 +765,21 @@ export const ROOMS = {
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
       // за дверью — покои принцессы и призрак главы королевской стражи (финальный босс главы 1, решение владельца v0.57; маг — позже)
-      { id: 'up', x: 272, kind: 'wood', name: 'Покои принцессы', finish: true, finishTalk: 'tower_end',
-        finishTitle: 'Конец главы 1 (черновик)', finishText: 'За дверью — покои принцессы и призрак главы стражи. Его сделаем дальше.' },
+      { id: 'up', x: 272, kind: 'wood', to: 'mage', toDoor: 'in', name: 'Покои принцессы' },
     ],
   },
+  // покои принцессы — арена босса главы 1 (призрак главы стражи, v0.65); победа — конец главы
   mage: {
-    name: 'Покои принцессы', length: 480, columns: false, torches: [100, 240, 380], magic: true,
-    doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни', oneWay: true }],  // маг — потом; сюда пока не попасть
+    name: 'Покои принцессы', tiles: 'castle', length: 480, columns: false, torches: [100, 240, 380], magic: true,
+    decor: [
+      { type: 'window', x: 200, y: 18, moon: true }, { type: 'window', x: 330, y: 18 },
+      { type: 'portrait', x: 265, y: 30, look: 'look_princess', name: 'портрет принцессы' }, { type: 'tapestry', x: 410, y: 16 },
+    ],
+    doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни' }],
+    encounters: [
+      { x: 230, story: 'boss', before: 'boss_intro', after: 'boss_end', noRise: true,
+        finish: { finishTitle: 'Конец главы 1 (черновик)', finishText: 'Призрак главы стражи упокоен. Выбор «упокоить или уничтожить» и дальнейший путь — в следующей главе.' },
+        enemies: [{ type: 'boss', dx: 120, z: 20 }] },
+    ],
   },
 };
