@@ -2614,8 +2614,15 @@ function render() {
   if (r.gate === 'right') drawGatePanel(g, r.length - 26 - cam, CONFIG.floorTop, H, -1);
   if (r.gate === 'left') drawGatePanel(g, 26 - cam, CONFIG.floorTop, H, 1);
 
-  if (r.dark) {
-    // темнота: свет от портала, от выхода и немного вокруг рыцаря
+  if (r.dark && light) {
+    // живой свет сам затемняет комнату (applyLight); остаются тёмные пылинки перед камерой
+    for (const m of game.motes) {
+      g.globalAlpha = 0.55;
+      rect(g, m.x, m.y, m.s, m.s, m.s > 1 ? '#05040a' : '#2a2538');
+    }
+    g.globalAlpha = 1;
+  } else if (r.dark) {
+    // темнота без WebGL: свет от портала, от выхода и немного вокруг рыцаря
     const p = game.player;
     const c = game.cutscene;
     const portalLight = c && c.t < WAKE.flash ? 30 + 40 * (c.t / WAKE.flash) : 95;
@@ -3155,11 +3162,19 @@ function sceneLights() {
   const add = (x, y, rad, color, power, z = 30) => { const sx = (x - cam) * S; if (sx > -rad * S && sx < (W + rad) * S) L.push({ x: sx, y: y * S, z, r: rad * S, color, power }); };
   for (const x of r.torches ?? []) add(x, 69, 150, WARM, 0.85 + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3));
   for (const pr of r.props ?? []) {
-    if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, 130, WARM, 1 + 0.12 * Math.sin(t * 9 + pr.x), 20);
+    if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
     if (pr.type === 'candles') add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
   }
   for (const d of r.decor ?? []) if (d.type === 'fireplace') add(d.x, CONFIG.floorTop - 14, 150, WARM, 1 + 0.12 * Math.sin(t * 8 + d.x), 26);
-  if (r.portal) add(r.portal.x, groundY(r.portal.z) - 8, 120, [0.55, 0.85, 1], 0.9, 20);
+  if (r.portal) {
+    const c = game.cutscene, k = c && c.t < WAKE.flash ? 0.3 + 0.7 * (c.t / WAKE.flash) : 1;   // портал разгорается, когда рыцарь очнулся
+    add(r.portal.x, groundY(r.portal.z) - 8, r.dark ? 140 : 120, [0.55, 0.85, 1], (r.dark ? 1.3 : 0.9) * k, 20);
+  }
+  if (r.dark) {
+    if (r.gate) add(r.gate === 'right' ? r.length + 10 : -10, 100, 110, WARM, 0.9);   // свет факелов из-за решётки
+    const p = game.player;
+    add(p.x, groundY(p.z) - 16, 48, [0.75, 0.75, 0.9], 0.35, 40);                      // чуть видно самого рыцаря
+  }
   // призраки светятся холодным; босс — сильнее, при удушении — ярче
   for (const e of game.enemies) if ((e.kind === 'ghost' || e.kind === 'boss') && e.alive && e.state !== 'dormant') {
     const k = (e.ghost ?? 1) * (e.kind === 'boss' ? 0.7 + 0.5 * e.eyes : 0.45);
@@ -3168,11 +3183,13 @@ function sceneLights() {
   // ближние к центру экрана — вперёд
   return L.sort((a, b) => Math.abs(a.x - W) - Math.abs(b.x - W));
 }
+// тёмные комнаты (камера, привал) — тоже живым светом (v0.67): почти ночь, светят портал, костёр и выход
+const DARK_AMBIENT = [0.16, 0.14, 0.2];
 function applyLight() {
   if (!light) return;
   const r = game.mode === 'title' || game.mode === 'map' ? null : room();
-  if (!r || r.dark) { light.off(); return; }
-  light.draw(sceneLights(), AMBIENT, true);
+  if (!r) { light.off(); return; }
+  light.draw(sceneLights(), r.dark ? DARK_AMBIENT : AMBIENT, true);
 }
 // пыль в воздухе: пылинки видны у огня (сами светлее там, где свет сильнее)
 const dustMotes = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: 20 + Math.random() * 100, v: 1 + Math.random() * 3, p: Math.random() * 6.28 }));
