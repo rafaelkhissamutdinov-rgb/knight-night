@@ -58,7 +58,7 @@ def base(name, desc, style=None, brick=(44, 22)):
     if style:  # образец стиля: фактура камня, мох, цвет
         st, ss = b64img(style)
         body['style_image'] = {'image': st, 'size': {'width': ss[0], 'height': ss[1]}}
-    p = run('/generate-image-v2', body, os.path.join(out_dir(name), 'raw'))[0]
+    p = run('/generate-image-v2', body, os.path.join(ROOT, '.pixellab_work', name + '_raw'))[0]
     Image.open(p).convert('RGBA').save(os.path.join(out_dir(name), name + '_0.png'))
     print('base', p)
 
