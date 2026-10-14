@@ -9,7 +9,7 @@ import { thick } from './draw.js';
 
 const ROOT = 'assets/sprites/';
 // враги, у которых уже есть набор кадров (имя набора = тип врага в ENEMY_TYPES); остальные — старые фигурки
-export const ENEMY_SPRITES = ['skelShort', 'merc', 'skelShield', 'skelArcher', 'skelLong', 'duelist', 'axe', 'spear', 'crossbow', 'captain', 'halberd', 'commander', 'boss'];
+export const ENEMY_SPRITES = ['skelShort', 'merc', 'skelShield', 'skelArcher', 'skelLong', 'duelist', 'axe', 'spear', 'crossbow', 'captain', 'halberd', 'commander', 'boss', 'guard'];
 const sets = {};
 let normalCtx = null;  // куда рисовать нормали (холст живого света); null — не рисовать
 export const setNormalTarget = ctx => { normalCtx = ctx; };
