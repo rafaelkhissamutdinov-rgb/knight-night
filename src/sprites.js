@@ -355,7 +355,18 @@ export function drawSprite(name, g, o) {
     if (k >= 0.7) drawWeapon(g, o.sheath.kind, wx, wy, ang, o.facing, o.sheath.len, 0, k >= 1);
     else sheathFront = [wx, wy, ang];
   }
-  g.drawImage(img, left, top);
+  if (o.cloth) {
+    // ткань (сюрко, призрачный хвост): ниже пояса кадр режется на строки, каждая сдвигается волной; чем ниже — тем сильнее,
+    // в движении подол отстаёт назад. o.cloth = { cut (строка кадра — пояс), amp, speed, lag (−1…1, против хода) }
+    const c = o.cloth, cut = Math.max(0, Math.min(size, Math.round(c.cut)));
+    g.drawImage(img, 0, 0, size, cut, left, top, size, cut);
+    const span = Math.max(1, foot - cut + 6), tt = o.time ?? 0;
+    for (let y = cut; y < size; y++) {
+      const f = Math.min(1, (y - cut) / span), w = f * Math.sqrt(f);
+      const dx = (Math.sin(tt * (c.speed ?? 3) - y * 0.22) * (c.amp ?? 1.5) + Math.sin(tt * 1.7 - y * 0.09) * 0.8) * w + (c.lag ?? 0) * 4 * w;
+      g.drawImage(img, 0, y, size, 1, left + Math.round(dx), top + y, size, 1);
+    }
+  } else g.drawImage(img, left, top);
   if (sheathFront) drawWeapon(g, o.sheath.kind, sheathFront[0], sheathFront[1], sheathFront[2], o.facing, o.sheath.len);
   if (o.flash) {
     // вспышка попадания: тот же кадр поверх, светлее

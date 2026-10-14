@@ -87,10 +87,10 @@ function decorImage(g, d, floorTop, room) {
   }
   if (anchor === 'stairs') {
     // завал наверху лестницы (картинкой): закрывает её проём
-    const st = objImg('stairs');
-    if (!st || room.stairsX === undefined) return false;
-    const sw = st.width / 2, top = Math.round(floorTop - st.height / 2 * 0.6);
-    drawObj(g, im, room.stairsX + sw - 13, top + 2);
+    const st = stairsGeom(room, floorTop);
+    if (!st) return false;
+    const [dx, dy] = st.pts[st.pts.length - 1];   // завал — в двери наверху
+    drawObj(g, im, dx, dy + 2);
     return true;
   }
   const bottom = anchor === 'floor' ? floorTop : anchor === 'hole' ? floorTop + 1 + h : anchor === 'center' ? (d.y ?? top0) + h / 2 : (d.y ?? top0) + dy + h;
@@ -233,6 +233,14 @@ export function buildRoom(room, height, floorTop, tiles = null) {
       const gr = g.createLinearGradient(0, CEIL.height, 0, CEIL.height + 14);
       gr.addColorStop(0, 'rgba(8,6,12,0.55)'); gr.addColorStop(1, 'rgba(8,6,12,0)');
       g.fillStyle = gr; g.fillRect(0, CEIL.height, length * 2, 14);
+      // лестница уходит сквозь потолок на следующий этаж — поверх сводов (и завал на ней)
+      if (room.stairs) {
+        g.setTransform(2, 0, 0, 2, 0, 0);
+        pairNormals(g, ng); ng?.setTransform(2, 0, 0, 2, 0, 0);
+        drawStairs(g, stairsX(room, length), floorTop, true);
+        for (const d of room.decor ?? []) if (d.type === 'rubble') decorImage(g, d, floorTop, room);
+        pairNormals(g, null);
+      }
     }
     return c;
   }
@@ -319,7 +327,7 @@ function finishRoom(g, room, length, height, floorTop, rand, tiled) {
   }
   for (const d of doors) drawDoor(g, d, floorTop, tiled);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
-  if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop, tiled, (room.decor ?? []).some(d => d.type === 'rubble') && !!objImg('decor_rubble'));
+  if (room.stairs) drawStairs(g, stairsX(room, length), floorTop, tiled, (room.decor ?? []).some(d => d.type === 'rubble') && !!objImg('decor_rubble'));
   if (room.balcony) (tiled && room.far ? drawBalconyTiled : drawBalcony)(g, length, height, floorTop, rand);
   for (const d of room.decor ?? []) if (!(tiled && decorImage(g, d, floorTop, room))) drawDecor(g, d, floorTop);  // поверх лестниц и дверей (завал на лестнице)
   if (room.magic) {
@@ -383,17 +391,21 @@ export function drawDoor(g, d, floorTop, tiled = false) {
 }
 
 // Лестница вверх вдоль стены: ступени поднимаются вправо к тёмному проёму наверху.
+// Лестница (v0.70): объёмная, ступени уходят вглубь к двери наверху; нижние ступени — на полу (STAIR_DROP ниже линии стены).
+// Путь рыцаря по ступеням — доли картинки (низ ступеней → площадка → дверь); по нему он реально поднимается (main.js).
+export const STAIR_DROP = 8;
+export const STAIR_PATH = [[0.16, 0.88], [0.6, 0.34], [0.8, 0.31]];
+export function stairsX(room, length) { return room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40); }
+export function stairsGeom(room, floorTop) {
+  const im = objImg('stairs');
+  if (!im || !room.stairs || !room.tiles) return null;
+  const x0 = stairsX(room, room.length), w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
+  return { x0, w, h, top, pts: STAIR_PATH.map(([fx, fy]) => [x0 + fx * w, top + fy * h]) };
+}
 function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
   const im = tiled && objImg('stairs');
   if (im) {
-    // каменная лестница картинкой; наверху — тёмный проём (или завал со своей аркой)
-    const w = im.width / 2, h = im.height / 2;
-    const top = Math.round(floorTop - h * 0.6);   // верхняя ступень (выше — только перила)
-    if (!blocked) {
-      rect(g, x0 + w - 24, top - 30, 22, 31, '#0d0b14');
-      rect(g, x0 + w - 26, top - 33, 26, 3, PAL.wallLight);
-    }
-    drawObj(g, im, x0 + w / 2, floorTop + 1);
+    drawObj(g, im, x0 + im.width / 4, floorTop + STAIR_DROP);
     return;
   }
   const steps = 9, sw = 8, sh = 9;
@@ -623,13 +635,13 @@ export function drawDoorOpen(g, d, floorTop, cam, k) {
   rect(g, x0, top, w, DOOR_H, '#050409');
 }
 
-export function drawTorches(g, camX, xs, time) {
+export function drawTorches(g, camX, xs, time, blue = false) {
   for (const x of xs) {
     const sx = Math.round(x - camX);
     if (sx < -50 || sx > 370) continue;
     const glow = g.createRadialGradient(sx, 69, 1, sx, 69, 38);
-    glow.addColorStop(0, 'rgba(255,170,80,0.22)');
-    glow.addColorStop(1, 'rgba(255,170,80,0)');
+    glow.addColorStop(0, blue ? 'rgba(90,170,255,0.26)' : 'rgba(255,170,80,0.22)');
+    glow.addColorStop(1, blue ? 'rgba(90,170,255,0)' : 'rgba(255,170,80,0)');
     g.fillStyle = glow;
     g.fillRect(sx - 38, 31, 76, 76);
 
@@ -645,7 +657,7 @@ export function drawTorches(g, camX, xs, time) {
     g.fillRect(-3, -1, 6, 1);
     g.restore();
     // пламя — живой огонь (src/fire.js) в пикселях экрана, размером с прежний (факелы мелкие — просьба владельца)
-    drawFire(g, getFire('torch:' + x, { w: 7, h: 14, base: 0.9, tall: 0.8, px: 1 }), sx, 71, time);
+    drawFire(g, getFire('torch:' + x + (blue ? ':b' : ''), { w: 7, h: 14, base: 0.9, tall: 0.8, px: 1, blue }), sx, 71, time);
   }
 }
 

@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -146,6 +146,7 @@ function respawnable(enc) {
 
 const FLOOR_NAMES = { 2: 'Второй этаж', 3: 'Третий этаж' };
 function loadRoom(id, at) {
+  game.climb = null;
   game.coinFx = [];
   game.flags['map_' + id] = true;  // для карты: где побывал
   const floor = ROOMS[id].floor ?? 1;
@@ -1359,7 +1360,10 @@ function updateDoors(dt) {
   if (d.stairs) {
     // лестница: шаг к ступеням, затемнение — и уже на другом этаже, без проёма в стене
     const up = (ROOMS[d.to].floor ?? 1) > (room().floor ?? 1);
-    game.transition = { kind: 'stairs', door: d, dir: up ? 1 : -1, phase: 'out', t: 0 };
+    // наверх по нарисованной лестнице — подойти к нижней ступени и подняться по ней (v0.70); иначе — шаг и затемнение
+    const geom = up && stairsGeom(room(), CONFIG.floorTop);
+    game.transition = { kind: 'stairs', door: d, dir: up ? 1 : -1, phase: geom ? 'toStairs' : 'out', t: 0, geom };
+    p.sheathed = true;
     return;
   }
   game.transition = { kind: 'door', door: d, phase: 'turn', t: 0, x0: p.x, z0: p.z };
@@ -1379,6 +1383,23 @@ function updateEdges() {
 const DOOR_PHASES = { turn: 0.35, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.3 };   // створка видна, пока поворачивается
 const EDGE_PHASES = { out: 0.3, in: 0.3 };
 const STAIR_PHASES = { out: 0.4, in: 0.35 };
+// синий огонь: в комнате живой босс вышел на бой; гаснет обратно в тёплый после победы
+const bossFire = () => game.enemies.some(e => e.kind === 'boss' && e.alive && e.state !== 'dormant');
+function torchUnderStairs(r, x) {
+  const st = stairsGeom(r, CONFIG.floorTop);
+  return !!st && x > st.x0 - 4 && x < st.x0 + st.w + 4;
+}
+const CLIMB_T = 1.3;   // подъём по ступеням, секунд
+// точка на ломаной (по длине), k от 0 до 1
+function alongPath(pts, k) {
+  const seg = pts.slice(1).map((q, i) => Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]));
+  let d = k * seg.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < seg.length; i++) {
+    if (d <= seg[i] || i === seg.length - 1) { const u = seg[i] ? Math.min(1, d / seg[i]) : 1; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * u, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * u]; }
+    d -= seg[i];
+  }
+  return pts[pts.length - 1];
+}
 
 function updateTransition(dt) {
   const tr = game.transition;
@@ -1410,6 +1431,36 @@ function updateTransition(dt) {
     return;
   }
   if (tr.kind === 'stairs') {
+    if (tr.phase === 'toStairs') {
+      // к нижней ступени: вдоль стены и к ней
+      const [sx] = tr.geom.pts[0];
+      const dx = sx - p.x, v = CONFIG.exploreSpeed;
+      p.facing = dx >= 0 ? 1 : -1;
+      p.x += Math.sign(dx) * Math.min(Math.abs(dx), v * dt);
+      p.z = Math.max(0, p.z - CONFIG.exploreDepthSpeed * dt);
+      p.walking = true;
+      p.step += dt * v / gaitCycle(0);
+      if ((Math.abs(dx) < 1 && p.z <= 0.5) || tr.t > 1.4) { tr.phase = 'climb'; tr.t = 0; }
+      return;
+    }
+    if (tr.phase === 'climb' || tr.phase === 'descend') {
+      // по ступеням: вверх — со спины, вниз (пришёл сверху) — лицом к нам; к концу подъёма растворяется в двери
+      const T = tr.phase === 'climb' ? CLIMB_T : CLIMB_T * 0.85;
+      const k = Math.min(1, tr.t / T);
+      const pts = tr.phase === 'climb' ? tr.geom.pts : [...tr.geom.pts].reverse();
+      const [x, y] = alongPath(pts, k);
+      game.climb = { x, y, step: tr.t * 1.6, view: tr.phase === 'climb' ? 'north' : 'south',
+        alpha: tr.phase === 'climb' ? (k > 0.8 ? (1 - k) / 0.2 : 1) : Math.min(1, k / 0.2) };
+      if (tr.t >= T) {
+        game.climb = null;
+        if (tr.phase === 'climb') { tr.phase = 'out'; tr.t = STAIR_PHASES.out; }
+        else {
+          p.x = pts[pts.length - 1][0]; p.z = 0; p.facing = 1;
+          game.transition = null; game.doorLock = true; save();
+        }
+      }
+      return;
+    }
     if (tr.phase === 'out') {
       p.facing = tr.dir;
       p.x += tr.dir * CONFIG.exploreSpeed * 0.6 * dt;
@@ -1425,6 +1476,9 @@ function updateTransition(dt) {
         sfx.step();
         tr.phase = 'in';
         tr.t = 0;
+        // пришёл сверху в комнату с нарисованной лестницей — сходит по ней
+        const geom = tr.dir < 0 && out.stairs && stairsGeom(to, CONFIG.floorTop);
+        if (geom) { tr.geom = geom; tr.phase = 'descend'; }
       }
     } else if (tr.t >= STAIR_PHASES.in) {
       game.transition = null;
@@ -2608,7 +2662,8 @@ function render() {
   // карта объёма фона (рельеф стен, нормали предметов) — под живой свет; предметы на полу допишут свои по ходу кадра
   if (light && bg.normal) light.normalCtx.drawImage(bg.normal, cam * bk, 0, W * bk, H * bk, 0, 0, W * S, H * S);
   if (light) pairNormals(g, light.normalCtx);
-  drawTorches(g, cam, r.torches ?? [], game.time);
+  // бой с боссом — факелы вспыхивают призрачным синим (v0.70); факел, который закрыла бы лестница, не рисуется
+  drawTorches(g, cam, (r.torches ?? []).filter(x => !torchUnderStairs(r, x)), game.time, bossFire());
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   for (const d of r.decor ?? []) {
     if (d.type === 'cracks') drawCracks(g, d.x - cam, CONFIG.floorTop, { open: !!game.flags[d.secret], hits: game.wallHits }, game.time);
@@ -2722,7 +2777,7 @@ function render() {
   let fade = 0;
   if (tr?.kind === 'door') fade = tr.phase === 'fadeOut' ? tr.t / DOOR_PHASES.fadeOut : tr.phase === 'fadeIn' ? 1 - tr.t / DOOR_PHASES.fadeIn : 0;
   if (tr?.kind === 'edge') fade = tr.phase === 'out' ? tr.t / EDGE_PHASES.out : 1 - tr.t / EDGE_PHASES.in;
-  if (tr?.kind === 'stairs') fade = tr.phase === 'out' ? tr.t / STAIR_PHASES.out : 1 - tr.t / STAIR_PHASES.in;
+  if (tr?.kind === 'stairs') fade = tr.phase === 'out' ? tr.t / STAIR_PHASES.out : tr.phase === 'in' ? 1 - tr.t / STAIR_PHASES.in : tr.phase === 'climb' ? Math.max(0, (tr.t / CLIMB_T - 0.85) / 0.15) : 0;
   if (game.cutscene && game.cutscene.t < WAKE.flash) fade = Math.max(fade, 0.55);
   if (fade > 0) {
     g.globalAlpha = Math.min(1, fade);
@@ -2890,46 +2945,27 @@ function renderAceWard(cx, cy, a) {
 // удушение (v0.69): на шее рыцаря — светящийся обод с рунами, от руки призрака к нему тянется дрожащая нить,
 // по ней бегут искры; рыцарь висит в воздухе и хватается за горло (кадры held). Рисуется поверх бойцов.
 function renderChokeHold(cam) {
+  // удушение (v0.70, по просьбе владельца — без нити): вокруг шеи рыцаря разгорается голубой свет, пульсирует и сжимается
   const p = game.player;
   const b = game.enemies.find(e => e.kind === 'boss' && (e.state === 'cast' || e.state === 'choking'));
   if (!b || (b.state === 'cast' && b.t < 0.3)) return;
   const k = b.state === 'cast' ? Math.min(1, b.t / (b.def.chokeCast * (b.phase === 2 ? b.def.phase2Speed : 1))) : 1;
   const nx = p.x - cam + p.facing * 1, ny = groundY(p.z) - (p.airY ?? 0) - 24;      // шея рыцаря
-  const hx = b.x - cam + b.facing * 15, hy = groundY(b.z) - (b.airY ?? 0) - 26;      // вытянутая рука призрака
-  const t = game.time;
+  const t = game.time, pul = 0.8 + 0.2 * Math.sin(t * 14);
   g.save();
   g.globalCompositeOperation = 'lighter';
-  // нить: от руки к шее, волной; во время заклинания — тянется (k), когда держит — натянута и дрожит
-  const N = 30, reach = b.state === 'cast' ? k : 1;
-  for (let i = 0; i <= N * reach; i++) {
-    const f = i / N;
-    const x = hx + (nx - hx) * f, y = hy + (ny - hy) * f + Math.sin(f * 12 - t * 18) * (b.state === 'choking' ? 1.2 : 2.2) * Math.sin(Math.PI * f);
-    g.globalAlpha = 0.35 + 0.35 * Math.sin(f * 20 - t * 25) ** 2;
-    g.fillStyle = (i + Math.floor(t * 30)) % 6 === 0 ? '#ffffff' : '#7cf0ff';
-    g.fillRect(Math.round(x * 2) / 2, Math.round(y * 2) / 2, 1, 1);
-  }
-  // обод на шее: сжимается к концу заклинания, пульсирует, по нему бегут руны
-  const r = 7 - 2.5 * k + (b.state === 'choking' ? Math.sin(t * 14) * 0.4 : 0);
-  for (let i = 0; i < 28; i++) {
-    const a = i / 28 * Math.PI * 2 + t * 3;
-    const front = Math.sin(a) > 0;
-    g.globalAlpha = (front ? 0.95 : 0.4) * Math.min(1, k * 1.5);
-    g.fillStyle = i % 7 === 0 ? '#ffffff' : i % 2 ? '#7cf0ff' : '#b07cff';
-    g.fillRect(Math.round((nx + Math.cos(a) * r) * 2) / 2, Math.round((ny + Math.sin(a) * r * 0.32) * 2) / 2, i % 7 === 0 ? 1 : 0.5, 0.5);
-  }
-  if (b.state === 'choking') {
-    // мягкое свечение вокруг горла и искры, слетающие с обода
-    const gr = g.createRadialGradient(nx, ny, 0, nx, ny, 12);
-    gr.addColorStop(0, 'rgba(124,240,255,0.35)'); gr.addColorStop(1, 'rgba(124,240,255,0)');
-    g.globalAlpha = 0.8 + 0.2 * Math.sin(t * 9);
-    g.fillStyle = gr; g.fillRect(nx - 12, ny - 12, 24, 24);
-    for (let i = 0; i < 4; i++) {
-      const u = (t * 1.3 + i * 0.25) % 1;
-      g.globalAlpha = 1 - u;
-      g.fillStyle = '#d8faff';
-      g.fillRect(Math.round(nx + Math.sin(i * 2.1 + t) * r), Math.round(ny - u * 10), 0.5, 0.5);
-    }
-  }
+  const R = 13 - 4 * k;
+  const gr = g.createRadialGradient(nx, ny, 0, nx, ny, R);
+  gr.addColorStop(0, `rgba(170,240,255,${0.55 * k * pul})`);
+  gr.addColorStop(0.45, `rgba(90,190,255,${0.3 * k * pul})`);
+  gr.addColorStop(1, 'rgba(60,140,255,0)');
+  g.fillStyle = gr;
+  g.fillRect(nx - R, ny - R, R * 2, R * 2);
+  // светлый обод у самого горла — мягкий, без точек-рун
+  const rx = 5 - 1.5 * k, ry = 1.6;
+  g.globalAlpha = 0.7 * k * pul;
+  g.fillStyle = '#d8f6ff';
+  for (let a = 0; a < Math.PI * 2; a += 0.12) g.fillRect(Math.round((nx + Math.cos(a) * rx) * 2) / 2, Math.round((ny + Math.sin(a) * ry) * 2) / 2, 0.5, 0.5);
   g.restore();
 }
 
@@ -2983,6 +3019,7 @@ function renderEnemy(e, cam) {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: depth ? game.time * 1.5 : e.step / 6.3, turn, depth,
       time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
       bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined, anim: enemyAnim(e),
+      cloth: e.kind === 'boss' ? bossCloth(e) : undefined,
     }) ?? { tipX: ex, tipY: GROUND - 20 } : drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       breathe: (e.state === 'idle' || e.state === 'dormant') && !e.def.skull && Math.sin(game.time * 2.2 + e.x * 0.37) > 0.3 ? 1 : 0,  // живые дышат, скелеты — нет
@@ -3060,6 +3097,16 @@ function enemyAnim(e) {
     if (e.state === 'stance' && A('raise')) return { key: 'raise', k: cl(e.t / (e.pat?.stance ?? 0.9)) };
   }
   return null;
+}
+
+// сюрко и призрачный хвост босса колышутся (v0.70, просьба владельца); в движении и рывке подол отстаёт
+function bossCloth(e) {
+  const vx = (e.x - (e._clothX ?? e.x)) / Math.max(1 / 120, game.time - (e._clothT ?? game.time - 1 / 60));
+  e._clothX = e.x; e._clothT = game.time;
+  e._clothV = (e._clothV ?? 0) * 0.85 + vx * 0.15;
+  const lag = Math.max(-1, Math.min(1, -e._clothV / 160));   // против хода (сдвиг строк — уже в координатах экрана)
+  const busy = e.state === 'stance' || e.state === 'cast' || e.state === 'choking';
+  return { cut: 40, amp: busy ? 2.4 : 1.4, speed: busy ? 6 : 3, lag };
 }
 
 function enemyWeapon(e) {
@@ -3172,6 +3219,13 @@ function renderPlayer(cam) {
   const GROUND = groundY(p.z) + Math.round(game.fallY ?? 0);  // падение сквозь пролом
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   const sprite = knightReady();
+  if (game.climb && sprite) {
+    // по ступеням: шаги со спины (вверх) или спереди (вниз), оружие за спиной
+    const c = game.climb;
+    drawKnight(g, { x: c.x - cam, ground: c.y, facing: 1, pose: POSES.sheathed, state: 'ready', walking: true, step: c.step, time: game.time,
+      depth: c.view, alpha: c.alpha, sheathed: true });
+    return;
+  }
   // оружие за спиной (v0.69): любое, и рапира; sheath.k — сколько прошло от руки до ножен
   const sheathKind = p.weapon === 'rapier' ? 'rapier' : 'sword', sheathLen = (p.arms.length ?? 17) * 2;
   if (p.state === 'roll' && sprite) {
@@ -3434,7 +3488,8 @@ function sceneLights() {
   const r = room(), cam = Math.round(game.camX), t = game.time;
   const L = [];
   const add = (x, y, rad, color, power, z = 30) => { const sx = (x - cam) * S; if (sx > -rad * S && sx < (W + rad) * S) L.push({ x: sx, y: y * S, z, r: rad * S, color, power }); };
-  for (const x of r.torches ?? []) add(x, 69, 150, WARM, 0.85 + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3));
+  const blueFire = bossFire();
+  for (const x of r.torches ?? []) if (!torchUnderStairs(r, x)) add(x, 69, 150, blueFire ? [0.45, 0.7, 1] : WARM, (blueFire ? 1.05 : 0.85) + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3));
   for (const pr of r.props ?? []) {
     if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
     if (pr.type === 'candles') add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
@@ -3454,6 +3509,9 @@ function sceneLights() {
     const k = (e.ghost ?? 1) * (e.kind === 'boss' ? 0.7 + 0.5 * e.eyes : 0.45);
     add(e.x, groundY(e.z) - 20 - e.airY, e.kind === 'boss' ? 90 : 60, [0.6, 0.85, 1], k * (0.9 + 0.1 * Math.sin(t * 5 + e.x)), 18);
   }
+  // удушение: голубой свет вокруг шеи рыцаря
+  const choker = game.enemies.find(e => e.kind === 'boss' && (e.state === 'choking' || (e.state === 'cast' && e.t > 0.3)));
+  if (choker) { const p = game.player; add(p.x, groundY(p.z) - (p.airY ?? 0) - 24, 70, [0.45, 0.8, 1], choker.state === 'choking' ? 1.3 : 0.6, 16); }
   // бубновый туз: вспышка и алое сияние щита
   if (game.wardFlash > 0) {
     const p = game.player, a = 0.8 - game.wardFlash;
