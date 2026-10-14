@@ -330,24 +330,31 @@ export function drawTorches(g, camX, xs, time) {
   for (const x of xs) {
     const sx = Math.round(x - camX);
     if (sx < -50 || sx > 370) continue;
-    const glow = g.createRadialGradient(sx, 66, 2, sx, 66, 46);
+    const glow = g.createRadialGradient(sx, 69, 1, sx, 69, 38);
     glow.addColorStop(0, 'rgba(255,170,80,0.22)');
     glow.addColorStop(1, 'rgba(255,170,80,0)');
     g.fillStyle = glow;
-    g.fillRect(sx - 46, 20, 92, 92);
+    g.fillRect(sx - 38, 31, 76, 76);
 
+    // факел вдвое мельче (просьба владельца, v0.61): рисуется в полупикселях мира = пикселях экрана
+    g.save();
+    g.translate(sx, 72);
+    g.scale(0.5, 0.5);
+    g.fillStyle = '#3a3240';
+    g.fillRect(-1, 4, 2, 6);            // кронштейн
     g.fillStyle = PAL.wood;
-    g.fillRect(sx - 2, 72, 4, 4);
+    g.fillRect(-2, 0, 4, 5);
     g.fillStyle = PAL.gold;
-    g.fillRect(sx - 3, 71, 6, 1);
+    g.fillRect(-3, -1, 6, 1);
     const flick = Math.floor(time * 10 + x) % 3;
-    const h = 6 + flick;
+    const h = 7 + flick;
     for (let i = 0; i < h; i++) {
       const w = i < 2 ? 4 : i < h - 2 ? 3 : 1;
       const sway = i > h - 3 ? (flick - 1) : 0;
       g.fillStyle = i < 3 ? PAL.flame0 : i < h - 2 ? PAL.flame1 : PAL.flame2;
-      g.fillRect(sx - Math.floor(w / 2) + sway, 70 - i, w, 1);
+      g.fillRect(-Math.floor(w / 2) + sway, -2 - i, w, 1);
     }
+    g.restore();
   }
 }
 
