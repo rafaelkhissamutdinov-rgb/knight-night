@@ -16,7 +16,7 @@ const DECOR_IMG = {
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -163,7 +163,7 @@ function finishRoom(g, room, length, height, floorTop, rand, tiled) {
   }
   for (const d of doors) drawDoor(g, d, floorTop, tiled);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
-  if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop);
+  if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop, tiled);
   if (room.balcony) drawBalcony(g, length, height, floorTop, rand);
   for (const d of room.decor ?? []) if (!(tiled && decorImage(g, d, floorTop))) drawDecor(g, d, floorTop);  // поверх лестниц и дверей (завал на лестнице)
   if (room.magic) {
@@ -227,7 +227,17 @@ export function drawDoor(g, d, floorTop, tiled = false) {
 }
 
 // Лестница вверх вдоль стены: ступени поднимаются вправо к тёмному проёму наверху.
-function drawStairs(g, x0, floorTop) {
+function drawStairs(g, x0, floorTop, tiled = false) {
+  const im = tiled && objImg('stairs');
+  if (im) {
+    // каменная лестница картинкой; наверху — тёмный проём
+    const w = im.width / 2, h = im.height / 2;
+    const top = Math.round(floorTop - h * 0.6);   // верхняя ступень (выше — только перила)
+    rect(g, x0 + w - 24, top - 30, 22, 31, '#0d0b14');
+    rect(g, x0 + w - 26, top - 33, 26, 3, PAL.wallLight);
+    drawObj(g, im, x0 + w / 2, floorTop + 1);
+    return;
+  }
   const steps = 9, sw = 8, sh = 9;
   rect(g, x0 + steps * sw - 6, floorTop - steps * sh - 30, 24, 30, '#0d0b14');
   rect(g, x0 + steps * sw - 8, floorTop - steps * sh - 33, 28, 3, PAL.wallLight);
