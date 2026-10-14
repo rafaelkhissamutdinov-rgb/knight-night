@@ -391,7 +391,7 @@ export function drawDoor(g, d, floorTop, tiled = false) {
 // двумерных играх (Castlevania, Blasphemous) — ступени по диагонали вдоль стены, под ними кладка, балюстрада, камень замка;
 // наверху площадка и дверь (та же, что в залах). Рыцарь поднимается по ступеням наискось, сбоку.
 export const STAIR_DROP = 6;                                        // низ ступеней — на линии шага у стены (z = 0)
-export const STAIR_PATH = [[0.03, 0.95], [0.64, 0.19], [0.88, 0.17]];   // нижняя ступень → верхняя → к двери
+export const STAIR_PATH = [[0.03, 0.95], [0.64, 0.19], [0.84, 0.17]];   // v0.74: дверь — вровень с правым краем площадки   // нижняя ступень → верхняя → к двери
 export function stairsX(room, length) {
   const w = (objImg('stairs')?.width ?? 140) / 2;
   return room.stairsX ?? (room.stairs === 'right' ? length - w - 4 : length / 2 - w / 2);
@@ -408,7 +408,8 @@ function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
     const w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
     // дверь на стене над площадкой — до ступеней (балюстрада впереди)
     const door = objImg('door_wood');
-    if (door && !blocked) drawObj(g, door, x0 + STAIR_PATH[2][0] * w, top + STAIR_PATH[2][1] * h + 1);
+    // правый край двери — по краю площадки (владелец: дверь выходила за края лестницы)
+    if (door && !blocked) drawObj(g, door, x0 + w - door.width / 4, top + STAIR_PATH[2][1] * h + 1);
     drawObj(g, im, x0 + w / 2, floorTop + STAIR_DROP);
     return;
   }
