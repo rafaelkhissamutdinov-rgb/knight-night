@@ -1820,7 +1820,10 @@ function update(dt) {
     if (want === p.facing) game.turnT = 0;
     else {
       game.turnT = (game.turnT ?? 0) + dt;
-      if (held(want > 0 ? 'right' : 'left') || game.turnT >= CONFIG.autoTurn) {
+      // враг за спиной замахивается или рыцарь держит защиту — разворот почти сразу (v0.73): иначе правильный блок
+      // не засчитывался — удар «в спину» (босс перелетает за спину и бьёт быстрее, чем рыцарь сам разворачивался)
+      const urgent = held('guard') || cur.state === 'windup' || cur.state === 'swapIn';
+      if (held(want > 0 ? 'right' : 'left') || game.turnT >= (urgent ? CONFIG.urgentTurn : CONFIG.autoTurn)) {
         p.facing = want;
         game.turnT = 0;
       }
@@ -3890,3 +3893,4 @@ requestAnimationFrame(frame);
 
 // для автотестов в браузере
 window.knightNight = game;
+window.knightNightDebug = { groundY, input, ROOMS };   // для ботов-тестеров
