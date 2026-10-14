@@ -11,278 +11,278 @@
 "frames": {
 "pose_backdash": {
 "wrist": [
-36.2,
-31.8
+36.1,
+33.3
 ]
 },
 "pose_broken": {
 "wrist": [
-26.5,
-17.5
+26.9,
+19.7
 ]
 },
 "pose_cast": {
 "wrist": [
-53.7,
-15.9
+52.7,
+18.2
 ]
 },
 "pose_dash": {
 "wrist": [
-45.6,
-33.8
+45.0,
+35.2
 ]
 },
 "pose_dead": {
 "wrist": [
-32.4,
-52.3
+32.5,
+52.7
 ]
 },
 "pose_draw": {
 "wrist": [
-32.7,
-40.6
+32.8,
+41.6
 ]
 },
 "pose_fence": {
 "wrist": [
-47.6,
-31.7
+46.9,
+33.2
 ]
 },
 "pose_guard_high": {
 "wrist": [
-36.1,
-9.5
+36.0,
+12.1
 ]
 },
 "pose_guard_low": {
 "wrist": [
-42.7,
-41.1
+42.3,
+42.1
 ]
 },
 "pose_guard_mid": {
 "wrist": [
-43.5,
-28.1
+43.0,
+29.7
 ]
 },
 "pose_hurt": {
 "wrist": [
-30.0,
-36.4
+30.2,
+37.6
 ]
 },
 "pose_idle": {
 "wrist": [
-39.9,
-35.4
+39.6,
+36.7
 ]
 },
 "pose_kneel": {
 "wrist": [
-39.0,
-51.1
+38.8,
+51.6
 ]
 },
 "pose_lean_sword": {
 "wrist": [
-43.4,
-44.7
+42.9,
+45.5
 ]
 },
 "pose_obiwan": {
 "wrist": [
-17.0,
-4.8
+17.9,
+7.6
 ]
 },
 "pose_run_rapier": {
 "wrist": [
-30.0,
-40.3
+30.2,
+41.3
 ]
 },
 "pose_sheathed": {
 "wrist": [
-31.0,
-37.2
+31.1,
+38.4
 ]
 },
 "pose_stagger": {
 "wrist": [
-24.8,
-17.5
+25.3,
+19.7
 ]
 },
 "pose_strike_diagDown": {
 "wrist": [
-51.7,
-38.4
+50.8,
+39.5
 ]
 },
 "pose_strike_diagUp": {
 "wrist": [
-53.5,
-16.7
+52.5,
+18.9
 ]
 },
 "pose_strike_draw": {
 "wrist": [
-56.9,
-34.0
+55.8,
+35.4
 ]
 },
 "pose_strike_flick": {
 "wrist": [
-51.4,
-14.5
+50.5,
+16.8
 ]
 },
 "pose_strike_high": {
 "wrist": [
-50.3,
-23.4
+49.5,
+25.3
 ]
 },
 "pose_strike_low": {
 "wrist": [
-46.0,
-47.1
+45.4,
+47.8
 ]
 },
 "pose_strike_mid": {
 "wrist": [
-54.5,
-32.8
+53.5,
+34.2
 ]
 },
 "pose_strike_sweep": {
 "wrist": [
-49.8,
-52.1
+49.0,
+52.5
 ]
 },
 "pose_strike_thrust": {
 "wrist": [
-54.4,
-35.7
+53.4,
+37.0
 ]
 },
 "pose_strike_whirl": {
 "wrist": [
-46.4,
-30.5
+45.8,
+32.0
 ]
 },
 "pose_tuck": {
 "wrist": [
-41.8,
-43.8
+41.4,
+44.7
 ]
 },
 "pose_vault": {
 "wrist": [
-38.4,
-17.5
+38.2,
+19.7
 ]
 },
 "pose_windup_diagDown": {
 "wrist": [
-39.4,
-24.5
+39.1,
+26.3
 ]
 },
 "pose_windup_diagUp": {
 "wrist": [
-32.3,
-43.2
+32.4,
+44.1
 ]
 },
 "pose_windup_flick": {
 "wrist": [
-22.9,
-9.3
+23.5,
+11.9
 ]
 },
 "pose_windup_high": {
 "wrist": [
-21.7,
-3.1
+22.3,
+6.0
 ]
 },
 "pose_windup_low": {
 "wrist": [
-24.8,
-49.2
+25.3,
+49.8
 ]
 },
 "pose_windup_mid": {
 "wrist": [
-18.8,
-35.0
+19.6,
+36.3
 ]
 },
 "pose_windup_sweep": {
 "wrist": [
-27.6,
-54.9
+27.9,
+55.2
 ]
 },
 "pose_windup_thrust": {
 "wrist": [
-30.5,
-35.4
+30.7,
+36.7
 ]
 },
 "pose_windup_whirl": {
 "wrist": [
-24.3,
-50.1
+24.8,
+50.6
 ]
 },
 "walk_0": {
 "wrist": [
-32.6,
-42.9
+32.7,
+43.8
 ]
 },
 "walk_1": {
 "wrist": [
-37.7,
-42.0
+37.5,
+43.0
 ]
 },
 "walk_2": {
 "wrist": [
 34.5,
-42.1
+43.0
 ]
 },
 "walk_3": {
 "wrist": [
-29.2,
-43.1
+29.4,
+44.0
 ]
 },
 "walk_4": {
 "wrist": [
-22.5,
-42.5
+23.1,
+43.4
 ]
 },
 "walk_5": {
 "wrist": [
-25.9,
-42.4
+26.3,
+43.3
 ]
 },
 "tw_idle__guard_high_50": {
 "wrist": [
-37.4,
-20.2
+37.2,
+22.2
 ],
 "pose": {
 "hx": 5.0,
@@ -294,8 +294,8 @@
 },
 "tw_idle__guard_mid_50": {
 "wrist": [
-39.2,
-32.9
+38.9,
+34.3
 ],
 "pose": {
 "hx": 7.0,
@@ -307,8 +307,8 @@
 },
 "tw_idle__guard_low_50": {
 "wrist": [
-41.3,
-35.7
+40.9,
+37.0
 ],
 "pose": {
 "hx": 7.0,
@@ -320,8 +320,8 @@
 },
 "tw_idle__windup_high_50": {
 "wrist": [
-36.6,
-25.0
+36.5,
+26.8
 ],
 "pose": {
 "hx": 1.5,
@@ -333,8 +333,8 @@
 },
 "tw_windup_high__strike_high_33": {
 "wrist": [
-30.9,
-9.9
+31.1,
+12.5
 ],
 "pose": {
 "hx": 1.29,
@@ -346,8 +346,8 @@
 },
 "tw_windup_high__strike_high_66": {
 "wrist": [
-41.1,
-16.2
+40.7,
+18.4
 ],
 "pose": {
 "hx": 5.58,
@@ -359,8 +359,8 @@
 },
 "tw_strike_high__idle_50": {
 "wrist": [
-43.3,
-24.7
+42.8,
+26.5
 ],
 "pose": {
 "hx": 8.0,
@@ -372,8 +372,8 @@
 },
 "tw_idle__windup_mid_50": {
 "wrist": [
-38.2,
-32.2
+38.0,
+33.6
 ],
 "pose": {
 "hx": -1.0,
@@ -385,8 +385,8 @@
 },
 "tw_windup_mid__strike_mid_33": {
 "wrist": [
-38.4,
-33.8
+38.2,
+35.2
 ],
 "pose": {
 "hx": -1.4,
@@ -398,8 +398,8 @@
 },
 "tw_windup_mid__strike_mid_66": {
 "wrist": [
-41.9,
-33.9
+41.5,
+35.3
 ],
 "pose": {
 "hx": 5.2,
@@ -411,8 +411,8 @@
 },
 "tw_strike_mid__idle_50": {
 "wrist": [
-42.9,
-34.2
+42.5,
+35.5
 ],
 "pose": {
 "hx": 9.0,
@@ -424,8 +424,8 @@
 },
 "tw_idle__windup_low_50": {
 "wrist": [
-30.5,
-42.5
+30.7,
+43.4
 ],
 "pose": {
 "hx": 0.0,
@@ -437,8 +437,8 @@
 },
 "tw_windup_low__strike_low_33": {
 "wrist": [
-35.1,
-51.1
+35.0,
+51.6
 ],
 "pose": {
 "hx": -0.39,
@@ -450,8 +450,8 @@
 },
 "tw_windup_low__strike_low_66": {
 "wrist": [
-41.0,
-50.2
+40.6,
+50.7
 ],
 "pose": {
 "hx": 5.22,
@@ -463,8 +463,8 @@
 },
 "tw_strike_low__idle_50": {
 "wrist": [
-47.0,
-39.9
+46.4,
+41.0
 ],
 "pose": {
 "hx": 8.5,
@@ -476,8 +476,8 @@
 },
 "tw_windup_thrust__strike_thrust_33": {
 "wrist": [
-37.2,
-35.6
+37.0,
+36.9
 ],
 "pose": {
 "hx": 3.61,
@@ -489,8 +489,8 @@
 },
 "tw_windup_thrust__strike_thrust_66": {
 "wrist": [
-50.5,
-32.2
+49.7,
+33.6
 ],
 "pose": {
 "hx": 9.22,
@@ -502,8 +502,8 @@
 },
 "tw_windup_diagUp__strike_diagUp_33": {
 "wrist": [
-40.6,
-33.8
+40.3,
+35.2
 ],
 "pose": {
 "hx": 4.97,
@@ -515,8 +515,8 @@
 },
 "tw_windup_diagUp__strike_diagUp_66": {
 "wrist": [
-47.2,
-25.6
+46.5,
+27.4
 ],
 "pose": {
 "hx": 7.94,
@@ -528,8 +528,8 @@
 },
 "tw_windup_diagDown__strike_diagDown_33": {
 "wrist": [
-39.7,
-25.7
+39.4,
+27.5
 ],
 "pose": {
 "hx": 4.97,
@@ -541,8 +541,8 @@
 },
 "tw_windup_diagDown__strike_diagDown_66": {
 "wrist": [
-46.7,
-32.8
+46.1,
+34.2
 ],
 "pose": {
 "hx": 7.94,
@@ -555,7 +555,7 @@
 "tw_windup_whirl__strike_whirl_50": {
 "wrist": [
 34.9,
-40.0
+41.0
 ],
 "pose": {
 "hx": 2.0,
@@ -567,8 +567,8 @@
 },
 "tw_idle__stagger_50": {
 "wrist": [
-31.2,
-29.7
+31.3,
+31.3
 ],
 "pose": {
 "hx": 3.5,
@@ -581,7 +581,7 @@
 "tw_idle__hurt_50": {
 "wrist": [
 33.8,
-36.5
+37.7
 ],
 "pose": {
 "hx": 5.0,
@@ -731,5 +731,6 @@
 "front",
 "back"
 ]
-}
+},
+"scaled": 0.95
 }

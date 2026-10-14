@@ -193,7 +193,7 @@ export const ENEMY_TYPES = {
   boss: {
     // v0.69 (владелец: «слабый, тупой, еле двигается»): быстрее, рывок-скольжение с ударом, контратака после блока,
     // за щитом не отсидеться (пробивные приёмы и удушье чаще), удушье дольше — вырваться ударами (ЛКМ)
-    kind: 'boss', name: 'Призрак главы стражи', shortName: 'Глава стражи', hp: 42, damage: 1, aggro: 240, reach: 34, speed: 82, lunge: 7, weapon: 21,
+    kind: 'boss', name: 'Призрак главы стражи', shortName: 'Глава стражи', hp: 42, damage: 1, aggro: 240, reach: 38, speed: 82, lunge: 7, weapon: 27,
     windup: 0.5, comboWindup: 0.34, gap: 0.08, recover: 0.55, wait: [0.2, 0.5],
     guardChance: 0.7, reaction: 0.08, blinkChance: 0, blink: 0.35, phase2Speed: 0.8, phase2Blink: 0.6,
     chokeChance: 0.2, chokeCast: 1.0, chokeRange: 150, chokeHold: 1.8, chokeBreak: 7,
