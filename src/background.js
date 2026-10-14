@@ -402,15 +402,56 @@ export function stairsGeom(room, floorTop) {
   const x0 = stairsX(room, room.length), w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
   return { x0, w, h, top, pts: STAIR_PATH.map(([fx, fy]) => [x0 + fx * w, top + fy * h]) };
 }
+// картинка, подкрашенная к среднему цвету стены слева от x0 (холст фона в масштабе 2: пиксели = мир × 2)
+const tintCache = new Map();
+function tintToWall(g, im, x0, floorTop, k = 0.3) {
+  try {
+    const sx = Math.max(0, Math.round((x0 - 60) * 2)), sy = Math.round((floorTop - 70) * 2);
+    const d = g.getImageData(sx, sy, 100, 100).data;
+    let r = 0, gg = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 200) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++; }
+    if (!n) return null;
+    const col = `rgb(${r / n | 0},${gg / n | 0},${b / n | 0})`;
+    const key = im.src + col;
+    if (tintCache.has(key)) return tintCache.get(key);
+    const c = document.createElement('canvas');
+    c.width = im.width; c.height = im.height;
+    const x = c.getContext('2d');
+    x.drawImage(im, 0, 0);
+    x.globalCompositeOperation = 'source-atop';
+    x.globalAlpha = k;
+    x.fillStyle = col;
+    x.fillRect(0, 0, c.width, c.height);
+    NORMAL_OF.set(c, NORMAL_OF.get(im));
+    tintCache.set(key, c);
+    return c;
+  } catch { return null; }
+}
+
 function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
   const im = tiled && objImg('stairs');
   if (im) {
     const w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
+    // тень на стене справа от кладки лестницы (она выступает из стены) — до двери и ступеней
+    const sh = g.createLinearGradient(x0 + w, 0, x0 + w + 10, 0);
+    sh.addColorStop(0, 'rgba(10,8,18,0.45)');
+    sh.addColorStop(1, 'rgba(10,8,18,0)');
+    g.fillStyle = sh;
+    g.fillRect(x0 + w, top + 8, 10, floorTop - top - 8);
     // дверь на стене над площадкой — до ступеней (балюстрада впереди)
     const door = objImg('door_wood');
-    // правый край двери — по краю площадки (владелец: дверь выходила за края лестницы)
-    if (door && !blocked) drawObj(g, door, x0 + w - door.width / 4, top + STAIR_PATH[2][1] * h + 1);
-    drawObj(g, im, x0 + w / 2, floorTop + STAIR_DROP);
+    // правый край двери — по краю площадки; низ — на заднем крае площадки, а не под ней (v0.74)
+    if (door && !blocked) drawObj(g, door, x0 + w - door.width / 4, top + 9);
+    // цвет кладки — к цвету стен комнаты: средний цвет стены рядом подмешивается к картинке (v0.74, владелец:
+    // «вставленная картинка не вписывается»)
+    const tinted = tintToWall(g, im, x0, floorTop);
+    drawObj(g, tinted ?? im, x0 + w / 2, floorTop + STAIR_DROP);
+    // тень касания: пол у основания ступеней темнее
+    const cs = g.createLinearGradient(0, floorTop + STAIR_DROP - 2, 0, floorTop + STAIR_DROP + 7);
+    cs.addColorStop(0, 'rgba(10,8,18,0.5)');
+    cs.addColorStop(1, 'rgba(10,8,18,0)');
+    g.fillStyle = cs;
+    g.fillRect(x0 + 2, floorTop + STAIR_DROP - 2, w - 2, 9);
     return;
   }
   const steps = 9, sw = 8, sh = 9;
@@ -437,38 +478,68 @@ function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
 function drawBalconyTiled(g, length, height, floorTop) {
   const im = objImg('balustrade');
   const edge = length - 44;
+  // край плиты (v0.74): ломаная с углами, а не волна; y — от линии стены к зрителю
+  const H2 = height - floorTop;
+  const EDGE = [[0, 0], [5, -3], [10, 4], [17, -1], [24, 6], [30, 2], [37, 9], [44, 4], [51, 11], [58, 7], [70, 12]];
+  const edgeX = y => {
+    const t = y - floorTop;
+    for (let i = 1; i < EDGE.length; i++) if (t <= EDGE[i][0]) {
+      const [y0, x0] = EDGE[i - 1], [y1, x1] = EDGE[i];
+      return Math.round(edge + x0 + (x1 - x0) * (t - y0) / (y1 - y0));
+    }
+    return edge + EDGE[EDGE.length - 1][1];
+  };
   if (im) {
-    // перила кончаются до обрыва (v0.74, владелец: «колонны над обрывом») — последний кусок не дальше края пола
-    const w = im.width / 2;
-    for (let x = 0, i = 0; x + w <= edge - 6; x += w, i++) {
+    // перила — до самого края, последний пролёт обрублен и надломлен (владелец: «чуть-чуть подрушенная колонна»)
+    const w = im.width / 2, ih = im.height / 2, y0 = floorTop - ih + 2, end = edge - 1;
+    for (let x = 0, i = 0; x < end; x += w, i++) {
       if (i % 4 === 2) continue;   // пролом
-      g.drawImage(im, x, floorTop - im.height / 2 + 2, w, im.height / 2);
+      const cw = Math.min(w, end - x);
+      g.drawImage(im, 0, 0, cw * 2, im.height, x, y0, cw, ih);
+      if (x + w >= end) {
+        // обломанный конец: вырван кусок перил сверху и сбоку, у подножия — каменная крошка
+        for (const [dx, dy, ww, hh] of [[-3, 0, 4, 3], [-2, 3, 3, 2], [-6, 0, 3, 1], [-1, 5, 2, 4]]) g.clearRect(end + dx, y0 + dy, ww, hh);
+        for (const [dx, dy, sz] of [[-8, ih - 1, 2], [-4, ih, 3], [1, ih + 1, 2]]) { rect(g, end + dx, y0 + dy, sz, sz - 1, '#8a8299'); rect(g, end + dx, y0 + dy, sz, 1, '#b0a8bc'); }
+      }
     }
   }
-  // обрыв (v0.74): за рваным краем пола — пусто, сквозь него видна долина далеко внизу (дальний план, far),
-  // поверх — дымка глубины; край — отколотый камень плиты с тёмной кромкой
-  const H2 = height - floorTop;
-  const edgeX = y => edge + Math.round(((y - floorTop) / H2) * 10 + Math.sin(y * 0.9) * 2 + Math.sin(y * 0.31) * 3);
+  // за краем — пусто: сквозь холст фона видна долина далеко внизу (её рисует render из дальнего плана)
   for (let y = floorTop; y < height; y++) g.clearRect(edgeX(y), y, length - edgeX(y) + 2, 1);
-  const haze = g.createLinearGradient(0, floorTop, 0, height);
-  haze.addColorStop(0, 'rgba(214,200,220,0.35)');
-  haze.addColorStop(0.5, 'rgba(150,150,190,0.15)');
-  haze.addColorStop(1, 'rgba(60,60,100,0.05)');
-  for (let y = floorTop; y < height; y++) {
-    const x = edgeX(y);
-    g.fillStyle = haze;
-    g.fillRect(x, y, length - x, 1);
-    rect(g, x - 3, y, 3, 1, '#3a3448');     // скол плиты
-    rect(g, x - 3, y, 1, 1, '#5e5878');     // светлая кромка
-    rect(g, x, y, 1, 1, '#1c1828');         // тень по краю
+  // скальный склон под балконом: глыбы со светом сверху-слева и тенью снизу-справа, ниже — мельче и темнее
+  const blob = (cx, cy, rx, ry, base, lite, dark) => {
+    for (let dy = -ry; dy <= ry; dy++) {
+      const hw = Math.round(rx * Math.sqrt(1 - (dy / ry) ** 2) * (1 - 0.25 * (dy / ry)));
+      if (hw <= 0) continue;
+      const y = cy + dy;
+      rect(g, cx - hw - 1, y, hw * 2 + 2, 1, '#151220');
+      rect(g, cx - hw, y, hw * 2, 1, base);
+      if (dy < -ry / 3) rect(g, cx - hw, y, Math.max(1, hw), 1, lite);
+      if (dy > ry / 4) rect(g, cx, y, hw, 1, dark);
+    }
+  };
+  const ROCKS = [[8, 6, 9, 6], [16, 18, 10, 8], [10, 30, 8, 7], [22, 40, 12, 9], [12, 52, 9, 8], [26, 60, 13, 9], [34, 26, 7, 6]];
+  for (const [dx, dy, rx, ry] of ROCKS) {
+    const y = floorTop + dy, f = dy / H2;
+    const sh = v => `rgb(${Math.round(v[0] * (1 - f * 0.35))},${Math.round(v[1] * (1 - f * 0.35))},${Math.round(v[2] * (1 - f * 0.3))})`;
+    blob(edgeX(y) + dx, y + 4, rx, ry, sh([62, 55, 80]), sh([96, 88, 118]), sh([38, 32, 52]));
   }
-  // осколки у края
-  for (const [dx, dy, s] of [[-8, 6, 3], [-12, 20, 2], [-6, 33, 3], [-10, 48, 2], [-7, 60, 2]]) {
-    const y = floorTop + dy;
-    if (y >= height) continue;
-    const x = edgeX(y) + dx;
-    rect(g, x, y, s, s - 1, '#4a4462');
-    rect(g, x, y, s, 1, '#6a6288');
+  // толщина обломанной плиты: каменный торец вдоль края, светлая кромка сверху, тёмный низ; швы кладки
+  for (let y = floorTop; y < height; y++) {
+    const x = edgeX(y), t = (y - floorTop) % 9;
+    rect(g, x, y, 5, 1, t === 0 ? '#2a2438' : '#463e5a');
+    rect(g, x + 4, y, 1, 1, '#1c1828');
+    rect(g, x - 1, y, 1, 1, '#7a7294');      // кромка пола
+  }
+  // обломки плиты, торчащие наружу под разными углами: верхняя грань светлая, торец тёмный
+  for (const [dy, len, tilt] of [[3, 7, -2], [21, 9, 2], [39, 6, -1], [55, 8, 3]]) {
+    const y = floorTop + dy, x = edgeX(y);
+    for (let i = 0; i < len; i++) {
+      const yy = y + Math.round(i * tilt / len);
+      rect(g, x + i, yy, 1, 2, '#6a6288');
+      rect(g, x + i, yy + 2, 1, 3, '#3a3448');
+      rect(g, x + i, yy + 5, 1, 1, '#151220');
+    }
+    rect(g, x + len, y + tilt, 1, 5, '#151220');
   }
 }
 

@@ -2880,8 +2880,8 @@ function render() {
     const ft = CONFIG.floorTop, band = 40;
     g.drawImage(farImg, 0, (ft - band) * 2, farImg.width, band * 2, 0, ft, farImg.width / 2, H - ft);
     const dk = g.createLinearGradient(0, ft, 0, H);
-    dk.addColorStop(0, 'rgba(20,16,36,0.15)');
-    dk.addColorStop(1, 'rgba(20,16,36,0.55)');
+    dk.addColorStop(0, 'rgba(20,16,36,0.05)');
+    dk.addColorStop(1, 'rgba(20,16,36,0.35)');
     g.fillStyle = dk;
     g.fillRect(0, ft, W, H - ft);
   }
