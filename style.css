@@ -268,3 +268,16 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 
 /* карта открыта — HUD поверх пергамента не нужен */
 .mapping .hud { visibility: hidden; }
+
+/* админка (v0.72): только по ссылке с ?admin */
+.admin-btn { position: absolute; right: 1cqw; top: 1cqw; z-index: 30; font-size: 2.2cqw; cursor: pointer; color: var(--muted); background: var(--panel); border: 0.3cqw solid var(--line); padding: 0 0.8cqw; }
+.admin { position: absolute; inset: 3cqw 12cqw; z-index: 31; overflow-y: auto; background: rgba(13, 11, 20, 0.97); border: 0.4cqw solid var(--gold); padding: 1.6cqw 2cqw; display: grid; gap: 0.8cqw; align-content: start; font-size: 1.8cqw; color: var(--fg); }
+.admin[hidden] { display: none; }
+.admin-head { display: flex; gap: 2cqw; align-items: center; font-family: var(--pixel); color: var(--gold); font-size: 2.4cqw; }
+.admin-head span { color: var(--muted); font-size: 1.6cqw; margin-left: auto; }
+.admin-sec { font-family: var(--pixel); color: var(--muted); margin-top: 0.6cqw; }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(22cqw, 1fr)); gap: 0.6cqw; }
+.admin-row { display: flex; gap: 0.8cqw; }
+.admin button, .admin select { font: inherit; color: var(--fg); background: var(--panel); border: 0.3cqw solid var(--line); padding: 0.4cqw 0.8cqw; cursor: pointer; text-align: left; }
+.admin button:hover { border-color: var(--gold); color: var(--gold); }
+.admin label { display: flex; gap: 0.6cqw; align-items: center; cursor: pointer; }

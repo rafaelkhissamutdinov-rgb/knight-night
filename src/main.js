@@ -164,6 +164,7 @@ function loadRoom(id, at) {
   }
   (ROOMS[id].encounters ?? []).forEach((enc, i) => {
     const key = encKey(id, i);
+    if (admin.peace && !enc.story) { game.cleared.add(key); game.clearedAt[key] = 1e9; }   // админка: без обычных боёв
     if (enc.story && game.flags['done_' + enc.story]) game.cleared.add(key);
     if (game.cleared.has(key) && respawnable(enc) && game.time - (game.clearedAt[key] ?? 0) >= CONFIG.respawnTime) game.cleared.delete(key);
   });
@@ -871,6 +872,168 @@ function startContinue(data) {
   callout(ROOMS[game.room].name, 'muted');
 }
 
+// ---------- админка (v0.72) ----------
+// Для владельца: проверить одну деталь, не проходя всё заново. Включается ссылкой с ?admin (запоминается в браузере,
+// ?admin=0 — выключить), открывается F2 или кнопкой «⚙». Тестеры её не видят. Всё делается через сохранение:
+// собираем данные сохранения и загружаем их, как «Продолжить», — комната, вещи и флаги сюжета ставятся обычным путём.
+const admin = { on: false, open: false, peace: false };
+try {
+  const q = new URLSearchParams(location.search).get('admin');
+  if (q !== null) localStorage.setItem('knightNight.admin', q === '0' ? '' : '1');
+  admin.on = !!localStorage.getItem('knightNight.admin');
+  admin.peace = !!localStorage.getItem('knightNight.admin.peace');
+} catch { /* без localStorage админки нет */ }
+
+const STORY_FLAGS = {
+  wake: { seen_wake: true },
+  tutorial: { seen_wake: true, trainer_met: true, tutorial_done: true, trainer_gone: true },
+  ilia: { done_ilia: true },
+  ataman: { done_ataman: true },
+  commander: { done_commander: true, balcony_done: true },
+  keyguard: { done_keyguard: true },
+};
+// точки сюжета: откуда начать, что уже пройдено и что в сумке
+const ADMIN_POINTS = [
+  { name: 'После обучения', room: 'hall', x: 420, steps: ['wake', 'tutorial'], bag: ['sword_old'] },
+  { name: 'Перед Илиа', room: 'hall', x: 1980, steps: ['wake', 'tutorial'], bag: ['sword_old'] },
+  { name: 'После Илиа (рапира)', room: 'gallery', x: 80, steps: ['wake', 'tutorial', 'ilia'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Перед балконом', room: 'balcony', x: 60, steps: ['wake', 'tutorial', 'ilia', 'ataman'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Второй этаж', room: 'landing2', x: 200, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
+];
+const ADMIN_LOOT = ['sword_old', 'rapier', 'map', 'journal', 'key_tower', 'diamond_ace', 'rosary', 'armor_marauder', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup'];
+
+// текущая игра → данные сохранения (как save(), но комнату и место можно подменить)
+function adminSnapshot(room = game.room, x = game.player.x) {
+  const p = game.player;
+  return {
+    version: VERSION, room, x: Math.round(x), z: 10, hp: p.hp, weapon: p.weapon,
+    coins: game.coins, bag: [...game.bag], equip: { ...game.equip }, bestiary: game.bestiary, unlocked: [...game.unlocked],
+    cleared: [...game.cleared], flags: { ...game.flags }, pickups: game.pickups,
+  };
+}
+function adminLoad(data) {
+  closeAdmin();
+  ui.shop.hidden = true; game.shop = null;
+  ui.talk.hidden = true; game.talk = null;
+  writeSave(data);
+  startContinue(data);
+  save();
+}
+// где встать в комнате: у первой двери, иначе у левого края
+const adminSpot = id => Math.max(40, Math.min(ROOMS[id].length - 40, (ROOMS[id].doors?.[0]?.x ?? 40) + 24));
+
+function adminPoint(pt) {
+  const flags = Object.assign({}, ...pt.steps.map(s => STORY_FLAGS[s]));
+  const cleared = ALL_ENCOUNTERS.filter(({ enc }) => enc.story && flags['done_' + enc.story]).map(({ key }) => key);
+  const unlocked = ['sword', ...(pt.bag.includes('rapier') ? ['rapier'] : [])];
+  adminLoad({ version: VERSION, room: pt.room, x: pt.x, z: 10, hp: CONFIG.playerHp, coins: Math.max(game.coins ?? 0, 100),
+    bag: pt.bag.filter(i => i !== 'sword_old'), equip: { weapon: 'sword_old', armor: 'armor_old' }, unlocked, cleared, flags, pickups: [] });
+}
+
+function adminGive(ids) {
+  for (const id of ids) {
+    if (!ITEMS[id] || id === game.equip.weapon || id === game.equip.armor || id === game.equip.amulet) continue;
+    if (ITEMS[id].use || !game.bag.includes(id)) game.bag.push(id);
+    if (ITEMS[id].weapon) game.unlocked.add(ITEMS[id].weapon);
+  }
+  checkSets();
+  save();
+  callout('Выдано', 'perfect');
+}
+
+// убрать врагов комнаты: бои засчитаны, сюжетные — как победа
+function adminClearRoom() {
+  (ROOMS[game.room].encounters ?? []).forEach((enc, i) => {
+    const key = encKey(game.room, i);
+    game.cleared.add(key);
+    game.clearedAt[key] = 1e9;
+    if (enc.story) game.flags['done_' + enc.story] = true;
+  });
+  if (game.flags.done_ilia && !owns('rapier')) adminGive(['rapier']);
+  if (game.flags.done_keyguard && !owns('key_tower')) adminGive(['key_tower']);
+  adminLoad(adminSnapshot());
+}
+
+function buildAdmin() {
+  if (ui.admin) return ui.admin;
+  const el = document.createElement('div');
+  el.className = 'admin';
+  el.hidden = true;
+  const floors = {};
+  for (const [id, r] of Object.entries(ROOMS)) (floors[r.floor ?? 1] ??= []).push(`<option value="${id}">${r.name}</option>`);
+  el.innerHTML = `
+    <div class="admin-head"><b>Админка</b><span>F2 — закрыть</span><button type="button" data-a="close">✕</button></div>
+    <div class="admin-sec">Начать с точки сюжета (прогресс до неё — пройден)</div>
+    <div class="admin-grid">${ADMIN_POINTS.map((pt, i) => `<button type="button" data-a="point" data-i="${i}">${pt.name}</button>`).join('')}</div>
+    <div class="admin-sec">Перейти в комнату (с тем, что есть сейчас)</div>
+    <div class="admin-row"><select id="admin-room">${Object.entries(floors).map(([f, o]) => `<optgroup label="Этаж ${f}">${o.join('')}</optgroup>`).join('')}</select>
+      <button type="button" data-a="room">Перейти</button></div>
+    <div class="admin-sec">Выдать</div>
+    <div class="admin-grid">
+      <button type="button" data-a="loot">Все вещи, оружие, ключи</button>
+      <button type="button" data-a="coins">+500 монет</button>
+      <button type="button" data-a="potions">5 зелий и бинтов</button>
+      <button type="button" data-a="heal">Вылечить</button>
+    </div>
+    <div class="admin-sec">Бой</div>
+    <div class="admin-grid">
+      <button type="button" data-a="clear">Убрать врагов в комнате</button>
+      <label><input type="checkbox" id="admin-god"> Бессмертие</label>
+      <label><input type="checkbox" id="admin-peace"> Без обычных монстров (сюжетные бои остаются)</label>
+    </div>`;
+  ui.box.appendChild(el);
+  // клики по панели не доходят до игры (иначе ЛКМ — удар)
+  for (const t of ['pointerdown', 'pointerup', 'wheel', 'contextmenu']) el.addEventListener(t, e => e.stopPropagation());
+  el.addEventListener('keydown', e => { if (e.code !== 'F2' && e.code !== 'Escape') e.stopPropagation(); });
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const a = b.dataset.a;
+    if (a === 'close') closeAdmin();
+    else if (a === 'point') adminPoint(ADMIN_POINTS[+b.dataset.i]);
+    else if (a === 'room') { const id = el.querySelector('#admin-room').value; adminLoad(adminSnapshot(id, adminSpot(id))); }
+    else if (a === 'loot') adminGive(ADMIN_LOOT);
+    else if (a === 'coins') { game.coins += 500; save(); callout('+500 монет', 'perfect'); }
+    else if (a === 'potions') adminGive(['potion', 'potion', 'potion', 'potion', 'potion', 'bandage', 'bandage', 'bandage', 'bandage', 'bandage']);
+    else if (a === 'heal') { game.player.hp = CONFIG.playerHp; game.shield = null; applyArmor(); renderHearts(); callout('Здоров', 'perfect'); }
+    else if (a === 'clear') adminClearRoom();
+  });
+  el.querySelector('#admin-god').addEventListener('change', e => { game.god = e.target.checked; });
+  el.querySelector('#admin-peace').addEventListener('change', e => {
+    admin.peace = e.target.checked;
+    try { localStorage.setItem('knightNight.admin.peace', admin.peace ? '1' : ''); } catch { /* ничего */ }
+  });
+  ui.admin = el;
+  return el;
+}
+function toggleAdmin() { if (admin.open) closeAdmin(); else openAdmin(); }
+function openAdmin() {
+  const el = buildAdmin();
+  el.querySelector('#admin-room').value = game.room;
+  el.querySelector('#admin-god').checked = !!game.god;
+  el.querySelector('#admin-peace').checked = admin.peace;
+  el.hidden = false;
+  admin.open = true;
+}
+function closeAdmin() {
+  if (ui.admin) ui.admin.hidden = true;
+  admin.open = false;
+  input.take();
+  ui.box.focus();
+}
+if (admin.on) {
+  // кнопка-шестерёнка в углу: открыть админку мышью
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'admin-btn';
+  b.textContent = '⚙';
+  b.title = 'Админка (F2)';
+  b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); toggleAdmin(); });
+  ui.box.appendChild(b);
+}
+
 // ---------- ввод ----------
 
 function recordGuard(height) {
@@ -919,6 +1082,7 @@ function handlePress(code) {
     } else if (code === 'KeyM' && !game.confirmNew) toTitle();
     return;
   }
+  if (code === 'F2' && admin.on) { toggleAdmin(); return; }
   if (code === 'F3') {
     game.debug = !game.debug;
     ui.debug.hidden = !game.debug;
@@ -1737,6 +1901,7 @@ function update(dt) {
   updateDoors(dt);
   updateEdges();
 
+  if (game.god && p.hp < CONFIG.playerHp) { p.hp = CONFIG.playerHp; renderHearts(); }   // админка: бессмертие
   if (p.hp <= 0 && p.state !== 'swallowed') die();
   else if (room().finish && (room().encounters ?? []).every((_, i) => game.cleared.has(encKey(game.room, i))) && p.x > L - 60) finish();
 
@@ -2250,6 +2415,7 @@ function updateFx(dt) {
 }
 
 function step(dt) {
+  if (admin.open) { input.take(); return; }   // админка открыта — игра стоит
   updateFx(dt);
   if (game.mode === 'shop' || game.mode === 'equip' || game.mode === 'journal') {
     for (const code of input.take()) handlePress(code);
