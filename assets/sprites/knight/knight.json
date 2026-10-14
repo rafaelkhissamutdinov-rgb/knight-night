@@ -12,7 +12,9 @@
 "roll": 10,
 "sheathe": 7,
 "held": 8,
-"spin": 14
+"spin": 14,
+"lunge": 11,
+"whip": 11
 },
 "frames": {
 "pose_idle": {
@@ -1626,7 +1628,29 @@
 43,
 33
 ]
-}
+},
+"lunge_0": {},
+"lunge_1": {},
+"lunge_2": {},
+"lunge_3": {},
+"lunge_4": {},
+"lunge_5": {},
+"lunge_6": {},
+"lunge_7": {},
+"lunge_8": {},
+"lunge_9": {},
+"lunge_10": {},
+"whip_0": {},
+"whip_1": {},
+"whip_2": {},
+"whip_3": {},
+"whip_4": {},
+"whip_5": {},
+"whip_6": {},
+"whip_7": {},
+"whip_8": {},
+"whip_9": {},
+"whip_10": {}
 },
 "sheet": {
 "cols": 16,
@@ -1777,7 +1801,29 @@
 "sheathe_3",
 "sheathe_4",
 "sheathe_5",
-"sheathe_6"
+"sheathe_6",
+"lunge_0",
+"lunge_1",
+"lunge_2",
+"lunge_3",
+"lunge_4",
+"lunge_5",
+"lunge_6",
+"lunge_7",
+"lunge_8",
+"lunge_9",
+"lunge_10",
+"whip_0",
+"whip_1",
+"whip_2",
+"whip_3",
+"whip_4",
+"whip_5",
+"whip_6",
+"whip_7",
+"whip_8",
+"whip_9",
+"whip_10"
 ]
 }
 }

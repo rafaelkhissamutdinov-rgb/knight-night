@@ -339,9 +339,12 @@ export function drawSprite(name, g, o) {
   let sheathFront = null;
   if (o.sheath && fr0?.back) {
     const by = top + fr0.back[1];
-    const BACK = 104;   // почти вдоль спины: клинок вниз и чуть назад, его закрывает корпус; рукоять — над плечом
+    // меч — за спиной: почти вдоль спины, рукоять над плечом. Рапира — на поясе (владелец): у бедра, эфес впереди,
+    // ножны назад и чуть вниз
+    const hip = o.sheath.kind === 'rapier';
+    const BACK = hip ? 140 : 104;
     const k = Math.max(0, Math.min(1, o.sheath.k ?? 1));
-    const sx = X - o.facing * 3, sy = by - 9;   // хват — у шеи, над плечом (X — середина корпуса)
+    const sx = hip ? X + o.facing * 4 : X - o.facing * 3, sy = hip ? G - 29 : by - 9;
     let wx = sx, wy = sy, ang = BACK;
     if (k < 1 && fr0.wrist) {
       const hx = left + (right ? fr0.wrist[0] : size - fr0.wrist[0]), hy = top + fr0.wrist[1];
@@ -352,7 +355,19 @@ export function drawSprite(name, g, o) {
     if (k >= 0.7) drawWeapon(g, o.sheath.kind, wx, wy, ang, o.facing, o.sheath.len, 0, k >= 1);
     else sheathFront = [wx, wy, ang];
   }
-  g.drawImage(img, left, top);
+  if (o.cloth) {
+    // ткань (сюрко, призрачный хвост): ниже пояса кадр режется на строки, каждая сдвигается волной; чем ниже — тем сильнее,
+    // в движении подол отстаёт назад. o.cloth = { cut (строка кадра — пояс), amp, speed, lag (−1…1, против хода) }
+    const c = o.cloth, cut = Math.max(0, Math.min(size, Math.round(c.cut)));
+    g.drawImage(img, 0, 0, size, cut, left, top, size, cut);
+    const span = Math.max(1, foot - cut + 6), tt = o.time ?? 0;
+    for (let y = cut; y < size; y++) {
+      const f = Math.min(1, (y - cut) / span), w = f * Math.sqrt(f);
+      const dx = c.offs ? c.offs[Math.min(c.offs.length - 1, Math.round((y - cut) / span * (c.offs.length - 1)))]   // физика ткани (main.js)
+        : (Math.sin(tt * (c.speed ?? 3) - y * 0.22) * (c.amp ?? 1.5) + Math.sin(tt * 1.7 - y * 0.09) * 0.8) * w + (c.lag ?? 0) * 4 * w;
+      g.drawImage(img, 0, y, size, 1, left + Math.round(dx), top + y, size, 1);
+    }
+  } else g.drawImage(img, left, top);
   if (sheathFront) drawWeapon(g, o.sheath.kind, sheathFront[0], sheathFront[1], sheathFront[2], o.facing, o.sheath.len);
   if (o.flash) {
     // вспышка попадания: тот же кадр поверх, светлее

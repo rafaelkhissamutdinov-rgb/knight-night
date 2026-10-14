@@ -19,7 +19,7 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'door_wood_open_0', 'door_wood_open_1', 'door_wood_open_2', 'door_iron_open_0', 'door_iron_open_1',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -36,7 +36,22 @@ if (typeof fetch !== 'undefined') fetch('assets/objects/n/index.json').then(r =>
     const nm = new Image(); nm.onload = () => NORMAL_OF.set(obj[n], nm); nm.src = `assets/objects/n/${n}.png`;
   }
 }).catch(() => {});
-export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete);   // загрузились или не нашлись — дальше не ждать
+// под потолком всё, что висит на стене (окна, знамёна, портреты, люстра…), опускается под карниз — один раз на комнату
+export const CEIL_DY = 18;   // карниз — 24 px мира; висящее — чуть ниже
+const HANGING = new Set(['window', 'banner', 'portrait', 'tapestry', 'chains', 'shield', 'shelf', 'sign', 'chandelier', 'stainedglass', 'sigil', 'ivy']);
+function ceilingShift(room) {
+  if (room._ceil) return;
+  room._ceil = true;
+  for (const d of room.decor ?? []) {
+    if (!HANGING.has(d.type)) continue;
+    const top0 = DECOR_IMG[d.type]?.[2] ?? (d.type === 'chandelier' ? 30 : d.type === 'ivy' ? 0 : 20);
+    d.y = (d.y ?? top0) + CEIL_DY;
+  }
+}
+// потолок (v0.70, владелец: «потолок ниже»): своды с балками поверх верха стены; нормали — рельеф
+const CEIL = typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: 'assets/backgrounds/ceiling.png' });
+const CEIL_N = typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: 'assets/backgrounds/n/ceiling.png' });
+export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete) && (!CEIL || (CEIL.complete && CEIL_N.complete));   // загрузились или не нашлись — дальше не ждать
 const objImg = n => (obj[n]?.complete && obj[n].naturalWidth ? obj[n] : null);
 if (obj.stainedglass) obj.stainedglass.onload = () => { decorImages.stainedglass = obj.stainedglass; };
 // люстра (v0.68): фитили — верхушки свечей на картинке (самые высокие столбцы); живое пламя ставится на них (decor.js)
@@ -72,10 +87,10 @@ function decorImage(g, d, floorTop, room) {
   }
   if (anchor === 'stairs') {
     // завал наверху лестницы (картинкой): закрывает её проём
-    const st = objImg('stairs');
-    if (!st || room.stairsX === undefined) return false;
-    const sw = st.width / 2, top = Math.round(floorTop - st.height / 2 * 0.6);
-    drawObj(g, im, room.stairsX + sw - 13, top + 2);
+    const st = stairsGeom(room, floorTop);
+    if (!st) return false;
+    const [dx, dy] = st.pts[st.pts.length - 1];   // завал — в двери наверху
+    drawObj(g, im, dx, dy + 2);
     return true;
   }
   const bottom = anchor === 'floor' ? floorTop : anchor === 'hole' ? floorTop + 1 + h : anchor === 'center' ? (d.y ?? top0) + h / 2 : (d.y ?? top0) + dy + h;
@@ -196,9 +211,29 @@ export function buildRoom(room, height, floorTop, tiles = null) {
     }
     if (room.far) { g.clearRect(0, 0, length * 2, floorTop * 2); ng?.clearRect(0, 0, length * 2, floorTop * 2); }   // под открытым небом: стены нет, за полом — дальний план (рисуется отдельно)
     g.scale(2, 2);
+    const ceiling = !room.far && room.tiles !== 'shop' && room.ceiling !== false && !!CEIL?.naturalWidth;
+    if (ceiling) ceilingShift(room);
     pairNormals(g, ng);
     finishRoom(g, room, length, height, floorTop, rand, true);
     pairNormals(g, null);
+    if (ceiling) {
+      // своды тянутся по всей длине; каждый второй кусок отражён — без видимого шва
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      ng?.setTransform(1, 0, 0, 1, 0, 0);
+      for (let x = 0, i = 0; x < length * 2; x += CEIL.width, i++) {
+        for (const [ctx, im] of [[g, CEIL], [ng, CEIL_N]]) {
+          if (!ctx || !im.naturalWidth) continue;
+          ctx.save();
+          if (i % 2) { ctx.translate(x + im.width, 0); ctx.scale(-1, 1); ctx.drawImage(im, 0, 0); }
+          else ctx.drawImage(im, x, 0);
+          ctx.restore();
+        }
+      }
+      // тень под карнизом на стене
+      const gr = g.createLinearGradient(0, CEIL.height, 0, CEIL.height + 10);
+      gr.addColorStop(0, 'rgba(8,6,12,0.55)'); gr.addColorStop(1, 'rgba(8,6,12,0)');
+      g.fillStyle = gr; g.fillRect(0, CEIL.height, length * 2, 10);
+    }
     return c;
   }
 
@@ -284,7 +319,7 @@ function finishRoom(g, room, length, height, floorTop, rand, tiled) {
   }
   for (const d of doors) drawDoor(g, d, floorTop, tiled);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
-  if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop, tiled, (room.decor ?? []).some(d => d.type === 'rubble') && !!objImg('decor_rubble'));
+  if (room.stairs) drawStairs(g, stairsX(room, length), floorTop, tiled, (room.decor ?? []).some(d => d.type === 'rubble') && !!objImg('decor_rubble'));
   if (room.balcony) (tiled && room.far ? drawBalconyTiled : drawBalcony)(g, length, height, floorTop, rand);
   for (const d of room.decor ?? []) if (!(tiled && decorImage(g, d, floorTop, room))) drawDecor(g, d, floorTop);  // поверх лестниц и дверей (завал на лестнице)
   if (room.magic) {
@@ -299,7 +334,7 @@ function finishRoom(g, room, length, height, floorTop, rand, tiled) {
 export function drawDoor(g, d, floorTop, tiled = false) {
   if (d.kind === 'none') return;  // проход без двери (например, у подножия лестницы)
   const im = tiled && objImg('door_' + (['bars', 'iron', 'hole'].includes(d.kind) ? d.kind : 'wood'));
-  if (im) { drawObj(g, im, d.x, floorTop + 1); return; }
+  if (im) { drawObj(g, im, d.x, floorTop); return; }   // низ двери — ровно на линии пола
   if (d.kind === 'hole') {
     // пролом в стене: рваный край, за ним темнота
     const x0 = Math.round(d.x - 13), top = floorTop - 38;
@@ -348,17 +383,31 @@ export function drawDoor(g, d, floorTop, tiled = false) {
 }
 
 // Лестница вверх вдоль стены: ступени поднимаются вправо к тёмному проёму наверху.
+// Лестница (v0.70): объёмная, ступени уходят вглубь к двери наверху; нижние ступени — на полу (STAIR_DROP ниже линии стены).
+// Путь рыцаря по ступеням — доли картинки (низ ступеней → площадка → дверь); по нему он реально поднимается (main.js).
+// v0.70 (замечание владельца: «чужеродная, разворот неестественный, уходит в потолок»): лестница в профиль, как в
+// двумерных играх (Castlevania, Blasphemous) — ступени по диагонали вдоль стены, под ними кладка, балюстрада, камень замка;
+// наверху площадка и дверь (та же, что в залах). Рыцарь поднимается по ступеням наискось, сбоку.
+export const STAIR_DROP = 6;                                        // низ ступеней — на линии шага у стены (z = 0)
+export const STAIR_PATH = [[0.03, 0.95], [0.64, 0.19], [0.88, 0.17]];   // нижняя ступень → верхняя → к двери
+export function stairsX(room, length) {
+  const w = (objImg('stairs')?.width ?? 140) / 2;
+  return room.stairsX ?? (room.stairs === 'right' ? length - w - 4 : length / 2 - w / 2);
+}
+export function stairsGeom(room, floorTop) {
+  const im = objImg('stairs');
+  if (!im || !room.stairs || !room.tiles) return null;
+  const x0 = stairsX(room, room.length), w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
+  return { x0, w, h, top, pts: STAIR_PATH.map(([fx, fy]) => [x0 + fx * w, top + fy * h]) };
+}
 function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
   const im = tiled && objImg('stairs');
   if (im) {
-    // каменная лестница картинкой; наверху — тёмный проём (или завал со своей аркой)
-    const w = im.width / 2, h = im.height / 2;
-    const top = Math.round(floorTop - h * 0.6);   // верхняя ступень (выше — только перила)
-    if (!blocked) {
-      rect(g, x0 + w - 24, top - 30, 22, 31, '#0d0b14');
-      rect(g, x0 + w - 26, top - 33, 26, 3, PAL.wallLight);
-    }
-    drawObj(g, im, x0 + w / 2, floorTop + 1);
+    const w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
+    // дверь на стене над площадкой — до ступеней (балюстрада впереди)
+    const door = objImg('door_wood');
+    if (door && !blocked) drawObj(g, door, x0 + STAIR_PATH[2][0] * w, top + STAIR_PATH[2][1] * h + 1);
+    drawObj(g, im, x0 + w / 2, floorTop + STAIR_DROP);
     return;
   }
   const steps = 9, sw = 8, sh = 9;
@@ -573,19 +622,28 @@ export function drawGatePanel(g, x, floorTop, H, dir) {
 }
 
 // Открывающаяся дверь: проём темнеет, створка уходит внутрь (k от 0 до 1).
+const DOOR_OPEN = { wood: 3, iron: 2 };   // кадры открытия (tools/pixellab_door_open.py): створки уходят внутрь, за ними — проход
 export function drawDoorOpen(g, d, floorTop, cam, k) {
+  const kind = d.kind === 'iron' ? 'iron' : d.kind === 'wood' || !d.kind ? 'wood' : null;
+  const n = kind && DOOR_OPEN[kind];
+  if (n && objImg(`door_${kind}_open_0`)) {
+    if (k <= 0.08) return;
+    const im = objImg(`door_${kind}_open_${Math.min(n - 1, Math.floor(k * n))}`);
+    if (im) drawObj(g, im, Math.round(d.x - cam), floorTop);
+    return;
+  }
   const x0 = Math.round(d.x - DOOR_W / 2 - cam), top = floorTop - DOOR_H;
   const w = Math.round(DOOR_W * k);
   rect(g, x0, top, w, DOOR_H, '#050409');
 }
 
-export function drawTorches(g, camX, xs, time) {
+export function drawTorches(g, camX, xs, time, blue = false, flare = 0) {
   for (const x of xs) {
     const sx = Math.round(x - camX);
     if (sx < -50 || sx > 370) continue;
     const glow = g.createRadialGradient(sx, 69, 1, sx, 69, 38);
-    glow.addColorStop(0, 'rgba(255,170,80,0.22)');
-    glow.addColorStop(1, 'rgba(255,170,80,0)');
+    glow.addColorStop(0, blue ? 'rgba(90,170,255,0.26)' : 'rgba(255,170,80,0.22)');
+    glow.addColorStop(1, blue ? 'rgba(90,170,255,0)' : 'rgba(255,170,80,0)');
     g.fillStyle = glow;
     g.fillRect(sx - 38, 31, 76, 76);
 
@@ -601,7 +659,16 @@ export function drawTorches(g, camX, xs, time) {
     g.fillRect(-3, -1, 6, 1);
     g.restore();
     // пламя — живой огонь (src/fire.js) в пикселях экрана, размером с прежний (факелы мелкие — просьба владельца)
-    drawFire(g, getFire('torch:' + x, { w: 7, h: 14, base: 0.9, tall: 0.8, px: 1 }), sx, 71, time);
+    drawFire(g, getFire('torch:' + x + (blue ? ':b' : ''), { w: 7, h: 14, base: 0.9, tall: 0.8, px: 1, blue }), sx, 71, time);
+    if (flare > 0.02) {
+      // вспышка: огонь раздувается, как от плеснутого масла, и опадает
+      const fl = getFire('flare:' + x + (blue ? ':b' : ''), { w: 16, h: 36, base: 0.95, tall: 0.95, px: 1, blue });
+      g.save(); g.globalAlpha = flare; drawFire(g, fl, sx, 71 + 1, time); g.restore();
+      g.save(); g.globalCompositeOperation = 'lighter';
+      const gr = g.createRadialGradient(sx, 64, 1, sx, 64, 30 * flare + 6);
+      gr.addColorStop(0, blue ? `rgba(170,220,255,${0.6 * flare})` : `rgba(255,220,150,${0.6 * flare})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(sx - 40, 24, 80, 80); g.restore();
+    }
   }
 }
 

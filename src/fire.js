@@ -8,6 +8,11 @@ const PAL = [
   null, [58, 13, 10, 0.35], [107, 26, 14, 0.7], [156, 42, 16, 1], [200, 64, 26, 1], [224, 96, 31, 1],
   [240, 138, 42, 1], [247, 173, 60, 1], [252, 204, 90, 1], [255, 226, 138, 1], [255, 242, 192, 1], [255, 255, 236, 1],
 ];
+// призрачный синий огонь (бой с боссом, v0.70): те же ступени, холодные цвета
+const BLUE = [
+  null, [10, 20, 58, 0.35], [14, 30, 107, 0.7], [20, 52, 156, 1], [30, 80, 200, 1], [40, 112, 224, 1],
+  [60, 150, 240, 1], [90, 186, 247, 1], [130, 214, 252, 1], [175, 234, 255, 1], [215, 246, 255, 1], [240, 252, 255, 1],
+];
 const L = PAL.length - 1;
 const STEP = 1 / 30;   // шаг симуляции: 30 раз в секунду — живо, но не мельтешит
 
@@ -15,13 +20,13 @@ const fires = new Map();
 
 // opts: w, h — размер в пикселях экрана; base — доля ширины, где горит (0…1); tall — высота языков (0…1)
 // px — размер клетки в пикселях экрана: 2 — клетка с пиксель мира (крупные языки, без «песка»), 1 — для мелкого пламени
-export function getFire(key, { w: W, h: H, base = 0.7, tall = 0.8, px = 2 }) {
+export function getFire(key, { w: W, h: H, base = 0.7, tall = 0.8, px = 2, blue = false }) {
   let f = fires.get(key);
   if (f && f.W === W && f.H === H) return f;
   const w = Math.max(2, Math.round(W / px)), h = Math.max(4, Math.round(H / px));
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
-  f = { W, H, px, w, h, base, tall, heat: new Uint8Array(w * h), c, x: c.getContext('2d'), img: null, t: null, seed: key.length * 7.3 };
+  f = { W, H, px, w, h, base, tall, pal: blue ? BLUE : PAL, heat: new Uint8Array(w * h), c, x: c.getContext('2d'), img: null, t: null, seed: key.length * 7.3 };
   f.img = f.x.createImageData(w, h);
   // жар остывает так, чтобы языки доставали примерно до tall · h
   f.cool = Math.min(0.95, L / (h * tall));
@@ -67,7 +72,7 @@ function paint(f) {
   const { w, h, heat, img } = f;
   const d = img.data;
   for (let i = 0; i < w * h; i++) {
-    const p = PAL[heat[i]];
+    const p = f.pal[heat[i]];
     const o = i * 4;
     if (!p) { d[o + 3] = 0; continue; }
     d[o] = p[0]; d[o + 1] = p[1]; d[o + 2] = p[2]; d[o + 3] = p[3] * 255;

@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -146,6 +146,8 @@ function respawnable(enc) {
 
 const FLOOR_NAMES = { 2: 'Второй этаж', 3: 'Третий этаж' };
 function loadRoom(id, at) {
+  game.climb = null;
+  game.blueFireAt = null;
   game.coinFx = [];
   game.flags['map_' + id] = true;  // для карты: где побывал
   const floor = ROOMS[id].floor ?? 1;
@@ -1359,7 +1361,10 @@ function updateDoors(dt) {
   if (d.stairs) {
     // лестница: шаг к ступеням, затемнение — и уже на другом этаже, без проёма в стене
     const up = (ROOMS[d.to].floor ?? 1) > (room().floor ?? 1);
-    game.transition = { kind: 'stairs', door: d, dir: up ? 1 : -1, phase: 'out', t: 0 };
+    // наверх по нарисованной лестнице — подойти к нижней ступени и подняться по ней (v0.70); иначе — шаг и затемнение
+    const geom = (up || d.climb) && stairsGeom(room(), CONFIG.floorTop);
+    game.transition = { kind: 'stairs', door: d, dir: up || d.climb ? 1 : -1, phase: geom ? 'toStairs' : 'out', t: 0, geom };
+    p.sheathed = true;
     return;
   }
   game.transition = { kind: 'door', door: d, phase: 'turn', t: 0, x0: p.x, z0: p.z };
@@ -1376,9 +1381,33 @@ function updateEdges() {
   else if (edges.right && p.x >= L - 10 && held('right')) game.transition = { kind: 'edge', edge: edges.right, dir: 1, phase: 'out', t: 0 };
 }
 
-const DOOR_PHASES = { turn: 0.14, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.12 };
+const DOOR_PHASES = { turn: 0.35, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.3 };   // створка видна, пока поворачивается
 const EDGE_PHASES = { out: 0.3, in: 0.3 };
 const STAIR_PHASES = { out: 0.4, in: 0.35 };
+// синий огонь (v0.70, владелец): пока идёт разговор — обычные факелы; когда бой начался — вспышка (огонь раздувается,
+// рёв пламени) и пламя становится призрачно-синим. blueFireAt — когда вспыхнули (в этой комнате)
+function bossFireTick() {
+  if (game.blueFireAt != null || game.mode !== 'play' || game.talk) return;
+  if (game.enemies.some(e => e.kind === 'boss' && e.alive && e.state !== 'dormant')) { game.blueFireAt = game.time; sfx.flame(); shake(2); }
+}
+const bossFireAge = () => (game.blueFireAt == null ? -1 : game.time - game.blueFireAt);
+const bossFire = () => bossFireAge() > 0.22;                                   // цвет меняется на пике вспышки
+const fireFlare = () => { const a = bossFireAge(); return a >= 0 && a < 0.7 ? Math.sin(Math.PI * a / 0.7) : 0; };
+function torchUnderStairs(r, x) {
+  const st = stairsGeom(r, CONFIG.floorTop);
+  return !!st && x > st.x0 - 4 && x < st.x0 + st.w + 4;
+}
+const CLIMB_T = 1.3;   // подъём по ступеням, секунд
+// точка на ломаной (по длине), k от 0 до 1
+function alongPath(pts, k) {
+  const seg = pts.slice(1).map((q, i) => Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]));
+  let d = k * seg.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < seg.length; i++) {
+    if (d <= seg[i] || i === seg.length - 1) { const u = seg[i] ? Math.min(1, d / seg[i]) : 1; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * u, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * u]; }
+    d -= seg[i];
+  }
+  return pts[pts.length - 1];
+}
 
 function updateTransition(dt) {
   const tr = game.transition;
@@ -1410,6 +1439,36 @@ function updateTransition(dt) {
     return;
   }
   if (tr.kind === 'stairs') {
+    if (tr.phase === 'toStairs') {
+      // к нижней ступени: вдоль стены и к ней
+      const [sx] = tr.geom.pts[0];
+      const dx = sx - p.x, v = CONFIG.exploreSpeed;
+      p.facing = dx >= 0 ? 1 : -1;
+      p.x += Math.sign(dx) * Math.min(Math.abs(dx), v * dt);
+      p.z = Math.max(0, p.z - CONFIG.exploreDepthSpeed * dt);
+      p.walking = true;
+      p.step += dt * v / gaitCycle(0);
+      if ((Math.abs(dx) < 1 && p.z <= 0.5) || tr.t > 1.4) { tr.phase = 'climb'; tr.t = 0; }
+      return;
+    }
+    if (tr.phase === 'climb' || tr.phase === 'descend') {
+      // по ступеням наискось: вверх к двери на площадке (к концу растворяется в ней), вниз — от двери к полу
+      const T = tr.phase === 'climb' ? CLIMB_T : CLIMB_T * 0.85;
+      const k = Math.min(1, tr.t / T);
+      const pts = tr.phase === 'climb' ? tr.geom.pts : [...tr.geom.pts].reverse();
+      const [x, y] = alongPath(pts, k);
+      game.climb = { x, y, step: tr.t * 1.7, facing: tr.phase === 'climb' ? 1 : -1,
+        alpha: tr.phase === 'climb' ? (k > 0.8 ? (1 - k) / 0.2 : 1) : Math.min(1, k / 0.2) };
+      if (tr.t >= T) {
+        game.climb = null;
+        if (tr.phase === 'climb') { tr.phase = 'out'; tr.t = STAIR_PHASES.out; }
+        else {
+          p.x = pts[pts.length - 1][0]; p.z = 0; p.facing = 1;
+          game.transition = null; game.doorLock = true; save();
+        }
+      }
+      return;
+    }
     if (tr.phase === 'out') {
       p.facing = tr.dir;
       p.x += tr.dir * CONFIG.exploreSpeed * 0.6 * dt;
@@ -1425,6 +1484,9 @@ function updateTransition(dt) {
         sfx.step();
         tr.phase = 'in';
         tr.t = 0;
+        // пришёл сверху в комнату с нарисованной лестницей — сходит по ней
+        const geom = tr.dir < 0 && out.stairs && stairsGeom(to, CONFIG.floorTop);
+        if (geom) { tr.geom = geom; tr.phase = 'descend'; }
       }
     } else if (tr.t >= STAIR_PHASES.in) {
       game.transition = null;
@@ -2608,7 +2670,9 @@ function render() {
   // карта объёма фона (рельеф стен, нормали предметов) — под живой свет; предметы на полу допишут свои по ходу кадра
   if (light && bg.normal) light.normalCtx.drawImage(bg.normal, cam * bk, 0, W * bk, H * bk, 0, 0, W * S, H * S);
   if (light) pairNormals(g, light.normalCtx);
-  drawTorches(g, cam, r.torches ?? [], game.time);
+  // бой с боссом — факелы вспыхивают призрачным синим (v0.70); факел, который закрыла бы лестница, не рисуется
+  bossFireTick();
+  drawTorches(g, cam, (r.torches ?? []).filter(x => !torchUnderStairs(r, x)), game.time, bossFire(), fireFlare());
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   for (const d of r.decor ?? []) {
     if (d.type === 'cracks') drawCracks(g, d.x - cam, CONFIG.floorTop, { open: !!game.flags[d.secret], hits: game.wallHits }, game.time);
@@ -2722,7 +2786,7 @@ function render() {
   let fade = 0;
   if (tr?.kind === 'door') fade = tr.phase === 'fadeOut' ? tr.t / DOOR_PHASES.fadeOut : tr.phase === 'fadeIn' ? 1 - tr.t / DOOR_PHASES.fadeIn : 0;
   if (tr?.kind === 'edge') fade = tr.phase === 'out' ? tr.t / EDGE_PHASES.out : 1 - tr.t / EDGE_PHASES.in;
-  if (tr?.kind === 'stairs') fade = tr.phase === 'out' ? tr.t / STAIR_PHASES.out : 1 - tr.t / STAIR_PHASES.in;
+  if (tr?.kind === 'stairs') fade = tr.phase === 'out' ? tr.t / STAIR_PHASES.out : tr.phase === 'in' ? 1 - tr.t / STAIR_PHASES.in : tr.phase === 'climb' ? Math.max(0, (tr.t / CLIMB_T - 0.85) / 0.15) : 0;
   if (game.cutscene && game.cutscene.t < WAKE.flash) fade = Math.max(fade, 0.55);
   if (fade > 0) {
     g.globalAlpha = Math.min(1, fade);
@@ -2775,49 +2839,142 @@ function renderChokeAura(cam) {
   g.restore();
 }
 
+// захлёст рапирой: серебряная дуга сверху вперёд, яркая у кончика, и щелчок на конце
+function whipArc(x, ground, f, k) {
+  k = Math.max(0, Math.min(1, k));
+  const cx = x + f * 4, cy = ground - 30, R = 24;
+  const head = -110 + 150 * k, tail = Math.max(-110, head - 110);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  for (let a = tail; a <= head; a += 3) {
+    const u = (a - tail) / Math.max(1, head - tail), r = a * Math.PI / 180;
+    g.globalAlpha = 0.15 + 0.85 * u * u;
+    g.fillStyle = u > 0.85 ? '#ffffff' : '#bcd6f0';
+    g.fillRect(Math.round((cx + f * Math.cos(r) * R) * 2) / 2, Math.round((cy + Math.sin(r) * R * 0.85) * 2) / 2, u > 0.6 ? 1 : 0.5, 0.5);
+  }
+  if (k > 0.7) {   // щелчок
+    const r = head * Math.PI / 180, tx = cx + f * Math.cos(r) * R, ty = cy + Math.sin(r) * R * 0.85;
+    g.globalAlpha = (1 - k) * 3;
+    g.fillStyle = '#ffffff';
+    for (let i = 0; i < 6; i++) { const an = i * Math.PI / 3; g.fillRect(Math.round((tx + Math.cos(an) * 3) * 2) / 2, Math.round((ty + Math.sin(an) * 3) * 2) / 2, 0.5, 0.5); }
+  }
+  g.restore();
+}
+
+// Бубновый туз (v0.70): щит-заклинание. Вспышка (звезда, лучи, кольцо) → ромб раскрывается, как переворачиваемая карта,
+// с отскоком → держится: алое тело, сияющая золотая кайма, бегущие руны, пульсирующая масть, искры вверх →
+// рассыпается осколками. a — сколько прошло (0…0,8 с). Свет на сцену — в sceneLights.
+function renderAceWard(cx, cy, a) {
+  const T = 0.8;
+  if (a < 0 || a > T) return;
+  const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+  const back = x => { x = Math.min(1, Math.max(0, x)); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+  const HW = 12, HH = 20;
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  // 1. вспышка: звезда, лучи, кольцо
+  if (a < 0.22) {
+    const f = a / 0.22;
+    g.globalAlpha = 1 - f;
+    const R = 6 + 30 * ease(f);
+    for (let i = 0; i < 12; i++) {
+      const an = i / 12 * Math.PI * 2 + 0.2, len = (i % 2 ? 0.55 : 1) * R;
+      for (let r = 2; r < len; r += 1.5) { g.fillStyle = r < len * 0.5 ? '#fff6e0' : '#ffb070'; g.fillRect(Math.round((cx + Math.cos(an) * r) * 2) / 2, Math.round((cy + Math.sin(an) * r * 0.9) * 2) / 2, 0.5, 0.5); }
+    }
+    for (let i = 0; i < 48; i++) {
+      const an = i / 48 * Math.PI * 2;
+      g.fillStyle = '#ff9aa6';
+      g.fillRect(Math.round((cx + Math.cos(an) * R * 0.8) * 2) / 2, Math.round((cy + Math.sin(an) * R * 0.5) * 2) / 2, 0.5, 0.5);
+    }
+    const gr = g.createRadialGradient(cx, cy, 0, cx, cy, 14);
+    gr.addColorStop(0, 'rgba(255,250,235,0.9)'); gr.addColorStop(1, 'rgba(255,120,120,0)');
+    g.fillStyle = gr; g.fillRect(cx - 14, cy - 14, 28, 28);
+  }
+  // 2–4. ромб: раскрытие, держится, рассыпается
+  const open = back((a - 0.04) / 0.2);                       // 0 → 1 с отскоком
+  const flip = Math.abs(Math.sin(Math.min(1, Math.max(0, (a - 0.04) / 0.2)) * Math.PI / 2));   // карта переворачивается
+  const fade = a > 0.62 ? 1 - (a - 0.62) / 0.18 : 1;
+  const hw = HW * open * flip, hh = HH * Math.min(1.15, 0.35 + 0.65 * open);
+  if (open > 0.02 && a < 0.62) {
+    // ореол
+    const gr = g.createRadialGradient(cx, cy, 2, cx, cy, HH * 1.4);
+    gr.addColorStop(0, `rgba(255,90,100,${0.32 * fade})`); gr.addColorStop(1, 'rgba(255,60,80,0)');
+    g.globalAlpha = 1; g.fillStyle = gr; g.fillRect(cx - HH * 1.4, cy - HH * 1.4, HH * 2.8, HH * 2.8);
+    g.globalCompositeOperation = 'source-over';
+    // тело ромба: построчно, от тёмно-алого по краю к яркому к середине
+    for (let y = -hh; y <= hh; y += 0.5) {
+      const w = hw * (1 - Math.abs(y) / hh);
+      if (w < 0.5) continue;
+      const d = Math.abs(y) / hh;
+      g.globalAlpha = 0.82 * fade;
+      g.fillStyle = d > 0.75 ? '#7a1426' : d > 0.45 ? '#a81d33' : '#c8303f';
+      g.fillRect(Math.round((cx - w) * 2) / 2, y + cy, Math.round(w * 4) / 2, 0.5);
+      // кайма — светлая, с бликом наверху слева
+      g.globalAlpha = fade;
+      g.fillStyle = y < 0 ? '#ffe6a8' : '#ffb3b8';
+      g.fillRect(Math.round((cx - w) * 2) / 2, y + cy, 0.5, 0.5);
+      g.fillRect(Math.round((cx + w) * 2) / 2 - 0.5, y + cy, 0.5, 0.5);
+    }
+    g.globalCompositeOperation = 'lighter';
+    // руны бегут по кромке внутри
+    for (let i = 0; i < 16; i++) {
+      const u = (i / 16 + a * 0.9) % 1, side = Math.floor(u * 4), f = (u * 4) % 1;
+      const P = [[0, -hh * 0.72], [hw * 0.72, 0], [0, hh * 0.72], [-hw * 0.72, 0]];
+      const [x0, y0] = P[side], [x1, y1] = P[(side + 1) % 4];
+      g.globalAlpha = (0.5 + 0.5 * Math.sin(a * 30 + i)) * fade;
+      g.fillStyle = i % 4 ? '#ffd27a' : '#ffffff';
+      g.fillRect(Math.round((cx + x0 + (x1 - x0) * f) * 2) / 2, Math.round((cy + y0 + (y1 - y0) * f) * 2) / 2, 0.5, 0.5);
+    }
+    // масть посередине — пульсирует
+    const pul = 0.75 + 0.25 * Math.sin(a * 22);
+    g.globalAlpha = fade * pul;
+    for (let y = -4.5; y <= 4.5; y += 0.5) { const w = 3 * (1 - Math.abs(y) / 4.5) * flip; if (w > 0.2) { g.fillStyle = Math.abs(y) < 1.5 ? '#ffffff' : '#ffe0e4'; g.fillRect(Math.round((cx - w) * 2) / 2, cy + y, Math.round(w * 4) / 2, 0.5); } }
+    // искры вверх
+    for (let i = 0; i < 6; i++) {
+      const u = (a * 2.2 + i * 0.17) % 1;
+      g.globalAlpha = (1 - u) * fade;
+      g.fillStyle = i % 2 ? '#ffd27a' : '#ff9aa6';
+      g.fillRect(Math.round((cx + Math.sin(i * 2.3 + a * 6) * hw * 0.9) * 2) / 2, Math.round((cy + hh * 0.4 - u * hh * 1.8) * 2) / 2, 0.5, 0.5);
+    }
+  }
+  // 4. осколки
+  if (a >= 0.6) {
+    const f = (a - 0.6) / 0.2;
+    for (let i = 0; i < 14; i++) {
+      const an = i / 14 * Math.PI * 2 + i, r = 4 + f * (18 + (i % 4) * 5);
+      const x = cx + Math.cos(an) * r * 0.8, y = cy + Math.sin(an) * r + f * f * 6;
+      g.globalAlpha = 1 - f;
+      g.fillStyle = i % 3 ? '#c8303f' : '#ffb3b8';
+      g.fillRect(Math.round(x * 2) / 2, Math.round(y * 2) / 2, 1, i % 2 ? 1 : 0.5);
+    }
+  }
+  g.restore();
+}
+
 // удушение (v0.69): на шее рыцаря — светящийся обод с рунами, от руки призрака к нему тянется дрожащая нить,
 // по ней бегут искры; рыцарь висит в воздухе и хватается за горло (кадры held). Рисуется поверх бойцов.
 function renderChokeHold(cam) {
+  // удушение (v0.70, по просьбе владельца — без нити): вокруг шеи рыцаря разгорается голубой свет, пульсирует и сжимается
   const p = game.player;
   const b = game.enemies.find(e => e.kind === 'boss' && (e.state === 'cast' || e.state === 'choking'));
   if (!b || (b.state === 'cast' && b.t < 0.3)) return;
   const k = b.state === 'cast' ? Math.min(1, b.t / (b.def.chokeCast * (b.phase === 2 ? b.def.phase2Speed : 1))) : 1;
   const nx = p.x - cam + p.facing * 1, ny = groundY(p.z) - (p.airY ?? 0) - 24;      // шея рыцаря
-  const hx = b.x - cam + b.facing * 15, hy = groundY(b.z) - (b.airY ?? 0) - 26;      // вытянутая рука призрака
-  const t = game.time;
+  const t = game.time, pul = 0.8 + 0.2 * Math.sin(t * 14);
   g.save();
   g.globalCompositeOperation = 'lighter';
-  // нить: от руки к шее, волной; во время заклинания — тянется (k), когда держит — натянута и дрожит
-  const N = 30, reach = b.state === 'cast' ? k : 1;
-  for (let i = 0; i <= N * reach; i++) {
-    const f = i / N;
-    const x = hx + (nx - hx) * f, y = hy + (ny - hy) * f + Math.sin(f * 12 - t * 18) * (b.state === 'choking' ? 1.2 : 2.2) * Math.sin(Math.PI * f);
-    g.globalAlpha = 0.35 + 0.35 * Math.sin(f * 20 - t * 25) ** 2;
-    g.fillStyle = (i + Math.floor(t * 30)) % 6 === 0 ? '#ffffff' : '#7cf0ff';
-    g.fillRect(Math.round(x * 2) / 2, Math.round(y * 2) / 2, 1, 1);
-  }
-  // обод на шее: сжимается к концу заклинания, пульсирует, по нему бегут руны
-  const r = 7 - 2.5 * k + (b.state === 'choking' ? Math.sin(t * 14) * 0.4 : 0);
-  for (let i = 0; i < 28; i++) {
-    const a = i / 28 * Math.PI * 2 + t * 3;
-    const front = Math.sin(a) > 0;
-    g.globalAlpha = (front ? 0.95 : 0.4) * Math.min(1, k * 1.5);
-    g.fillStyle = i % 7 === 0 ? '#ffffff' : i % 2 ? '#7cf0ff' : '#b07cff';
-    g.fillRect(Math.round((nx + Math.cos(a) * r) * 2) / 2, Math.round((ny + Math.sin(a) * r * 0.32) * 2) / 2, i % 7 === 0 ? 1 : 0.5, 0.5);
-  }
-  if (b.state === 'choking') {
-    // мягкое свечение вокруг горла и искры, слетающие с обода
-    const gr = g.createRadialGradient(nx, ny, 0, nx, ny, 12);
-    gr.addColorStop(0, 'rgba(124,240,255,0.35)'); gr.addColorStop(1, 'rgba(124,240,255,0)');
-    g.globalAlpha = 0.8 + 0.2 * Math.sin(t * 9);
-    g.fillStyle = gr; g.fillRect(nx - 12, ny - 12, 24, 24);
-    for (let i = 0; i < 4; i++) {
-      const u = (t * 1.3 + i * 0.25) % 1;
-      g.globalAlpha = 1 - u;
-      g.fillStyle = '#d8faff';
-      g.fillRect(Math.round(nx + Math.sin(i * 2.1 + t) * r), Math.round(ny - u * 10), 0.5, 0.5);
-    }
-  }
+  const R = 13 - 4 * k;
+  const gr = g.createRadialGradient(nx, ny, 0, nx, ny, R);
+  gr.addColorStop(0, `rgba(170,240,255,${0.55 * k * pul})`);
+  gr.addColorStop(0.45, `rgba(90,190,255,${0.3 * k * pul})`);
+  gr.addColorStop(1, 'rgba(60,140,255,0)');
+  g.fillStyle = gr;
+  g.fillRect(nx - R, ny - R, R * 2, R * 2);
+  // светлый обод у самого горла — мягкий, без точек-рун
+  const rx = 5 - 1.5 * k, ry = 1.6;
+  g.globalAlpha = 0.7 * k * pul;
+  g.fillStyle = '#d8f6ff';
+  for (let a = 0; a < Math.PI * 2; a += 0.12) g.fillRect(Math.round((nx + Math.cos(a) * rx) * 2) / 2, Math.round((ny + Math.sin(a) * ry) * 2) / 2, 0.5, 0.5);
   g.restore();
 }
 
@@ -2870,7 +3027,8 @@ function renderEnemy(e, cam) {
     const tip = sprite ? drawSprite(e.type, g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: depth ? game.time * 1.5 : e.step / 6.3, turn, depth,
       time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
-      bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined,
+      bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined, anim: enemyAnim(e),
+      cloth: e.kind === 'boss' ? bossCloth(e) : undefined,
     }) ?? { tipX: ex, tipY: GROUND - 20 } : drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       breathe: (e.state === 'idle' || e.state === 'dormant') && !e.def.skull && Math.sin(game.time * 2.2 + e.x * 0.37) > 0.3 ? 1 : 0,  // живые дышат, скелеты — нет
@@ -2927,6 +3085,57 @@ function renderEnemy(e, cam) {
 }
 
 // чем бьёт враг со спрайтом: оружие рисуется кодом от кисти
+// приёмы кадрами PixelLab (v0.70): выпад Илии, кулак/полёт/вскинутые руки босса. null — обычные позы.
+// На этих кадрах оружие нарисовано (или руки пусты) — точки кисти нет, своё оружие кодом не рисуется.
+function enemyAnim(e) {
+  const A = key => spriteAnim(e.type, key);
+  const cl = x => Math.max(0, Math.min(1, x));
+  if (e.kind === 'duelist' && A('lunge') && e.alive) {
+    const thrust = e.strike?.pose === 'thrust' || e.height === 'mid';
+    if (e.state === 'leapIn') return { key: 'lunge', k: 0.1 + 0.3 * cl(e.t / 0.3) };
+    if (e.state === 'windup' && thrust) { e.lunging = true; return { key: 'lunge', k: 0.28 * cl(e.t / e.windupTime) }; }
+    if (e.state === 'strike' && thrust) return { key: 'lunge', k: 0.3 + 0.35 * cl(e.t / 0.16) };
+    if (e.state === 'recover' && e.lunging) return { key: 'lunge', k: 0.65 + 0.35 * cl(e.t / (e.def.recover ?? 0.6)) };
+    if (e.state !== 'recover') e.lunging = false;
+  }
+  if (e.kind === 'boss' && e.alive) {
+    const d = e.def;
+    if (e.state === 'cast' && A('clench')) return { key: 'clench', k: 0.75 * cl(e.t / d.chokeCast) };
+    if (e.state === 'choking' && A('clench')) return { key: 'clench', k: 0.75 + 0.24 * ((e.t * 2) % 1) };   // сжимает кулак, рука дрожит
+    if (e.state === 'dash' && A('dash')) return { key: 'dash', k: cl(e.t / 0.35) };
+    if (e.state === 'stance' && A('raise')) return { key: 'raise', k: cl(e.t / (e.pat?.stance ?? 0.9)) };
+  }
+  return null;
+}
+
+// сюрко и призрачный хвост босса — ткань на пружинах (v0.70): строки ниже пояса — цепочка, каждая тянется за верхней,
+// по инерции отстаёт при разгоне и торможении, сопротивляется воздуху на ходу, низ колышет призрачный ветерок; всё затухает
+const CLOTH_ROWS = 36;
+function bossCloth(e) {
+  const now = game.time;
+  const dt = Math.min(1 / 30, Math.max(1 / 240, now - (e._clothT ?? now - 1 / 60)));
+  const v = (e.x - (e._clothX ?? e.x)) / dt;
+  e._clothX = e.x; e._clothT = now;
+  const c = e._cloth ?? (e._cloth = { off: new Float32Array(CLOTH_ROWS), vel: new Float32Array(CLOTH_ROWS), v: 0 });
+  const acc = (v - c.v) / dt;   // ускорение корпуса
+  c.v = v;
+  const busy = e.state === 'stance' || e.state === 'cast' || e.state === 'choking';
+  const steps = Math.ceil(dt / (1 / 120)), h = dt / steps;
+  for (let s = 0; s < steps; s++) {
+    for (let i = 1; i < CLOTH_ROWS; i++) {
+      const f = i / CLOTH_ROWS;
+      const spring = 260 * (c.off[i - 1] - c.off[i]) - 18 * c.off[i];            // за верхней строкой и к телу
+      const inertia = -acc * 0.035 * f;                                           // отстаёт при разгоне
+      const drag = -v * 0.9 * f * f;                                              // сопротивление воздуха на ходу
+      const wind = Math.sin(now * (busy ? 7 : 2.6) - i * 0.35) * (busy ? 90 : 38) * f;   // призрачный ветерок
+      c.vel[i] += (spring + inertia + drag + wind - 7 * c.vel[i]) * h;
+      c.off[i] += c.vel[i] * h;
+      c.off[i] = Math.max(-9, Math.min(9, c.off[i]));
+    }
+  }
+  return { cut: 40, offs: c.off };
+}
+
 function enemyWeapon(e) {
   const d = e.def;
   if (d.crossbow) return 'crossbow';   // арбалетчик тоже стрелок — проверять раньше лука
@@ -3037,6 +3246,13 @@ function renderPlayer(cam) {
   const GROUND = groundY(p.z) + Math.round(game.fallY ?? 0);  // падение сквозь пролом
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   const sprite = knightReady();
+  if (game.climb && sprite) {
+    // по ступеням: шаги сбоку, наискось вверх или вниз; оружие в ножнах
+    const c = game.climb;
+    drawKnight(g, { x: c.x - cam, ground: c.y, facing: c.facing, pose: POSES.sheathed, state: 'ready', walking: true, step: c.step, time: game.time,
+      alpha: c.alpha, sheathed: true, sheath: { kind: p.weapon === 'rapier' ? 'rapier' : 'sword', len: (p.arms.length ?? 17) * 2 } });
+    return;
+  }
   // оружие за спиной (v0.69): любое, и рапира; sheath.k — сколько прошло от руки до ножен
   const sheathKind = p.weapon === 'rapier' ? 'rapier' : 'sword', sheathLen = (p.arms.length ?? 17) * 2;
   if (p.state === 'roll' && sprite) {
@@ -3135,14 +3351,16 @@ function renderPlayer(cam) {
   const SHEATHE_T = 0.5;
   const sk = p.sheathed ? (p.sheatheAt != null ? Math.min(1, (p.clock - p.sheatheAt) / SHEATHE_T) : 1)
     : drawing ? Math.max(0, 1 - p.t / Math.max(0.05, p.atk.windup)) : null;
-  const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && spriteAnim('knight', 'sheathe');
+  const rapierKey = rapier && p.state === 'attack' ? (p.atk.pose === 'thrust' ? 'lunge' : p.atk.pose === 'flick' ? 'whip' : null) : null;
+  const rapierAnim = rapierKey && spriteAnim('knight', rapierKey) ? { key: rapierKey, k: Math.min(1, p.t / (p.atk.windup + p.atk.active + p.atk.recover)) } : null;
+  const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && !rapier && spriteAnim('knight', 'sheathe');   // кадры «рука за спину» — только для меча
   const tip = sprite ? drawKnight(g, {
     x: px, ground: GROUND, facing, pose: p.pose, state: p.state, walking: p.walking, step: p.step, time: game.time, airY: p.airY,
     turn, run: (p.gaitRun ?? 0) > 0.5, depth,
     sheath: sk != null ? { kind: sheathKind, len: sheathLen, k: sk } : null,
-    anim: sheathing ? { key: 'sheathe', k: sk } : spinFrames ? { key: 'spin', k: (spinK * 2) % 1 }   // два оборота
-      : p.state === 'held' && spriteAnim('knight', 'held') ? { key: 'held', k: (p.t * 0.9) % 1 } : null,   // висит, хватается за горло
-    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
+    anim: rapierAnim ?? (sheathing ? { key: 'sheathe', k: sk } : null) ?? (spinFrames ? { key: 'spin', k: (spinK * 2) % 1 }   // два оборота
+      : p.state === 'held' && spriteAnim('knight', 'held') ? { key: 'held', k: (p.t * 0.9) % 1 } : null),   // висит, хватается за горло
+    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || !!rapierAnim || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
     alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
   }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
@@ -3152,26 +3370,13 @@ function renderPlayer(cam) {
     trail: active ? p.trail : null,
   });
   if (spinning) spinTrail(px, GROUND - 24, spinK, p.facing, false);   // передняя половина диска — поверх рыцаря
-  if (active && !spinning) {   // у вихря свой шлейф-диск
+  if (rapierAnim && rapierKey === 'whip' && active) whipArc(px, GROUND, p.facing, (p.t - p.atk.windup) / p.atk.active);
+  if (active && !spinning && !rapierAnim) {   // у вихря свой шлейф-диск, у рапиры — кадры с клинком
     p.trail.push({ tipX: tip.tipX, tipY: tip.tipY });
     if (p.trail.length > (spinning || weaving ? 6 : 3)) p.trail.shift();
   } else p.trail = [];
 
-  if (game.wardFlash > 0) {
-    // Бубновый туз: большой щит-карта встаёт перед рыцарем со стороны удара и гаснет
-    const k = game.wardFlash / 0.8, grow = Math.min(1, (1 - k) * 6);
-    const sx = Math.round(px + (game.wardSide ?? p.facing) * 13), sy = GROUND - 22;
-    const hh = Math.round(16 * grow), hw = Math.round(9 * grow);
-    g.globalAlpha = Math.min(1, k * 1.6) * 0.85;
-    for (let y = -hh; y <= hh; y++) {
-      const w = Math.round(hw * (1 - Math.abs(y) / (hh + 1)));
-      rect(g, sx - w, sy + y, w * 2 + 1, 1, Math.abs(y) > hh - 2 || w < 2 ? '#ffb3b8' : '#c8303f');
-      if (w >= 2) { rect(g, sx - w, sy + y, 1, 1, '#ffb3b8'); rect(g, sx + w, sy + y, 1, 1, '#ffb3b8'); }
-    }
-    // белый ромб — масть
-    for (let y = -4; y <= 4; y++) { const w = 3 - Math.abs(Math.round(y * 0.75)); if (w >= 0) rect(g, sx - w, sy + y, w * 2 + 1, 1, '#ffffff'); }
-    g.globalAlpha = 1;
-  }
+  if (game.wardFlash > 0) renderAceWard(px + (game.wardSide ?? p.facing) * 15, GROUND - 22, 0.8 - game.wardFlash);
   // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
   if (!game.cutscene && !tr) heightIcon(game.aim, px - p.facing * 13, GROUND - 26, held('guard') ? '#8fd3ff' : '#9f97b0');
   if (p.state === 'backdash' && p.wardActive) {
@@ -3310,7 +3515,9 @@ function sceneLights() {
   const r = room(), cam = Math.round(game.camX), t = game.time;
   const L = [];
   const add = (x, y, rad, color, power, z = 30) => { const sx = (x - cam) * S; if (sx > -rad * S && sx < (W + rad) * S) L.push({ x: sx, y: y * S, z, r: rad * S, color, power }); };
-  for (const x of r.torches ?? []) add(x, 69, 150, WARM, 0.85 + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3));
+  const blueFire = bossFire();
+  const flare = fireFlare();
+  for (const x of r.torches ?? []) if (!torchUnderStairs(r, x)) add(x, 69, 150 * (1 + flare * 0.35), blueFire ? [0.45, 0.7, 1] : WARM, ((blueFire ? 1.05 : 0.85) + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3)) * (1 + flare * 0.9));
   for (const pr of r.props ?? []) {
     if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
     if (pr.type === 'candles') add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
@@ -3329,6 +3536,15 @@ function sceneLights() {
   for (const e of game.enemies) if ((e.kind === 'ghost' || e.kind === 'boss') && e.alive && e.state !== 'dormant') {
     const k = (e.ghost ?? 1) * (e.kind === 'boss' ? 0.7 + 0.5 * e.eyes : 0.45);
     add(e.x, groundY(e.z) - 20 - e.airY, e.kind === 'boss' ? 90 : 60, [0.6, 0.85, 1], k * (0.9 + 0.1 * Math.sin(t * 5 + e.x)), 18);
+  }
+  // удушение: голубой свет вокруг шеи рыцаря
+  const choker = game.enemies.find(e => e.kind === 'boss' && (e.state === 'choking' || (e.state === 'cast' && e.t > 0.3)));
+  if (choker) { const p = game.player; add(p.x, groundY(p.z) - (p.airY ?? 0) - 24, 70, [0.45, 0.8, 1], choker.state === 'choking' ? 1.3 : 0.6, 16); }
+  // бубновый туз: вспышка и алое сияние щита
+  if (game.wardFlash > 0) {
+    const p = game.player, a = 0.8 - game.wardFlash;
+    const pw = a < 0.15 ? 2.4 * (1 - a / 0.15) + 1 : a < 0.6 ? 1 : Math.max(0, 1 - (a - 0.6) / 0.2);
+    add(p.x + (game.wardSide ?? p.facing) * 15, groundY(p.z) - 22, 90, [1, 0.42, 0.45], pw, 22);
   }
   // ближние к центру экрана — вперёд
   return L.sort((a, b) => Math.abs(a.x - W) - Math.abs(b.x - W));

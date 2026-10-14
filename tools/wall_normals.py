@@ -7,8 +7,9 @@ from PIL import Image, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 K = 2.6   # сила рельефа
-for s in ('dungeon', 'castle', 'shop'):
+for s in ('dungeon', 'castle', 'shop', '.'):
     for f in sorted(glob.glob(os.path.join(ROOT, 'assets', 'backgrounds', s, '*.png'))):
+        if s == '.' and os.path.basename(f) != 'ceiling.png': continue   # потолок (v0.70)
         im = Image.open(f).convert('RGB')
         h = np.asarray(im.convert('L').filter(ImageFilter.GaussianBlur(0.8)), dtype=np.float32) / 255
         dx = np.zeros_like(h); dy = np.zeros_like(h)
