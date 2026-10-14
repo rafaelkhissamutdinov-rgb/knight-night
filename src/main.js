@@ -15,7 +15,8 @@ import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, update
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget } from './sprites.js';
+import { createLighting } from './lighting.js';
 loadKnightSprites();
 import { BESTIARY } from './story/bestiary.js';
 import { ENEMY_TYPES } from './config.js';
@@ -58,6 +59,9 @@ canvas.width = W * S;
 canvas.height = H * S;
 const g = canvas.getContext('2d');
 g.imageSmoothingEnabled = false;
+// живой свет (src/lighting.js); без WebGL — null, игра как раньше
+const light = (() => { try { return createLighting(canvas); } catch { return null; } })();
+if (light) setNormalTarget(light.normalCtx);
 const rollCanvas = document.createElement('canvas');
 rollCanvas.width = rollCanvas.height = 48;
 const rollCtx = rollCanvas.getContext('2d');
@@ -2548,6 +2552,7 @@ function render() {
   for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
   renderCoinFx(cam);
+  if (light && !r.dark) renderDust(cam);
 
   // передний план: распахнутая дверь решётки
   if (r.gate === 'right') drawGatePanel(g, r.length - 26 - cam, CONFIG.floorTop, H, -1);
@@ -2996,6 +3001,46 @@ function renderDebug(cam) {
 
 let last = performance.now();
 let acc = 0;
+// --- живой свет: источники в комнате и пыль в воздухе (выбор владельца: ступени, пыль, тёплое настроение) ---
+const WARM = [1, 0.68, 0.38];
+const AMBIENT = [0.74, 0.67, 0.7];
+function sceneLights() {
+  const r = room(), cam = Math.round(game.camX), t = game.time;
+  const L = [];
+  const add = (x, y, rad, color, power, z = 30) => { const sx = (x - cam) * S; if (sx > -rad * S && sx < (W + rad) * S) L.push({ x: sx, y: y * S, z, r: rad * S, color, power }); };
+  for (const x of r.torches ?? []) add(x, 69, 150, WARM, 0.85 + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3));
+  for (const pr of r.props ?? []) {
+    if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, 130, WARM, 1 + 0.12 * Math.sin(t * 9 + pr.x), 20);
+    if (pr.type === 'candles') add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
+  }
+  for (const d of r.decor ?? []) if (d.type === 'fireplace') add(d.x, CONFIG.floorTop - 14, 150, WARM, 1 + 0.12 * Math.sin(t * 8 + d.x), 26);
+  if (r.portal) add(r.portal.x, groundY(r.portal.z) - 8, 120, [0.55, 0.85, 1], 0.9, 20);
+  // ближние к центру экрана — вперёд
+  return L.sort((a, b) => Math.abs(a.x - W) - Math.abs(b.x - W));
+}
+function applyLight() {
+  if (!light) return;
+  const r = game.mode === 'title' || game.mode === 'map' ? null : room();
+  if (!r || r.dark) { light.off(); return; }
+  light.draw(sceneLights(), AMBIENT, true);
+}
+// пыль в воздухе: пылинки видны у огня (сами светлее там, где свет сильнее)
+const dustMotes = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: 20 + Math.random() * 100, v: 1 + Math.random() * 3, p: Math.random() * 6.28 }));
+function renderDust(cam) {
+  const ls = sceneLights();
+  for (const d of dustMotes) {
+    d.y -= d.v * (1 / 60) * 0.5; d.x += Math.sin(game.time * 0.6 + d.p) * 0.03;
+    if (d.y < 10) { d.y = 118; d.x = Math.random() * W; }
+    let b = 0;
+    for (const l of ls) { const k = 1 - Math.hypot(l.x / S - d.x, l.y / S - d.y) / (l.r / S * 0.5); if (k > 0) b += k * k * l.power; }
+    if (b < 0.05) continue;
+    g.globalAlpha = Math.min(0.8, b * 0.8);
+    g.fillStyle = '#ffd696';
+    g.fillRect(Math.round(d.x * S) / S, Math.round(d.y * S) / S, 1 / S, 1 / S);
+  }
+  g.globalAlpha = 1;
+}
+
 // Ошибка в одном кадре не должна вешать игру: цикл продолжается, ошибка — в консоль (раз в секунду)
 let lastErrAt = 0;
 function frame(now) {
@@ -3007,7 +3052,9 @@ function frame(now) {
       step(STEP);
       acc -= STEP;
     }
+    light?.clearNormals();
     render();
+    applyLight();
   } catch (err) {
     acc = 0;
     if (now - lastErrAt > 1000) { lastErrAt = now; console.error(err); }

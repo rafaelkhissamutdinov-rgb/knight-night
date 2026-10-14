@@ -37,6 +37,9 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
 }
 .game:focus-visible { border-color: var(--gold); }
 .game > canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+/* живой свет: WebGL-холст поверх сцены, под HUD; сам 2D-холст скрыт, но рисуется (из него берётся картинка) */
+.game > canvas.lit { position: absolute; inset: 0; pointer-events: none; }
+.game > canvas.under-light { visibility: hidden; }
 
 .hud {
   position: absolute; inset: 0 0 auto 0;
