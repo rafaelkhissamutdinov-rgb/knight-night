@@ -16,8 +16,8 @@ const DECOR_IMG = {
 };
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
-  sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'slime', 'slime_squash', 'slime_stretch',
+  sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1 };
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'slime', 'slime_squash', 'slime_stretch',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -80,6 +80,15 @@ export function drawSlimeImg(g, { x, ground, airY, size, squash, facing, holding
     rect(g, x - 1, base - h * 0.7 - 2, 2, 2, '#e8454f');
     g.restore();
   }
+  return true;
+}
+
+// любая картинка набора по имени: низ по центру в (x, bottom), flip — отражение; false — нет картинки
+export function drawObjNamed(g, name, x, bottom, flip = false) {
+  const im = objImg(name);
+  if (!im) return false;
+  if (flip) { g.save(); g.translate(Math.round(x), 0); g.scale(-1, 1); drawObj(g, im, 0, bottom); g.restore(); }
+  else drawObj(g, im, Math.round(x), bottom);
   return true;
 }
 

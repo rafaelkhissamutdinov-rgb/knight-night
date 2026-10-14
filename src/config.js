@@ -318,6 +318,7 @@ export const NPC_TYPES = {
   },
   lika: {
     name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika',
+    sitImgs: { idle: ['lika_sit', 'lika_sit_1'], wave: 'lika_wave' },   // сидит на бочке у прилавка (v0.67)
     colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' },
   },
 };
@@ -479,8 +480,9 @@ export const ROOMS = {
       { type: 'shelf', x: 160, y: 50, w: 56 }, { type: 'shelf', x: 268, y: 50, w: 56, rows: [['bottle', 'scroll', 'potion', 'bottle', 'potion'], ['box', 'potion', 'book', 'bottle']] },
     ],
     props: [
-      { type: 'crate', x: 252, z: 2 }, { type: 'crate', x: 264, z: 10 }, { type: 'barrel', x: 282, z: 3 },
-      { type: 'sofa', x: 122, z: 2, rest: { seat: 5, name: 'на диване', face: 1 } }, { type: 'sack', x: 236, z: 4 },
+      { type: 'rug', x: 166, z: 18, flat: true }, { type: 'stall', x: 262, z: 6 },
+      { type: 'crate', x: 300, z: 2 }, { type: 'crate', x: 296, z: 12 }, { type: 'barrel', x: 236, z: 2 },
+      { type: 'sofa', x: 122, z: 2, rest: { seat: 5, name: 'на диване', face: 1 } }, { type: 'sack', x: 312, z: 22 },
     ],
   },
   // испытать рапиру на копейщиках; в сундуке монеты для лавки

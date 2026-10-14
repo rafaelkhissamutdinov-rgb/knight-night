@@ -4,9 +4,9 @@ import { createInput } from './input.js';
 import { createEnemy, RISE_TIME } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
-import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
+import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg, drawSlimeImg } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -81,7 +81,7 @@ const ui = {
   journalName: $('journal-name'), journalHow: $('journal-how'), journalWin: $('journal-win'), journalLore: $('journal-lore'), journalKills: $('journal-kills'),
   equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'),
   skillWard: $('skill-ward'), skillWardBar: $('skill-ward-bar'), skillG: $('skill-g'), skillGBar: $('skill-g-bar'),
-  shop: $('shop'), shopPortrait: $('shop-portrait'), shopFace: $('shop-face'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
+  shop: $('shop'), shopScene: $('shop-scene'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
   shopText: $('shop-text'), shopMenu: $('shop-menu'),
   skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'), skillName: $('skill-name'), weapon: $('weapon'),
 };
@@ -2266,20 +2266,52 @@ function chooseTalk(i) {
 // ---------- лавка ----------
 // Как в Undertale: продавец, его реплика и меню «Купить / Поговорить / Уйти».
 
-const shopCtx = ui.shopPortrait.getContext('2d');
+// сцена лавки (v0.67): фон из PixelLab, Лика по пояс за прилавком с настроениями, живые огоньки и пылинки
+const shopCtx = ui.shopScene.getContext('2d');
 shopCtx.imageSmoothingEnabled = false;
+const SHOP_MOODS = ['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry', 'blink'];
+const shopArt = { scene: Object.assign(new Image(), { src: 'assets/shop/scene.png' }) };
+for (const m of SHOP_MOODS) shopArt[m] = Object.assign(new Image(), { src: `assets/shop/lika_${m}.png` });
+const SHOP_FLAMES = [[186, 50, 1.2], [32, 106, 0.8], [94, 164, 0.8], [252, 186, 0.7]];   // фонарь и свечи на картине: x, y, сила
+const shopMotes = Array.from({ length: 24 }, () => ({ x: Math.random() * 256, y: Math.random() * 220, v: 2 + Math.random() * 5, p: Math.random() * 6.3 }));
+function drawShopScene(t) {
+  const c = shopCtx, sh = game.shop;
+  const ok = im => im?.complete && im.naturalWidth;
+  c.clearRect(0, 0, 256, 288);
+  if (ok(shopArt.scene)) c.drawImage(shopArt.scene, 0, 0);
+  // Лика: дышит (на пиксель вверх-вниз), моргает раз в несколько секунд
+  const blink = (!sh.mood || sh.mood === 'default') && (t % 4.3) < 0.13;
+  const bust = shopArt[blink ? 'blink' : sh.mood] ?? shopArt.default;
+  const im = ok(bust) ? bust : shopArt.default;
+  if (ok(im)) c.drawImage(im, 48, 109 + (Math.sin(t * 1.8) > 0.6 ? -1 : 0));
+  // огонь свечей и фонаря дрожит, вокруг — тёплый свет
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  for (const [x, y, k] of SHOP_FLAMES) {
+    const f = 0.75 + 0.25 * Math.sin(t * 9 + x) * Math.sin(t * 5.3 + y);
+    const gr = c.createRadialGradient(x, y, 0, x, y, 26 * k);
+    gr.addColorStop(0, `rgba(255,170,80,${0.32 * f * k})`);
+    gr.addColorStop(1, 'rgba(255,170,80,0)');
+    c.fillStyle = gr;
+    c.fillRect(x - 26 * k, y - 26 * k, 52 * k, 52 * k);
+    c.fillStyle = `rgba(255,236,170,${0.55 * f})`;
+    c.fillRect(x, y - 1 - Math.round(f * 2), 1, 2);
+  }
+  // пылинки в тёплом свете
+  for (const m of shopMotes) {
+    m.y -= m.v / 60; m.x += Math.sin(t * 0.7 + m.p) * 0.05;
+    if (m.y < 0) { m.y = 220; m.x = Math.random() * 256; }
+    c.fillStyle = `rgba(255,214,150,${0.25 + 0.2 * Math.sin(t * 2 + m.p)})`;
+    c.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
+  }
+  c.restore();
+}
 
 function openShop(npc) {
   const data = SHOPS[npc.def.shop];
   if (!data) return;
   game.shop = { npc, data, view: 'main', text: data.hello, shown: 0, mood: data.moods?.hello };
   game.mode = 'shop';
-  // нарисованный портрет, если есть; иначе — пиксельная заглушка
-  const face = FACES[npc.def.face]?.default;
-  ui.shopFace.hidden = !face;
-  ui.shopPortrait.hidden = !!face;
-  if (face) shopFace();
-  else drawLikaPortrait(shopCtx, npc.def.colors);
   ui.shopName.textContent = npc.def.name;
   ui.shop.hidden = false;
   hint('');
@@ -2309,15 +2341,7 @@ function nextShopLine() {
 function shopSay(text, mood = null) {
   game.shop.text = text;
   game.shop.shown = 0;
-  game.shop.mood = mood;
-  shopFace();
-}
-
-function shopFace() {
-  const set = FACES[game.shop.npc.def.face];
-  if (!set) return;
-  const src = set[game.shop.mood] ?? set.default;
-  if (!ui.shopFace.src.endsWith(src)) ui.shopFace.src = src;
+  game.shop.mood = mood;   // лицо Лики на сцене меняется в drawShopScene
 }
 
 function shopView(view) {
@@ -2411,6 +2435,7 @@ function shopPress(code) {
 function tickShop(dt) {
   const sh = game.shop;
   if (!sh) return;
+  drawShopScene(performance.now() / 1000);
   if (sh.shown < sh.text.length) {
     sh.shown = Math.min(sh.text.length, sh.shown + dt * 50);
     ui.shopText.textContent = sh.text.slice(0, Math.floor(sh.shown));
@@ -2592,7 +2617,7 @@ function render() {
   for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) drawPickup(g, it.x - cam, groundY(it.z), it.t);
   renderChokeAura(cam);
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
-  things.sort((a, b) => a.z - b.z);
+  things.sort((a, b) => (a.prop?.flat ? -999 : a.z) - (b.prop?.flat ? -999 : b.z));   // ковёр (flat) — под всеми
   for (const a of things) {
     if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) renderPlayer(cam);
@@ -3061,6 +3086,12 @@ function renderNpc(n, cam) {
   const x = n.x - cam;
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
+  if (n.def.sitImgs) {
+    // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой
+    const near = Math.abs(game.player.x - n.x) < 50;
+    const name = near ? n.def.sitImgs.wave : n.def.sitImgs.idle[Math.floor(game.time / 3.2) % n.def.sitImgs.idle.length];
+    if (drawObjNamed(g, name, x, groundY(n.z) + 1, n.facing < 0)) return;
+  }
   if (n.def.sprite && spriteReady(n.def.sprite)) {
     // NPC в пиксель-арте (v0.64): сидит у костра — на колене, иначе стоит без оружия
     drawSprite(n.def.sprite, g, { x, ground: groundY(n.z), facing: n.facing, pose: POSES.idle, weapon: 'none', frame: n.def.sit ? 'pose_kneel' : 'pose_idle' });
