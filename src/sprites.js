@@ -9,7 +9,20 @@ const BASE = 'assets/sprites/knight/';
 let meta = null;
 const imgs = {};
 const flipped = {};
+const nimgs = {};      // карты нормалей кадров (assets/sprites/knight/n/)
+const nflipped = {};   // отражённые: красный канал (x) меняет знак
 let pending = 0;
+let normalCtx = null;  // куда рисовать нормали (холст живого света); null — не рисовать
+export const setNormalTarget = ctx => { normalCtx = ctx; };
+
+function flipNormal(img) {
+  const c = flip(img);
+  const x = c.getContext('2d');
+  const d = x.getImageData(0, 0, c.width, c.height);
+  for (let i = 0; i < d.data.length; i += 4) d.data[i] = 255 - d.data[i];
+  x.putImageData(d, 0, 0);
+  return c;
+}
 
 function flip(img) {
   const c = document.createElement('canvas');
@@ -28,6 +41,9 @@ export function loadKnightSprites() {
       img.onload = () => { flipped[n] = flip(img); imgs[n] = img; pending--; };
       img.onerror = () => { pending--; };
       img.src = BASE + n + '.png';
+      const nm = new Image();
+      nm.onload = () => { nimgs[n] = nm; nflipped[n] = flipNormal(nm); };
+      nm.src = BASE + 'n/' + n + '.png';
     }
     meta = m;
   }).catch(() => {});
@@ -92,6 +108,7 @@ export function drawKnight(g, o) {
     if (!img) { g.restore(); return null; }
     const w = Math.max(2, Math.round(size * (o.squash ?? 1)));
     g.drawImage(img, X - Math.round(w / 2), G - foot, w, size);
+    if (normalCtx && nimgs[o.view]) normalCtx.drawImage(nimgs[o.view], X - Math.round(w / 2) + t.e, G - foot + t.f, w, size);
     g.restore();
     return null;
   }
@@ -120,6 +137,11 @@ export function drawKnight(g, o) {
   if (!img) { g.restore(); return null; }  // кадр не загрузился — не рисуем, но и не падаем
   const left = right ? X - cx : X - (size - cx);
   const top = G - foot;
+  if (normalCtx && (right ? nimgs[name] : nflipped[name]) && !o.rotate) {
+    normalCtx.globalAlpha = g.globalAlpha;
+    normalCtx.drawImage(right ? nimgs[name] : nflipped[name], left + t.e, top + t.f);
+    normalCtx.globalAlpha = 1;
+  }
   if (o.rotate) {
     g.translate(X, G - size / 2 + 8);
     g.rotate(o.rotate);
