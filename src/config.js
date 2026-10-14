@@ -615,7 +615,7 @@ export const ROOMS = {
   },
   // библиотека: стеллажи, стремянка, стол с раскрытой книгой; алебардист и лучник; сундук в глубине
   library: {
-    name: 'Библиотека', floor: 2, length: 640, columns: false, torches: [130, 470],
+    name: 'Библиотека', tiles: 'castle', floor: 2, length: 640, columns: false, torches: [130, 470],
     doors: [
       { id: 'out', x: 60, kind: 'wood', to: 'hall2', toDoor: 'library', name: 'Жилое крыло' },
       { id: 'hidden', x: 540, kind: 'none', needs: 'secret_library', to: 'reading', toDoor: 'out', name: 'Тайная читальня' },
@@ -662,7 +662,7 @@ export const ROOMS = {
   },
   // тайная читальня за стеллажом Библиотеки: стол, оплывшая свеча, сундук
   reading: {
-    name: 'Тайная читальня', floor: 2, length: 320, columns: false, torches: [], cobwebs: true,
+    name: 'Тайная читальня', tiles: 'castle', floor: 2, length: 320, columns: false, torches: [], cobwebs: true,
     doors: [{ id: 'out', x: 60, kind: 'hole', to: 'library', toDoor: 'hidden', name: 'Библиотека' }],
     decor: [{ type: 'bookshelf', x: 150, gap: 3 }, { type: 'bookshelf', x: 196, gap: 0 }, { type: 'chandelier', x: 240, y: 30 }],
     props: [
@@ -733,7 +733,7 @@ export const ROOMS = {
     props: [{ type: 'bones', x: 120, z: 20 }, { type: 'crate', x: 60, z: 3 }],
   },
   tower: {
-    name: 'Лестница башни', length: 320, columns: false, torches: [100, 230], stairs: 'up', cobwebs: true,
+    name: 'Лестница башни', tiles: 'castle', length: 320, columns: false, torches: [100, 230], stairs: 'up', cobwebs: true,
     // перед финалом: знаки на стенах тлеют, из-под двери наверх пробивается лиловый свет
     decor: [
       { type: 'sigil', x: 150, y: 44 }, { type: 'sigil', x: 52, y: 54 },
