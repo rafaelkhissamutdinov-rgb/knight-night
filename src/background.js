@@ -1,6 +1,6 @@
 import { PAL } from './palette.js';
 import { rect, thick } from './draw.js';
-import { drawDecor } from './decor.js';
+import { drawDecor, decorImages } from './decor.js';
 
 // Декорации комнат: стена с колоннами и дверями, пол с глубиной, факелы, портал на полу,
 // бочки и ящики, решётка камеры, паутина и темнота. Фон комнаты рисуется один раз во всю её длину.
@@ -16,13 +16,14 @@ const DECOR_IMG = {
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'slime', 'slime_squash', 'slime_stretch',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'slime', 'slime_squash', 'slime_stretch',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
 for (const n of OBJECTS) { if (typeof Image === 'undefined') break; const im = new Image(); im.src = `assets/objects/${n}.png`; obj[n] = im; }
 export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete);   // загрузились или не нашлись — дальше не ждать
 const objImg = n => (obj[n]?.complete && obj[n].naturalWidth ? obj[n] : null);
+if (obj.stainedglass) obj.stainedglass.onload = () => { decorImages.stainedglass = obj.stainedglass; };
 // убранство картинкой (если есть); false — рисовать кодом
 function decorImage(g, d, floorTop) {
   const spec = DECOR_IMG[d.type];
@@ -659,6 +660,20 @@ export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
       rect(g, sx, gy - 19, 3, 1, '#5a3a28');
     }
     rect(g, x - 17, gy - 7, 34, 1, '#3b2a1e');
+  } else if (type === 'altar' && objImg('prop_altar')) {
+    // алтарь картинкой; свечи и чаша — живые, по верху алтаря
+    const im = objImg('prop_altar');
+    drawObj(g, im, x, gy + 1);
+    const top = Math.round(gy + 1 - im.height / 2) + 2;
+    for (const cx of [-12, 10]) {
+      rect(g, x + cx, top - 5, 2, 5, '#ece4d0');
+      rect(g, x + cx, top - 7 - (Math.floor(time * 6 + cx) % 2), 2, 2, PAL.flame1);
+    }
+    rect(g, x - 3, top - 2, 6, 2, '#a8822e');  // подставка
+    if (opened) {
+      rect(g, x - 1, top - 7, 3, 3, '#d8dde6'); rect(g, x, top - 4, 1, 2, '#a3aab4');
+      if (Math.floor(time * 3) % 3 === 0) rect(g, x + 1, top - 8, 1, 1, '#ffffff');
+    }
   } else if (type === 'altar') {
     // алтарь: каменная плита, белое покрывало, свечи; на подставке — чаша, если поставили (opened)
     rect(g, x - 16, gy - 16, 32, 16, '#6a6288');

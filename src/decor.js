@@ -535,7 +535,16 @@ export function drawShelfDoor(g, sx, floorTop, open) {
 }
 
 // Витраж: стрельчатое окно, цветные стёкла в свинцовой сетке; на полу — цветные пятна света
+// картинки PixelLab для живого убранства (заполняет src/background.js, когда загрузятся)
+export const decorImages = {};
+
 export function drawStainedGlass(g, sx, floorTop, time, y = 10) {
+  const im = decorImages.stainedglass;
+  if (im) {
+    g.drawImage(im, Math.round(sx - im.width / 4), y - 4, im.width / 2, im.height / 2);
+    stainedLight(g, sx, floorTop, time);
+    return;
+  }
   const w = 34, h = 58, x0 = Math.round(sx - w / 2), top = y, r = w / 2;
   const PANES = ['#c8303f', '#2a5ab8', '#e0b030', '#3a8a4a', '#8a3ab0'];
   rect(g, x0 - 3, top - 3, w + 6, h + 6, STONE_L);
@@ -562,7 +571,12 @@ export function drawStainedGlass(g, sx, floorTop, time, y = 10) {
     }
     rect(g, x0 + xx, top + yy, 1, 1, c);
   }
-  // свет на полу: цветные пятна чуть дрожат
+  stainedLight(g, sx, floorTop, time);
+}
+
+// свет витража на полу: цветные пятна чуть дрожат
+function stainedLight(g, sx, floorTop, time) {
+  const PANES = ['#c8303f', '#2a5ab8', '#e0b030', '#3a8a4a', '#8a3ab0'];
   g.save();
   g.globalCompositeOperation = 'lighter';
   const flick = 0.85 + 0.15 * Math.sin(time * 0.7);
