@@ -14,8 +14,8 @@ const DECOR_IMG = {
   chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'],
 };
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
-const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open',
+const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2 };
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -33,6 +33,15 @@ function decorImage(g, d, floorTop) {
   const h = im.height / 2;
   const bottom = anchor === 'floor' ? floorTop : anchor === 'center' ? (d.y ?? top0) + h / 2 : (d.y ?? top0) + dy + h;
   drawObj(g, im, d.x, bottom);
+  return true;
+}
+
+// груда костей упавшего скелета (картинкой); false — нет картинки
+export function drawBonePileImg(g, x, gy, facing) {
+  const im = objImg('bonepile');
+  if (!im) return false;
+  if (facing < 0) { g.save(); g.translate(x, 0); g.scale(-1, 1); drawObj(g, im, 0, gy + 1); g.restore(); }
+  else drawObj(g, im, x, gy + 1);
   return true;
 }
 

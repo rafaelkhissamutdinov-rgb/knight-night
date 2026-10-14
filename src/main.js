@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -2813,6 +2813,11 @@ function renderSpriteDeath(e, ex, GROUND, t, f) {
 
 function drawBonePile(x, gy, f, def) {
   x = Math.round(x);
+  if (drawBonePileImg(g, x, gy, f)) {
+    const w = Math.min(22, def.weapon ?? 17);   // оружие на полу
+    if (def.kind !== 'archer') rect(g, x - f * 4 - (f > 0 ? w : 0), gy, w, 1, def.colors.blade ?? '#c3ccd6');
+    return;
+  }
   const B = '#e6e1d0', S = '#a39d8a', D = '#14101e';
   rect(g, x - 8, gy - 2, 16, 2, S);                          // россыпь
   rect(g, x - 6, gy - 3, 5, 1, B); rect(g, x + 2, gy - 3, 6, 1, B);   // кости
