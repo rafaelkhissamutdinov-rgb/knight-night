@@ -1,28 +1,18 @@
 import { POSES } from './poses.js';
 import { thick } from './draw.js';
 
-// Спрайты Найта из PixelLab (assets/sprites/knight/): тело — кадры, меч рисуется кодом от кисти под углом позы.
-// Кадр 64×64 смотрит вправо; влево — отражение. Позы — те же, что в src/poses.js: берётся ближайшая к текущей.
+// Спрайты персонажей из PixelLab (assets/sprites/<набор>/): тело — кадры, оружие рисуется кодом от кисти под углом позы.
+// Набор: <набор>.json (размер кадра, стопа, центр, анимации, точка кисти кадров) + кадры + n/ (карты нормалей).
+// Кадр смотрит вправо; влево — отражение. Позы — те же, что в src/poses.js: берётся ближайшая к текущей.
 // Рисуется в пикселях экрана (холст вдвое больше игрового мира), поэтому 64 px кадра = 32 px мира.
+// Найт — набор 'knight' (v0.60); враги — по типу врага (v0.64).
 
-const BASE = 'assets/sprites/knight/';
-let meta = null;
-const imgs = {};
-const flipped = {};
-const nimgs = {};      // карты нормалей кадров (assets/sprites/knight/n/)
-const nflipped = {};   // отражённые: красный канал (x) меняет знак
-let pending = 0;
+const ROOT = 'assets/sprites/';
+// враги, у которых уже есть набор кадров (имя набора = тип врага в ENEMY_TYPES); остальные — старые фигурки
+export const ENEMY_SPRITES = ['skelShort'];
+const sets = {};
 let normalCtx = null;  // куда рисовать нормали (холст живого света); null — не рисовать
 export const setNormalTarget = ctx => { normalCtx = ctx; };
-
-function flipNormal(img) {
-  const c = flip(img);
-  const x = c.getContext('2d');
-  const d = x.getImageData(0, 0, c.width, c.height);
-  for (let i = 0; i < d.data.length; i += 4) d.data[i] = 255 - d.data[i];
-  x.putImageData(d, 0, 0);
-  return c;
-}
 
 function flip(img) {
   const c = document.createElement('canvas');
@@ -31,69 +21,120 @@ function flip(img) {
   x.translate(img.width, 0); x.scale(-1, 1); x.drawImage(img, 0, 0);
   return c;
 }
-
-export function loadKnightSprites() {
-  fetch(BASE + 'knight.json').then(r => r.json()).then(m => {
-    const names = [...Object.keys(m.frames), 'front', 'back'];
-    pending = names.length;
-    for (const n of names) {
-      const img = new Image();
-      img.onload = () => { flipped[n] = flip(img); imgs[n] = img; pending--; };
-      img.onerror = () => { pending--; };
-      img.src = BASE + n + '.png';
-      const nm = new Image();
-      nm.onload = () => { nimgs[n] = nm; nflipped[n] = flipNormal(nm); };
-      nm.src = BASE + 'n/' + n + '.png';
-    }
-    meta = m;
-  }).catch(() => {});
+function flipNormal(img) {
+  const c = flip(img);
+  const x = c.getContext('2d');
+  const d = x.getImageData(0, 0, c.width, c.height);
+  for (let i = 0; i < d.data.length; i += 4) d.data[i] = 255 - d.data[i];  // отражённые: красный канал (x) меняет знак
+  x.putImageData(d, 0, 0);
+  return c;
 }
 
-export const knightReady = () => !!meta && pending === 0 && !!imgs.pose_idle;
+export function loadSpriteSet(name) {
+  if (sets[name]) return;
+  const s = sets[name] = { meta: null, imgs: {}, flipped: {}, nimgs: {}, nflipped: {}, pending: 1, poseList: null };
+  const base = ROOT + name + '/';
+  fetch(base + name + '.json').then(r => (r.ok ? r.json() : Promise.reject())).then(m => {
+    const names = [...Object.keys(m.frames), 'front', 'back'];
+    s.pending = names.length;
+    for (const n of names) {
+      const img = new Image();
+      img.onload = () => { s.flipped[n] = flip(img); s.imgs[n] = img; s.pending--; };
+      img.onerror = () => { s.pending--; };
+      img.src = base + n + '.png';
+      const nm = new Image();
+      nm.onload = () => { s.nimgs[n] = nm; s.nflipped[n] = flipNormal(nm); };
+      nm.src = base + 'n/' + n + '.png';
+    }
+    s.meta = m;
+  }).catch(() => { s.pending = -1; });  // набора нет — рисуется старая фигурка
+}
 
-// кадры-позы: основные (pose_<имя из POSES>) и промежуточные (tw_…, параметры позы — в knight.json)
-let poseList = null;
-function poseFrames() {
-  if (poseList) return poseList;
-  poseList = [];
-  for (const [n, f] of Object.entries(meta.frames)) {
+export const spriteReady = name => { const s = sets[name]; return !!s?.meta && s.pending === 0 && !!s.imgs.pose_idle; };
+export const loadKnightSprites = () => loadSpriteSet('knight');
+export const knightReady = () => spriteReady('knight');
+
+// кадры-позы: основные (pose_<имя из POSES>) и промежуточные (tw_…, параметры позы — в json)
+function poseFrames(s) {
+  if (s.poseList) return s.poseList;
+  s.poseList = [];
+  for (const [n, f] of Object.entries(s.meta.frames)) {
     const q = f.pose ?? (n.startsWith('pose_') ? POSES[n.slice(5)] : null);
-    if (q && imgs[n]) poseList.push([n, q]);
+    if (q && s.imgs[n]) s.poseList.push([n, q]);
   }
-  return poseList;
+  return s.poseList;
 }
 
 // ближайшая поза из нарисованных (по кисти, углу клинка, наклону и приседу) — чем гуще кадры, тем плавнее
-function nearestPose(p) {
+function nearestPose(s, p) {
   let best = 'pose_idle', bd = Infinity;
-  for (const [n, q] of poseFrames()) {
-    let da = Math.abs(((p.angle - q.angle) % 360 + 540) % 360 - 180);
+  for (const [n, q] of poseFrames(s)) {
+    const da = Math.abs(((p.angle - q.angle) % 360 + 540) % 360 - 180);
     const d = (p.hx - q.hx) ** 2 + (p.hy - q.hy) ** 2 + (da / 12) ** 2 + (p.crouch - q.crouch) ** 2 + 0.5 * (p.lean - q.lean) ** 2;
     if (d < bd) { bd = d; best = n; }
   }
   return best;
 }
 
-// меч или рапира: рукоять, гарда, клинок с тёмным контуром (в пикселях экрана)
-function drawBlade(g, wx, wy, angleDeg, facing, len, rapier) {
+// Оружие кодом (в пикселях экрана): kind — sword | rapier | axe | spear | halberd | bow | crossbow.
+// Возвращает кончик (для шлейфа удара).
+function drawWeapon(g, kind, wx, wy, angleDeg, facing, len, draw = 0) {
   const a = angleDeg * Math.PI / 180;
   const dx = Math.cos(a) * facing, dy = Math.sin(a);
   const px = -dy, py = dx;
   const R = v => Math.round(v);
-  thick(g, R(wx - dx * 5), R(wy - dy * 5), R(wx), R(wy), 2, '#5c3a22');                      // рукоять
+  const line = (x0, y0, x1, y1, w, c) => thick(g, R(x0), R(y0), R(x1), R(y1), w, c);
+  if (kind === 'bow') {
+    // лук поперёк направления выстрела; тетива оттянута на draw (0…1)
+    const h = 13, pull = 2 + draw * 7;
+    const tx = wx + px * h, ty = wy + py * h, bx = wx - px * h, by = wy - py * h;
+    line(tx, ty, wx + dx * 4, wy + dy * 4, 2, '#5a3a22'); line(wx + dx * 4, wy + dy * 4, bx, by, 2, '#5a3a22');
+    const sx = wx - dx * pull, sy = wy - dy * pull;
+    line(tx, ty, sx, sy, 1, '#d8d0c0'); line(sx, sy, bx, by, 1, '#d8d0c0');
+    return { tipX: wx + dx * 6, tipY: wy + dy * 6 };
+  }
+  if (kind === 'crossbow') {
+    line(wx - dx * 6, wy - dy * 6, wx + dx * 14, wy + dy * 14, 3, '#4a3020');         // ложе
+    line(wx + dx * 12 + px * 9, wy + dy * 12 + py * 9, wx + dx * 12 - px * 9, wy + dy * 12 - py * 9, 2, '#6b6a74');  // плечи
+    return { tipX: wx + dx * 14, tipY: wy + dy * 14 };
+  }
+  if (kind === 'spear' || kind === 'halberd') {
+    // древко назад и вперёд от кисти, наконечник; у алебарды — топорик
+    const back = len * 0.35;
+    line(wx - dx * back, wy - dy * back, wx + dx * len, wy + dy * len, 2, '#5c3a22');
+    const tx = wx + dx * len, ty = wy + dy * len;
+    line(tx, ty, tx + dx * 7, ty + dy * 7, 3, '#22202c'); line(tx, ty, tx + dx * 6, ty + dy * 6, 1, '#c9d2de');
+    if (kind === 'halberd') {
+      const hx = tx - dx * 3, hy = ty - dy * 3;
+      for (let i = 0; i < 6; i++) line(hx - dx * i * 0.6, hy - dy * i * 0.6, hx - dx * i * 0.6 + px * (7 - i), hy - dy * i * 0.6 + py * (7 - i), 1, i < 1 ? '#22202c' : '#aab3c0');
+    }
+    return { tipX: tx + dx * 7, tipY: ty + dy * 7 };
+  }
+  // меч / рапира / топор: рукоять, гарда, клинок
+  line(wx - dx * 5, wy - dy * 5, wx, wy, 2, '#5c3a22');
+  if (kind === 'axe') {
+    const tx = wx + dx * len, ty = wy + dy * len;
+    line(wx, wy, tx, ty, 2, '#5c3a22');
+    for (let i = 0; i < 8; i++) line(tx - dx * i, ty - dy * i, tx - dx * i + px * (9 - i * 0.6), ty - dy * i + py * (9 - i * 0.6), 1, i < 1 ? '#22202c' : '#9aa3b0');
+    return { tipX: tx + px * 9, tipY: ty + py * 9 };
+  }
+  const rapier = kind === 'rapier';
   const gw = rapier ? 3 : 5;
-  thick(g, R(wx + px * gw), R(wy + py * gw), R(wx - px * gw), R(wy - py * gw), 2, rapier ? '#c9a24a' : '#8a7a5a');  // гарда
+  line(wx + px * gw, wy + py * gw, wx - px * gw, wy - py * gw, 2, rapier ? '#c9a24a' : '#8a7a5a');  // гарда
   const sx = wx + dx * 2, sy = wy + dy * 2, tx = wx + dx * len, ty = wy + dy * len;
-  thick(g, R(sx), R(sy), R(tx), R(ty), rapier ? 2 : 3, '#22202c');                           // контур
-  thick(g, R(sx), R(sy), R(tx - dx), R(ty - dy), 1, rapier ? '#dfe6ef' : '#c9d2de');          // клинок
-  if (!rapier) thick(g, R(sx + px), R(sy + py), R(tx - dx * 3 + px), R(ty - dy * 3 + py), 1, '#8e98a8');  // тень на клинке
+  line(sx, sy, tx, ty, rapier ? 2 : 3, '#22202c');                                                 // контур
+  line(sx, sy, tx - dx, ty - dy, 1, rapier ? '#dfe6ef' : '#c9d2de');                                // клинок
+  if (!rapier) line(sx + px, sy + py, tx - dx * 3 + px, ty - dy * 3 + py, 1, '#8e98a8');            // тень на клинке
   return { tipX: tx, tipY: ty };
 }
 
-// o: { x, ground (мир), facing, pose, state, walking, step, time, airY, weaponLen, rapier, bladeHidden,
-//      view: 'side' | 'front' | 'back', squash, alpha, frame (имя кадра вместо подбора), rotate (рад), sheathed }
-// Возвращает кончик клинка в координатах мира (для шлейфа) или null.
-export function drawKnight(g, o) {
+// o: { x, ground (мир), facing, pose, state, walking, step, time, airY, weaponLen, weapon (вид), rapier, bladeHidden,
+//      view: 'side' | 'front' | 'back', squash, alpha, frame (имя кадра вместо подбора), rotate (рад), sheathed,
+//      flash (вспышка попадания), bowDraw, turn, depth, run }
+// Возвращает кончик оружия в координатах мира (для шлейфа) или null.
+export function drawSprite(name, g, o) {
+  const s = sets[name];
+  const meta = s.meta;
   const t = g.getTransform();
   const S = t.a;
   g.save();
@@ -104,42 +145,43 @@ export function drawKnight(g, o) {
   const X = Math.round(o.x * S), G = Math.round((o.ground - (o.airY ?? 0)) * S);
   let tip = null;
   if (o.view === 'front' || o.view === 'back') {
-    const img = imgs[o.view];
+    const img = s.imgs[o.view];
     if (!img) { g.restore(); return null; }
     const w = Math.max(2, Math.round(size * (o.squash ?? 1)));
     g.drawImage(img, X - Math.round(w / 2), G - foot, w, size);
-    if (normalCtx && nimgs[o.view]) normalCtx.drawImage(nimgs[o.view], X - Math.round(w / 2) + t.e, G - foot + t.f, w, size);
+    if (normalCtx && s.nimgs[o.view]) normalCtx.drawImage(s.nimgs[o.view], X - Math.round(w / 2) + t.e, G - foot + t.f, w, size);
     g.restore();
     return null;
   }
   const A = meta.anims ?? { walk: 6, idle: 4 };
   const cyc = (u, n) => Math.floor(((u % 1) + 1) % 1 * n) % n;
-  let name = o.frame;
+  let fname = o.frame;
   let right = o.facing >= 0;
-  if (!name && o.turn && A.turn) {
-    // разворот: кадры из ролика «повернулся через вид спереди»; справа налево — по порядку, слева направо — обратно
+  if (!fname && o.turn && A.turn) {
+    // разворот: кадры ролика «повернулся через вид со спины»; справа налево — по порядку, слева направо — обратно
     const i = Math.min(A.turn - 1, Math.floor(o.turn.k * A.turn));
-    name = 'turn_' + (o.turn.toLeft ? i : A.turn - 1 - i);
+    fname = 'turn_' + (o.turn.toLeft ? i : A.turn - 1 - i);
     right = true;
   }
-  if (!name && o.depth && o.walking && o.state === 'ready') {
+  if (!fname && o.depth && o.walking && o.state === 'ready' && A.walkS) {
     // идёт вглубь: шаги спереди (к камере) или со спины, клинок не виден
     const k = o.depth === 'south' ? 'walkS' : 'walkN';
-    name = k + '_' + cyc(o.step, A[k]);
+    fname = k + '_' + cyc(o.step, A[k]);
     right = true;
   }
-  if (!name) {
-    if (o.walking && o.state === 'ready') name = (o.run && A.run ? 'run_' + cyc(o.step, A.run) : 'walk_' + cyc(o.step, A.walk));
-    else if (o.sheathed && o.state === 'ready') name = 'idle_' + (Math.floor(o.time * 4) % A.idle);
-    else name = nearestPose(o.pose);
+  if (!fname) {
+    if (o.walking && o.state === 'ready' && A.walk) fname = (o.run && A.run ? 'run_' + cyc(o.step, A.run) : 'walk_' + cyc(o.step, A.walk));
+    else if (o.sheathed && o.state === 'ready' && A.idle) fname = 'idle_' + (Math.floor(o.time * 4) % A.idle);
+    else fname = nearestPose(s, o.pose);
   }
-  const img = right ? imgs[name] : flipped[name];
+  const img = right ? s.imgs[fname] : s.flipped[fname];
   if (!img) { g.restore(); return null; }  // кадр не загрузился — не рисуем, но и не падаем
   const left = right ? X - cx : X - (size - cx);
   const top = G - foot;
-  if (normalCtx && (right ? nimgs[name] : nflipped[name]) && !o.rotate) {
+  const nimg = right ? s.nimgs[fname] : s.nflipped[fname];
+  if (normalCtx && nimg && !o.rotate) {
     normalCtx.globalAlpha = g.globalAlpha;
-    normalCtx.drawImage(right ? nimgs[name] : nflipped[name], left + t.e, top + t.f);
+    normalCtx.drawImage(nimg, left + t.e, top + t.f);
     normalCtx.globalAlpha = 1;
   }
   if (o.rotate) {
@@ -150,14 +192,23 @@ export function drawKnight(g, o) {
     return null;
   }
   g.drawImage(img, left, top);
-  const fr = meta.frames[name];
-  if (fr?.wrist && o.pose && !o.bladeHidden && !o.sheathed) {
+  if (o.flash) {
+    // вспышка попадания: тот же кадр поверх, светлее
+    const a = g.globalAlpha, op = g.globalCompositeOperation;
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = a * 0.55;
+    g.drawImage(img, left, top);
+    g.globalCompositeOperation = op; g.globalAlpha = a;
+  }
+  const fr = meta.frames[fname];
+  if (fr?.wrist && o.pose && !o.bladeHidden && !o.sheathed && o.weapon !== 'none') {
     const wx = left + (right ? fr.wrist[0] : size - fr.wrist[0]);
     const wy = top + fr.wrist[1];
     const len = (o.weaponLen ?? 17) * S;
-    const tp = drawBlade(g, wx, wy, o.pose.angle, o.facing, len, o.rapier);
+    const tp = drawWeapon(g, o.weapon ?? (o.rapier ? 'rapier' : 'sword'), wx, wy, o.pose.angle, o.facing, len, o.bowDraw ?? 0);
     tip = { tipX: (tp.tipX - t.e) / S, tipY: (tp.tipY - t.f) / S };
   }
   g.restore();
   return tip;
 }
+
+export const drawKnight = (g, o) => drawSprite('knight', g, o);

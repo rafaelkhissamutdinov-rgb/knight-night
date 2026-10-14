@@ -15,9 +15,11 @@ import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, update
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
+// враги в пиксель-арте (v0.64): набор по типу врага; набора нет — рисуется старая фигурка
+for (const t of ENEMY_SPRITES) loadSpriteSet(t);
 import { BESTIARY } from './story/bestiary.js';
 import { ENEMY_TYPES } from './config.js';
 
@@ -2652,7 +2654,7 @@ function renderEnemy(e, cam) {
   const GROUND = groundY(e.z);
   if (CONFIG.enemyBars && e.alive && !e.def.practice && e.hp < e.def.hp) {
     const w = 14, fill = Math.max(1, Math.round(w * e.hp / e.def.hp));
-    const top = GROUND - (e.kind === 'slime' ? Math.round(14 * e.size) + 5 : 40) - e.airY;
+    const top = GROUND - (e.kind === 'slime' ? Math.round(14 * e.size) + 5 : spriteReady(e.type) ? 34 : 40) - e.airY;
     rect(g, ex - w / 2, top, w, 2, '#2d2838');
     rect(g, ex - w / 2, top, fill, 2, '#e8454f');
   }
@@ -2665,13 +2667,20 @@ function renderEnemy(e, cam) {
     const whirl = e.state === 'strike' && e.strike?.pose === 'whirl';
     if (whirl) disc(ex, GROUND - 27 - e.airY, 20);
     if (e.kind === 'ghost') g.globalCompositeOperation = 'lighter';  // призрак светится, а не темнеет
-    if (riseK < 1) {
+    if (riseK < 1 && !spriteReady(e.type)) {
       g.save();
       g.translate(ex, GROUND);
       g.scale(1, 0.25 + 0.75 * ease(riseK));
       g.translate(-ex, -GROUND);
     }
-    const tip = drawFigureOutlined(g, {
+    const sprite = spriteReady(e.type);
+    const walking = e.step !== e.lastDrawStep;
+    e.lastDrawStep = e.step;
+    const tip = sprite ? drawSprite(e.type, g, {
+      x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: e.step / 6.3,
+      time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
+      bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined,
+    }) ?? { tipX: ex, tipY: GROUND - 20 } : drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       breathe: (e.state === 'idle' || e.state === 'dormant') && !e.def.skull && Math.sin(game.time * 2.2 + e.x * 0.37) > 0.3 ? 1 : 0,  // живые дышат, скелеты — нет
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
@@ -2680,7 +2689,7 @@ function renderEnemy(e, cam) {
       wrap: e.def.wrap, veil: e.def.veil, bun: e.def.bun, ornate: e.def.ornate, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd,
     });
-    if (riseK < 1) g.restore();
+    if (riseK < 1 && !sprite) g.restore();
     g.globalCompositeOperation = 'source-over';
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (e.def.crossbow && e.state === 'windup' && e.alive && e.t > e.windupTime * 0.35) {
@@ -2712,9 +2721,19 @@ function renderEnemy(e, cam) {
   g.globalAlpha = 1;
 }
 
+// чем бьёт враг со спрайтом: оружие рисуется кодом от кисти
+function enemyWeapon(e) {
+  const d = e.def;
+  if (e.kind === 'archer') return 'bow';
+  if (d.crossbow) return 'crossbow';
+  if (e.kind === 'duelist') return 'rapier';
+  return d.axe ? 'axe' : d.halberd ? 'halberd' : d.spear ? 'spear' : 'sword';
+}
+
 // смерть врага: скелет рассыпается в груду костей (лежит, пока рыцарь в комнате), живой — падает навзничь и тает
 function renderDeath(e, ex) {
   const GROUND = groundY(e.z), t = e.t, f = e.facing;
+  if (spriteReady(e.type)) { renderSpriteDeath(e, ex, GROUND, t, f); return; }
   const opts = {
     x: ex, ground: GROUND, facing: f, pose: e.pose, colors: e.def.colors, weaponLen: e.def.weapon ?? 17,
     skull: e.def.skull, shield: e.def.shield, bow: e.kind === 'archer', crossbow: e.def.crossbow, bladeHidden: true,
@@ -2758,6 +2777,29 @@ function renderDeath(e, ex) {
   drawFigureOutlined(g, opts);
   g.restore();
   g.globalAlpha = 1;
+}
+
+// то же для врага в пиксель-арте: скелет оседает и рассыпается, призрак тает вверх, живой падает навзничь
+function renderSpriteDeath(e, ex, GROUND, t, f) {
+  const o = { x: ex, ground: GROUND, facing: f, pose: e.pose, bladeHidden: true };
+  if (e.kind === 'ghost') {
+    const a = Math.max(0, 0.6 * (1 - t / 0.7));
+    if (a <= 0) return;
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    drawSprite(e.type, g, { ...o, ground: GROUND - Math.round(t * 30), frame: 'pose_hurt', alpha: a });
+    g.restore();
+    return;
+  }
+  if (e.def.skull) {
+    if (t < 0.3) drawSprite(e.type, g, { ...o, frame: t < 0.12 ? 'pose_kneel' : 'pose_dead' });
+    if (t > 0.15) drawBonePile(ex, GROUND, f, e.def);
+    return;
+  }
+  const k = ease(Math.min(1, t / 0.35));
+  const alpha = Math.max(0, 1 - Math.max(0, t - 2.2) / 0.8);
+  if (alpha <= 0) return;
+  drawSprite(e.type, g, { ...o, frame: 'pose_hurt', rotate: -f * k * Math.PI / 2, ground: GROUND + Math.round(k * 10), alpha });
 }
 
 function drawBonePile(x, gy, f, def) {
