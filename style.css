@@ -6,13 +6,13 @@
   --muted: #9f97b0;
   --gold: #f2c14e;
   --red: #e8454f;
-  --pixel: "Pixelify Sans", ui-monospace, monospace;
-  --body: "Golos Text", system-ui, sans-serif;
+  --pixel: "Tiny5", ui-monospace, monospace;   /* v0.67: кириллица читается, пиксельный под графику (бесплатный, OFL) */
+  --body: "Tiny5", system-ui, sans-serif;     /* запасной для диалогов — "Handjet" (тоньше, длиннее строки) */
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-synthesis: none; }  /* у Tiny5 одно начертание — без поддельного жирного */
 .page {
   max-width: 1280px;
   margin: 0 auto;
@@ -187,6 +187,13 @@ kbd {
   background: rgba(13, 11, 20, 0.96); border: 0.4cqw solid var(--line); padding: 2.2cqw;
 }
 .shop[hidden] { display: none; }
+/* лавка (v0.67): сцена слева во всю высоту, разговор справа */
+#shop { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 1.2cqw 2.5cqw; padding: 1.6cqw; }
+.shop-scene { grid-row: 1 / -1; height: 100%; min-height: 0; aspect-ratio: 256 / 288; image-rendering: pixelated; border: 0.3cqw solid var(--line); background: #1e1a2b; }
+#shop .shop-menu { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.shop-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 0.2cqw solid var(--line); padding-bottom: 0.6cqw; }
+#shop .shop-text { min-height: 9cqw; }
+#shop .shop-keys { grid-column: 2; }
 .shop-left { display: grid; gap: 0.8cqw; align-content: start; justify-items: center; }
 .shop-portrait { width: 15cqw; height: 15cqw; image-rendering: pixelated; background: #1e1a2b; border: 0.3cqw solid var(--line); }
 .shop-portrait[hidden] { display: none; }

@@ -4,3 +4,4 @@ node_modules/
 # ключ PixelLab — только в окружении
 .pixellab_key
 .pixellab_work/
+__pycache__/

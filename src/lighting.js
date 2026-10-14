@@ -31,9 +31,13 @@ void main() {
     float g = clamp(1.0 - dist / (lp[i].w * 0.4), 0.0, 1.0);
     glow += lc[i].rgb * lc[i].a * g * g * g * 0.08;
   }
-  if (steps > 0.5) light = floor(light * 7.0 + 0.5) / 7.0;
+  if (steps > 0.5) {
+    // ступени по яркости (цвет света сохраняется — без цветных колец)
+    float l = dot(light, vec3(0.299, 0.587, 0.114));
+    light *= (floor(l * 7.0 + 0.5) / 7.0) / max(l, 0.001);
+  }
   // пламя и раскалённое светится само
-  float e = step(0.85, a.r) * step(0.42, a.g) * step(a.b, 0.6) * step(0.3, a.r - a.b);
+  float e = step(0.9, a.r) * step(0.5, a.g) * step(a.g, a.r * 0.72) * step(a.b, a.r * 0.3);   // только оранжевое пламя (золото — нет)
   vec3 col = mix(a.rgb * light + glow, a.rgb * 1.25 + glow, e);
   gl_FragColor = vec4(col, 1.0);
 }`;

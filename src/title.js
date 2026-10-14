@@ -94,7 +94,46 @@ function knight(g, time) {
   rect(g, x - 9 - sway, b - 8, 3, 2, '#0a0a18');
 }
 
+// картина PixelLab (v0.67): замок с башней мага на скале, луна, долина, Найт на уступе; поверх — живое (свет окна, мыши, туман)
+const art = typeof Image !== 'undefined' ? Object.assign(new Image(), { src: 'assets/backgrounds/title.png' }) : null;
+const TOWER = [124.5, 20.5];   // окно башни на картине (мир 320×180)
+
+function drawArt(g, time) {
+  g.save();
+  g.imageSmoothingEnabled = false;
+  g.drawImage(art, 0, 0, W, H);
+  // лиловый свет в окне башни пульсирует
+  const pulse = 0.5 + 0.5 * Math.sin(time * 1.6);
+  g.globalCompositeOperation = 'lighter';
+  const gl = g.createRadialGradient(TOWER[0], TOWER[1], 1, TOWER[0], TOWER[1], 14);
+  gl.addColorStop(0, `rgba(170,90,255,${0.3 + 0.25 * pulse})`);
+  gl.addColorStop(1, 'rgba(170,90,255,0)');
+  g.fillStyle = gl;
+  g.fillRect(TOWER[0] - 14, TOWER[1] - 14, 28, 28);
+  g.globalCompositeOperation = 'source-over';
+  // туман в долине плывёт
+  for (let i = 0; i < 4; i++) {
+    const y = 112 + i * 7, x = ((time * (5 + i * 3) + i * 90) % 420) - 100;
+    g.globalAlpha = 0.06;
+    g.fillStyle = '#c8c8f0';
+    g.fillRect(x, y, 140, 3);
+    g.fillRect(x + 30, y + 2, 90, 2);
+  }
+  g.globalAlpha = 1;
+  // летучие мыши кружат у башни
+  for (let i = 0; i < 3; i++) {
+    const a = time * (0.8 + i * 0.2) + i * 2.1;
+    const bx = Math.round(TOWER[0] + Math.cos(a) * (16 + i * 6)), by = Math.round(TOWER[1] + 4 + Math.sin(a) * (6 + i * 2));
+    const flap = Math.floor(time * 10 + i) % 2;
+    rect(g, bx, by, 1, 1, '#000');
+    rect(g, bx - 2, by - flap, 2, 1, '#000');
+    rect(g, bx + 1, by - flap, 2, 1, '#000');
+  }
+  g.restore();
+}
+
 export function drawTitle(g, time) {
+  if (art?.complete && art.naturalWidth) { drawArt(g, time); return; }
   if (!layer) build();
   g.drawImage(layer, 0, 0);
   // звёзды мерцают

@@ -4,9 +4,9 @@ import { createInput } from './input.js';
 import { createEnemy, RISE_TIME } from './enemy.js';
 import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
-import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
+import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -81,7 +81,7 @@ const ui = {
   journalName: $('journal-name'), journalHow: $('journal-how'), journalWin: $('journal-win'), journalLore: $('journal-lore'), journalKills: $('journal-kills'),
   equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'),
   skillWard: $('skill-ward'), skillWardBar: $('skill-ward-bar'), skillG: $('skill-g'), skillGBar: $('skill-g-bar'),
-  shop: $('shop'), shopPortrait: $('shop-portrait'), shopFace: $('shop-face'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
+  shop: $('shop'), shopScene: $('shop-scene'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
   shopText: $('shop-text'), shopMenu: $('shop-menu'),
   skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'), skillName: $('skill-name'), weapon: $('weapon'),
 };
@@ -99,9 +99,11 @@ const imageRooms = {};
 for (const [id, r] of Object.entries(ROOMS)) if (r.image) (bgImages[id] = new Image()).src = r.image;  // загрузить заранее
 // фон-картинка, если есть и загрузилась; иначе — нарисованный кодом
 // куски стены из PixelLab (v0.64): tiles: 'dungeon' у комнаты → assets/backgrounds/dungeon/dungeon_<n>.png
+const TILE_COUNT = { dungeon: 3, castle: 4 };   // вариантов куска стены: _0 — основной, остальные — с деталью
 const tileSets = {};
+const farImgs = {};
 for (const r of Object.values(ROOMS)) if (r.tiles && !tileSets[r.tiles]) {
-  tileSets[r.tiles] = Array.from({ length: r.tileCount ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
+  tileSets[r.tiles] = Array.from({ length: r.tileCount ?? TILE_COUNT[r.tiles] ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
 }
 const tilesReady = r => r.tiles && objectsReady() && tileSets[r.tiles].every(im => im.complete && im.naturalWidth);
 function bgFor(id) {
@@ -1949,7 +1951,7 @@ function renderMap() {
   rect(g, 12, 16, 296, 148, '#e0d2ac');
   for (let i = 0; i < 40; i++) rect(g, 14 + (i * 73) % 290, 18 + (i * 37) % 140, 2, 1, '#cbb98e');  // пятна
   g.fillStyle = '#5a4632';
-  g.font = '7px monospace';
+  g.font = '8px "Tiny5", monospace';
   g.textBaseline = 'top';
   g.fillText(`Этаж ${f}${(room().floor ?? 1) === f ? ' · ' + room().name : ''}`, 18, 18);
   g.fillText('M — закрыть · A / D — этаж', 186, 156);
@@ -2264,20 +2266,52 @@ function chooseTalk(i) {
 // ---------- лавка ----------
 // Как в Undertale: продавец, его реплика и меню «Купить / Поговорить / Уйти».
 
-const shopCtx = ui.shopPortrait.getContext('2d');
+// сцена лавки (v0.67): фон из PixelLab, Лика по пояс за прилавком с настроениями, живые огоньки и пылинки
+const shopCtx = ui.shopScene.getContext('2d');
 shopCtx.imageSmoothingEnabled = false;
+const SHOP_MOODS = ['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry', 'blink'];
+const shopArt = { scene: Object.assign(new Image(), { src: 'assets/shop/scene.png' }) };
+for (const m of SHOP_MOODS) shopArt[m] = Object.assign(new Image(), { src: `assets/shop/lika_${m}.png` });
+const SHOP_FLAMES = [[186, 50, 1.2], [32, 106, 0.8], [94, 164, 0.8], [252, 186, 0.7]];   // фонарь и свечи на картине: x, y, сила
+const shopMotes = Array.from({ length: 24 }, () => ({ x: Math.random() * 256, y: Math.random() * 220, v: 2 + Math.random() * 5, p: Math.random() * 6.3 }));
+function drawShopScene(t) {
+  const c = shopCtx, sh = game.shop;
+  const ok = im => im?.complete && im.naturalWidth;
+  c.clearRect(0, 0, 256, 288);
+  if (ok(shopArt.scene)) c.drawImage(shopArt.scene, 0, 0);
+  // Лика: дышит (на пиксель вверх-вниз), моргает раз в несколько секунд
+  const blink = (!sh.mood || sh.mood === 'default') && (t % 4.3) < 0.13;
+  const bust = shopArt[blink ? 'blink' : sh.mood] ?? shopArt.default;
+  const im = ok(bust) ? bust : shopArt.default;
+  if (ok(im)) c.drawImage(im, 48, 109 + (Math.sin(t * 1.8) > 0.6 ? -1 : 0));
+  // огонь свечей и фонаря дрожит, вокруг — тёплый свет
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  for (const [x, y, k] of SHOP_FLAMES) {
+    const f = 0.75 + 0.25 * Math.sin(t * 9 + x) * Math.sin(t * 5.3 + y);
+    const gr = c.createRadialGradient(x, y, 0, x, y, 26 * k);
+    gr.addColorStop(0, `rgba(255,170,80,${0.32 * f * k})`);
+    gr.addColorStop(1, 'rgba(255,170,80,0)');
+    c.fillStyle = gr;
+    c.fillRect(x - 26 * k, y - 26 * k, 52 * k, 52 * k);
+    c.fillStyle = `rgba(255,236,170,${0.55 * f})`;
+    c.fillRect(x, y - 1 - Math.round(f * 2), 1, 2);
+  }
+  // пылинки в тёплом свете
+  for (const m of shopMotes) {
+    m.y -= m.v / 60; m.x += Math.sin(t * 0.7 + m.p) * 0.05;
+    if (m.y < 0) { m.y = 220; m.x = Math.random() * 256; }
+    c.fillStyle = `rgba(255,214,150,${0.25 + 0.2 * Math.sin(t * 2 + m.p)})`;
+    c.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
+  }
+  c.restore();
+}
 
 function openShop(npc) {
   const data = SHOPS[npc.def.shop];
   if (!data) return;
   game.shop = { npc, data, view: 'main', text: data.hello, shown: 0, mood: data.moods?.hello };
   game.mode = 'shop';
-  // нарисованный портрет, если есть; иначе — пиксельная заглушка
-  const face = FACES[npc.def.face]?.default;
-  ui.shopFace.hidden = !face;
-  ui.shopPortrait.hidden = !!face;
-  if (face) shopFace();
-  else drawLikaPortrait(shopCtx, npc.def.colors);
   ui.shopName.textContent = npc.def.name;
   ui.shop.hidden = false;
   hint('');
@@ -2307,15 +2341,7 @@ function nextShopLine() {
 function shopSay(text, mood = null) {
   game.shop.text = text;
   game.shop.shown = 0;
-  game.shop.mood = mood;
-  shopFace();
-}
-
-function shopFace() {
-  const set = FACES[game.shop.npc.def.face];
-  if (!set) return;
-  const src = set[game.shop.mood] ?? set.default;
-  if (!ui.shopFace.src.endsWith(src)) ui.shopFace.src = src;
+  game.shop.mood = mood;   // лицо Лики на сцене меняется в drawShopScene
 }
 
 function shopView(view) {
@@ -2409,6 +2435,7 @@ function shopPress(code) {
 function tickShop(dt) {
   const sh = game.shop;
   if (!sh) return;
+  drawShopScene(performance.now() / 1000);
   if (sh.shown < sh.text.length) {
     sh.shown = Math.min(sh.text.length, sh.shown + dt * 50);
     ui.shopText.textContent = sh.text.slice(0, Math.floor(sh.shown));
@@ -2544,6 +2571,9 @@ function render() {
   }
   const r = room();
   const cam = Math.round(game.camX);
+  // даль под открытым небом (балкон): неподвижный дальний план за полом и перилами
+  const farImg = r.far && (farImgs[r.far] ??= Object.assign(new Image(), { src: r.far }));
+  if (farImg?.complete && farImg.naturalWidth && (bgFor(game.room).k ?? 1) === 2) g.drawImage(farImg, 0, 0, farImg.width / 2, farImg.height / 2);
   const bg = bgFor(game.room), bk = bg.k ?? 1;
   g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
   drawTorches(g, cam, r.torches ?? [], game.time);
@@ -2587,7 +2617,7 @@ function render() {
   for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) drawPickup(g, it.x - cam, groundY(it.z), it.t);
   renderChokeAura(cam);
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
-  things.sort((a, b) => a.z - b.z);
+  things.sort((a, b) => (a.prop?.flat ? -999 : a.z) - (b.prop?.flat ? -999 : b.z));   // ковёр (flat) — под всеми
   for (const a of things) {
     if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) renderPlayer(cam);
@@ -2609,8 +2639,15 @@ function render() {
   if (r.gate === 'right') drawGatePanel(g, r.length - 26 - cam, CONFIG.floorTop, H, -1);
   if (r.gate === 'left') drawGatePanel(g, 26 - cam, CONFIG.floorTop, H, 1);
 
-  if (r.dark) {
-    // темнота: свет от портала, от выхода и немного вокруг рыцаря
+  if (r.dark && light) {
+    // живой свет сам затемняет комнату (applyLight); остаются тёмные пылинки перед камерой
+    for (const m of game.motes) {
+      g.globalAlpha = 0.55;
+      rect(g, m.x, m.y, m.s, m.s, m.s > 1 ? '#05040a' : '#2a2538');
+    }
+    g.globalAlpha = 1;
+  } else if (r.dark) {
+    // темнота без WebGL: свет от портала, от выхода и немного вокруг рыцаря
     const p = game.player;
     const c = game.cutscene;
     const portalLight = c && c.t < WAKE.flash ? 30 + 40 * (c.t / WAKE.flash) : 95;
@@ -2726,7 +2763,8 @@ function renderEnemy(e, cam) {
   }
   if (e.kind === 'slime') {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
-    drawSlimeOutlined(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
+    if (!drawSlimeImg(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, facing: e.facing, holding: e.holding, flash: e.flashT > 0 }))
+      drawSlimeOutlined(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) rect(g, ex - 1, GROUND - e.airY - 16, 3, 3, PAL.spark);
   } else {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
@@ -2740,10 +2778,17 @@ function renderEnemy(e, cam) {
       g.translate(-ex, -GROUND);
     }
     const sprite = spriteReady(e.type);
-    const walking = e.step !== e.lastDrawStep;
+    // как у Найта: разворот — кадрами поворота (не мгновенным отражением), шаг вглубь — шаги спереди/со спины
+    const mv = e.mv ??= { x: e.x, z: e.z, dx: 0, dz: 0 };
+    mv.dx = mv.dx * 0.8 + (e.x - mv.x) * 0.2; mv.dz = mv.dz * 0.8 + (e.z - mv.z) * 0.2; mv.x = e.x; mv.z = e.z;
+    const walking = e.step !== e.lastDrawStep || Math.abs(mv.dz) > 0.04;
     e.lastDrawStep = e.step;
+    const depth = walking && Math.abs(mv.dz) > Math.abs(mv.dx) * 1.3 && Math.abs(mv.dz) > 0.04 ? (mv.dz > 0 ? 'south' : 'north') : null;
+    if (e.drawFacing !== undefined && e.drawFacing !== e.facing && e.state !== 'windup' && e.state !== 'strike' && e.state !== 'reel') e.turnFx = { t: game.time, toLeft: e.facing < 0 };
+    e.drawFacing = e.facing;
+    const turn = e.turnFx && game.time - e.turnFx.t < 0.22 ? { k: (game.time - e.turnFx.t) / 0.22, toLeft: e.turnFx.toLeft } : null;
     const tip = sprite ? drawSprite(e.type, g, {
-      x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: e.step / 6.3,
+      x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: depth ? game.time * 1.5 : e.step / 6.3, turn, depth,
       time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
       bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined,
     }) ?? { tipX: ex, tipY: GROUND - 20 } : drawFigureOutlined(g, {
@@ -3041,6 +3086,12 @@ function renderNpc(n, cam) {
   const x = n.x - cam;
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
+  if (n.def.sitImgs) {
+    // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой
+    const near = Math.abs(game.player.x - n.x) < 50;
+    const name = near ? n.def.sitImgs.wave : n.def.sitImgs.idle[Math.floor(game.time / 3.2) % n.def.sitImgs.idle.length];
+    if (drawObjNamed(g, name, x, groundY(n.z) + 1, n.facing < 0)) return;
+  }
   if (n.def.sprite && spriteReady(n.def.sprite)) {
     // NPC в пиксель-арте (v0.64): сидит у костра — на колене, иначе стоит без оружия
     drawSprite(n.def.sprite, g, { x, ground: groundY(n.z), facing: n.facing, pose: POSES.idle, weapon: 'none', frame: n.def.sit ? 'pose_kneel' : 'pose_idle' });
@@ -3142,11 +3193,19 @@ function sceneLights() {
   const add = (x, y, rad, color, power, z = 30) => { const sx = (x - cam) * S; if (sx > -rad * S && sx < (W + rad) * S) L.push({ x: sx, y: y * S, z, r: rad * S, color, power }); };
   for (const x of r.torches ?? []) add(x, 69, 150, WARM, 0.85 + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3));
   for (const pr of r.props ?? []) {
-    if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, 130, WARM, 1 + 0.12 * Math.sin(t * 9 + pr.x), 20);
+    if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
     if (pr.type === 'candles') add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
   }
   for (const d of r.decor ?? []) if (d.type === 'fireplace') add(d.x, CONFIG.floorTop - 14, 150, WARM, 1 + 0.12 * Math.sin(t * 8 + d.x), 26);
-  if (r.portal) add(r.portal.x, groundY(r.portal.z) - 8, 120, [0.55, 0.85, 1], 0.9, 20);
+  if (r.portal) {
+    const c = game.cutscene, k = c && c.t < WAKE.flash ? 0.3 + 0.7 * (c.t / WAKE.flash) : 1;   // портал разгорается, когда рыцарь очнулся
+    add(r.portal.x, groundY(r.portal.z) - 8, r.dark ? 140 : 120, [0.55, 0.85, 1], (r.dark ? 1.3 : 0.9) * k, 20);
+  }
+  if (r.dark) {
+    if (r.gate) add(r.gate === 'right' ? r.length + 10 : -10, 100, 110, WARM, 0.9);   // свет факелов из-за решётки
+    const p = game.player;
+    add(p.x, groundY(p.z) - 16, 48, [0.75, 0.75, 0.9], 0.35, 40);                      // чуть видно самого рыцаря
+  }
   // призраки светятся холодным; босс — сильнее, при удушении — ярче
   for (const e of game.enemies) if ((e.kind === 'ghost' || e.kind === 'boss') && e.alive && e.state !== 'dormant') {
     const k = (e.ghost ?? 1) * (e.kind === 'boss' ? 0.7 + 0.5 * e.eyes : 0.45);
@@ -3155,11 +3214,13 @@ function sceneLights() {
   // ближние к центру экрана — вперёд
   return L.sort((a, b) => Math.abs(a.x - W) - Math.abs(b.x - W));
 }
+// тёмные комнаты (камера, привал) — тоже живым светом (v0.67): почти ночь, светят портал, костёр и выход
+const DARK_AMBIENT = [0.16, 0.14, 0.2];
 function applyLight() {
   if (!light) return;
   const r = game.mode === 'title' || game.mode === 'map' ? null : room();
-  if (!r || r.dark) { light.off(); return; }
-  light.draw(sceneLights(), AMBIENT, true);
+  if (!r) { light.off(); return; }
+  light.draw(sceneLights(), r.dark ? DARK_AMBIENT : AMBIENT, true);
 }
 // пыль в воздухе: пылинки видны у огня (сами светлее там, где свет сильнее)
 const dustMotes = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: 20 + Math.random() * 100, v: 1 + Math.random() * 3, p: Math.random() * 6.28 }));
