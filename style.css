@@ -281,3 +281,8 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 .admin button, .admin select { font: inherit; color: var(--fg); background: var(--panel); border: 0.3cqw solid var(--line); padding: 0.4cqw 0.8cqw; cursor: pointer; text-align: left; }
 .admin button:hover { border-color: var(--gold); color: var(--gold); }
 .admin label { display: flex; gap: 0.6cqw; align-items: center; cursor: pointer; }
+
+/* иконки предметов (v0.74) */
+.item-name { display: inline-flex; align-items: center; gap: 0.8cqw; }
+.item-icon { width: 3.6cqw; height: 3.6cqw; image-rendering: pixelated; flex: none; margin: -0.6cqw 0; }
+.shop-menu.dense .item-icon { width: 3cqw; height: 3cqw; }
