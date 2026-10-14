@@ -2775,6 +2775,28 @@ function renderChokeAura(cam) {
   g.restore();
 }
 
+// захлёст рапирой: серебряная дуга сверху вперёд, яркая у кончика, и щелчок на конце
+function whipArc(x, ground, f, k) {
+  k = Math.max(0, Math.min(1, k));
+  const cx = x + f * 4, cy = ground - 30, R = 24;
+  const head = -110 + 150 * k, tail = Math.max(-110, head - 110);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  for (let a = tail; a <= head; a += 3) {
+    const u = (a - tail) / Math.max(1, head - tail), r = a * Math.PI / 180;
+    g.globalAlpha = 0.15 + 0.85 * u * u;
+    g.fillStyle = u > 0.85 ? '#ffffff' : '#bcd6f0';
+    g.fillRect(Math.round((cx + f * Math.cos(r) * R) * 2) / 2, Math.round((cy + Math.sin(r) * R * 0.85) * 2) / 2, u > 0.6 ? 1 : 0.5, 0.5);
+  }
+  if (k > 0.7) {   // щелчок
+    const r = head * Math.PI / 180, tx = cx + f * Math.cos(r) * R, ty = cy + Math.sin(r) * R * 0.85;
+    g.globalAlpha = (1 - k) * 3;
+    g.fillStyle = '#ffffff';
+    for (let i = 0; i < 6; i++) { const an = i * Math.PI / 3; g.fillRect(Math.round((tx + Math.cos(an) * 3) * 2) / 2, Math.round((ty + Math.sin(an) * 3) * 2) / 2, 0.5, 0.5); }
+  }
+  g.restore();
+}
+
 // Бубновый туз (v0.70): щит-заклинание. Вспышка (звезда, лучи, кольцо) → ромб раскрывается, как переворачиваемая карта,
 // с отскоком → держится: алое тело, сияющая золотая кайма, бегущие руны, пульсирующая масть, искры вверх →
 // рассыпается осколками. a — сколько прошло (0…0,8 с). Свет на сцену — в sceneLights.
@@ -2960,7 +2982,7 @@ function renderEnemy(e, cam) {
     const tip = sprite ? drawSprite(e.type, g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: depth ? game.time * 1.5 : e.step / 6.3, turn, depth,
       time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
-      bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined,
+      bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined, anim: enemyAnim(e),
     }) ?? { tipX: ex, tipY: GROUND - 20 } : drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       breathe: (e.state === 'idle' || e.state === 'dormant') && !e.def.skull && Math.sin(game.time * 2.2 + e.x * 0.37) > 0.3 ? 1 : 0,  // живые дышат, скелеты — нет
@@ -3017,6 +3039,29 @@ function renderEnemy(e, cam) {
 }
 
 // чем бьёт враг со спрайтом: оружие рисуется кодом от кисти
+// приёмы кадрами PixelLab (v0.70): выпад Илии, кулак/полёт/вскинутые руки босса. null — обычные позы.
+// На этих кадрах оружие нарисовано (или руки пусты) — точки кисти нет, своё оружие кодом не рисуется.
+function enemyAnim(e) {
+  const A = key => spriteAnim(e.type, key);
+  const cl = x => Math.max(0, Math.min(1, x));
+  if (e.kind === 'duelist' && A('lunge') && e.alive) {
+    const thrust = e.strike?.pose === 'thrust' || e.height === 'mid';
+    if (e.state === 'leapIn') return { key: 'lunge', k: 0.1 + 0.3 * cl(e.t / 0.3) };
+    if (e.state === 'windup' && thrust) { e.lunging = true; return { key: 'lunge', k: 0.28 * cl(e.t / e.windupTime) }; }
+    if (e.state === 'strike' && thrust) return { key: 'lunge', k: 0.3 + 0.35 * cl(e.t / 0.16) };
+    if (e.state === 'recover' && e.lunging) return { key: 'lunge', k: 0.65 + 0.35 * cl(e.t / (e.def.recover ?? 0.6)) };
+    if (e.state !== 'recover') e.lunging = false;
+  }
+  if (e.kind === 'boss' && e.alive) {
+    const d = e.def;
+    if (e.state === 'cast' && A('clench')) return { key: 'clench', k: 0.75 * cl(e.t / d.chokeCast) };
+    if (e.state === 'choking' && A('clench')) return { key: 'clench', k: 0.75 + 0.24 * ((e.t * 2) % 1) };   // сжимает кулак, рука дрожит
+    if (e.state === 'dash' && A('dash')) return { key: 'dash', k: cl(e.t / 0.35) };
+    if (e.state === 'stance' && A('raise')) return { key: 'raise', k: cl(e.t / (e.pat?.stance ?? 0.9)) };
+  }
+  return null;
+}
+
 function enemyWeapon(e) {
   const d = e.def;
   if (d.crossbow) return 'crossbow';   // арбалетчик тоже стрелок — проверять раньше лука
@@ -3225,14 +3270,16 @@ function renderPlayer(cam) {
   const SHEATHE_T = 0.5;
   const sk = p.sheathed ? (p.sheatheAt != null ? Math.min(1, (p.clock - p.sheatheAt) / SHEATHE_T) : 1)
     : drawing ? Math.max(0, 1 - p.t / Math.max(0.05, p.atk.windup)) : null;
+  const rapierKey = rapier && p.state === 'attack' ? (p.atk.pose === 'thrust' ? 'lunge' : p.atk.pose === 'flick' ? 'whip' : null) : null;
+  const rapierAnim = rapierKey && spriteAnim('knight', rapierKey) ? { key: rapierKey, k: Math.min(1, p.t / (p.atk.windup + p.atk.active + p.atk.recover)) } : null;
   const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && !rapier && spriteAnim('knight', 'sheathe');   // кадры «рука за спину» — только для меча
   const tip = sprite ? drawKnight(g, {
     x: px, ground: GROUND, facing, pose: p.pose, state: p.state, walking: p.walking, step: p.step, time: game.time, airY: p.airY,
     turn, run: (p.gaitRun ?? 0) > 0.5, depth,
     sheath: sk != null ? { kind: sheathKind, len: sheathLen, k: sk } : null,
-    anim: sheathing ? { key: 'sheathe', k: sk } : spinFrames ? { key: 'spin', k: (spinK * 2) % 1 }   // два оборота
-      : p.state === 'held' && spriteAnim('knight', 'held') ? { key: 'held', k: (p.t * 0.9) % 1 } : null,   // висит, хватается за горло
-    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
+    anim: rapierAnim ?? (sheathing ? { key: 'sheathe', k: sk } : null) ?? (spinFrames ? { key: 'spin', k: (spinK * 2) % 1 }   // два оборота
+      : p.state === 'held' && spriteAnim('knight', 'held') ? { key: 'held', k: (p.t * 0.9) % 1 } : null),   // висит, хватается за горло
+    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || !!rapierAnim || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
     alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
   }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
@@ -3242,7 +3289,8 @@ function renderPlayer(cam) {
     trail: active ? p.trail : null,
   });
   if (spinning) spinTrail(px, GROUND - 24, spinK, p.facing, false);   // передняя половина диска — поверх рыцаря
-  if (active && !spinning) {   // у вихря свой шлейф-диск
+  if (rapierAnim && rapierKey === 'whip' && active) whipArc(px, GROUND, p.facing, (p.t - p.atk.windup) / p.atk.active);
+  if (active && !spinning && !rapierAnim) {   // у вихря свой шлейф-диск, у рапиры — кадры с клинком
     p.trail.push({ tipX: tip.tipX, tipY: tip.tipY });
     if (p.trail.length > (spinning || weaving ? 6 : 3)) p.trail.shift();
   } else p.trail = [];

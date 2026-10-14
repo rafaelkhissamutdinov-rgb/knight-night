@@ -6,7 +6,8 @@
 "walk": 6,
 "turn": 8,
 "walkS": 12,
-"walkN": 12
+"walkN": 12,
+"lunge": 11
 },
 "frames": {
 "pose_backdash": {
@@ -610,7 +611,18 @@
 "walkN_8": {},
 "walkN_9": {},
 "walkN_10": {},
-"walkN_11": {}
+"walkN_11": {},
+"lunge_0": {},
+"lunge_1": {},
+"lunge_2": {},
+"lunge_3": {},
+"lunge_4": {},
+"lunge_5": {},
+"lunge_6": {},
+"lunge_7": {},
+"lunge_8": {},
+"lunge_9": {},
+"lunge_10": {}
 },
 "sheet": {
 "cols": 16,
@@ -715,7 +727,18 @@
 "walkN_10",
 "walkN_11",
 "front",
-"back"
+"back",
+"lunge_0",
+"lunge_1",
+"lunge_2",
+"lunge_3",
+"lunge_4",
+"lunge_5",
+"lunge_6",
+"lunge_7",
+"lunge_8",
+"lunge_9",
+"lunge_10"
 ]
 },
 "scaled": 0.97
