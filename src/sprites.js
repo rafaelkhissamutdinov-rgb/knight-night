@@ -80,6 +80,7 @@ export function drawKnight(g, o) {
   let tip = null;
   if (o.view === 'front' || o.view === 'back') {
     const img = imgs[o.view];
+    if (!img) { g.restore(); return null; }
     const w = Math.max(2, Math.round(size * (o.squash ?? 1)));
     g.drawImage(img, X - Math.round(w / 2), G - foot, w, size);
     g.restore();
@@ -93,6 +94,7 @@ export function drawKnight(g, o) {
   }
   const right = o.facing >= 0;
   const img = right ? imgs[name] : flipped[name];
+  if (!img) { g.restore(); return null; }  // кадр не загрузился — не рисуем, но и не падаем
   const left = right ? X - cx : X - (size - cx);
   const top = G - foot;
   if (o.rotate) {
@@ -104,7 +106,7 @@ export function drawKnight(g, o) {
   }
   g.drawImage(img, left, top);
   const fr = meta.frames[name];
-  if (fr && !o.bladeHidden && !o.sheathed) {
+  if (fr && o.pose && !o.bladeHidden && !o.sheathed) {
     const wx = left + (right ? fr.wrist[0] : size - fr.wrist[0]);
     const wy = top + fr.wrist[1];
     const len = (o.weaponLen ?? 17) * S;

@@ -2985,15 +2985,22 @@ function renderDebug(cam) {
 
 let last = performance.now();
 let acc = 0;
+// Ошибка в одном кадре не должна вешать игру: цикл продолжается, ошибка — в консоль (раз в секунду)
+let lastErrAt = 0;
 function frame(now) {
+  requestAnimationFrame(frame);
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
-  while (acc >= STEP) {
-    step(STEP);
-    acc -= STEP;
+  try {
+    while (acc >= STEP) {
+      step(STEP);
+      acc -= STEP;
+    }
+    render();
+  } catch (err) {
+    acc = 0;
+    if (now - lastErrAt > 1000) { lastErrAt = now; console.error(err); }
   }
-  render();
-  requestAnimationFrame(frame);
 }
 
 // ЛКМ — удар, держать ПКМ — защита; на заставке клик запускает игру
