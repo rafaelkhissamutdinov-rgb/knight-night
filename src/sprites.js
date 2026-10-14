@@ -98,7 +98,7 @@ function nearestPose(s, p) {
   return best;
 }
 
-// Оружие картинкой (v0.68): assets/objects/wpn_<имя>.png лежит горизонтально, рукоять слева, острие справа.
+// Оружие картинкой (v0.68): assets/objects/wpn_<имя>.png (рисует tools/draw_weapons.py) лежит горизонтально, рукоять слева.
 // Хват ищется по картинке: у клинков — чуть позади гарды (самый высокий столбец в левой части), у древкового — доля длины.
 // reach — во сколько раз вынос от кисти больше длины weaponLen (у копья наконечник дальше); flipY — лезвие вниз.
 // Короткий клинок и двуручник — свои картинки (масштаб пиксель-арта сильно не меняем).
@@ -108,9 +108,9 @@ const WEAPON_IMG = {
   great: { file: 'wpn_great' },
   rapier: { file: 'wpn_rapier' },
   ghostsword: { file: 'wpn_ghostsword' },
-  axe: { file: 'wpn_axe', grip: 0.16 },
-  spear: { file: 'wpn_spear', grip: 0.26, reach: 1.2 },
-  halberd: { file: 'wpn_halberd', grip: 0.26, reach: 1.15 },
+  axe: { file: 'wpn_axe', grip: 0.12 },
+  spear: { file: 'wpn_spear', grip: 0.25, reach: 1.2 },
+  halberd: { file: 'wpn_halberd', grip: 0.25, reach: 1.15 },
   crossbow: { file: 'wpn_crossbow', grip: 0.3, reach: 1.0, fixed: true },
 };
 const wpn = {};

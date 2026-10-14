@@ -2861,8 +2861,8 @@ function renderEnemy(e, cam) {
 // чем бьёт враг со спрайтом: оружие рисуется кодом от кисти
 function enemyWeapon(e) {
   const d = e.def;
+  if (d.crossbow) return 'crossbow';   // арбалетчик тоже стрелок — проверять раньше лука
   if (e.kind === 'archer') return 'bow';
-  if (d.crossbow) return 'crossbow';
   if (e.kind === 'duelist') return 'rapier';
   if (e.kind === 'ghost' || e.kind === 'boss') return 'ghostsword';
   return d.axe ? 'axe' : d.halberd ? 'halberd' : d.spear ? 'spear' : 'sword';
