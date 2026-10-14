@@ -49,33 +49,43 @@ export function createLighting(colorCanvas) {
   out.className = 'lit';
   const gl = out.getContext('webgl', { premultipliedAlpha: false, antialias: false, preserveDrawingBuffer: false });
   if (!gl) return null;
-  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
-  let prog;
-  try {
-    prog = gl.createProgram();
-    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
-    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
-  } catch { return null; }
-  gl.useProgram(prog);
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-  const loc = gl.getAttribLocation(prog, 'p');
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  const U = n => gl.getUniformLocation(prog, n);
-  const tex = unit => {
-    const t = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    return t;
+  // ресурсы GL: создаются заново, если браузер потерял контекст и вернул его (v0.71)
+  let prog, U, tColor, tNorm;
+  const setup = () => {
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    try {
+      prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+    } catch { return false; }
+    gl.useProgram(prog);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'p');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    U = n => gl.getUniformLocation(prog, n);
+    const tex = unit => {
+      const t = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      return t;
+    };
+    tColor = tex(0); tNorm = tex(1);
+    gl.uniform1i(U('color'), 0); gl.uniform1i(U('normals'), 1);
+    gl.uniform2f(U('res'), W, H);
+    return true;
   };
-  const tColor = tex(0), tNorm = tex(1);
-  gl.uniform1i(U('color'), 0); gl.uniform1i(U('normals'), 1);
-  gl.uniform2f(U('res'), W, H);
+  if (!setup()) return null;
+  // контекст потерян (сбой видеокарты, сон, много вкладок): слой света замер бы поверх игры старым кадром —
+  // вместо этого сразу показываем обычную картинку, а когда контекст вернётся — собираем шейдер заново
+  let lost = false;
+  out.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; api.off(); });
+  out.addEventListener('webglcontextrestored', () => { lost = !setup(); });
 
   // холст нормалей: всё плоское (смотрит на зрителя), спрайты дорисовывают свои нормали
   const normal = document.createElement('canvas');
@@ -85,12 +95,13 @@ export function createLighting(colorCanvas) {
 
   colorCanvas.after(out);
   let on = false;
-  return {
+  const api = {
     normalCtx: nctx,
     // начало кадра: нормали — плоские
     clearNormals() { nctx.setTransform(1, 0, 0, 1, 0, 0); nctx.fillStyle = 'rgb(128,128,255)'; nctx.fillRect(0, 0, W, H); },
     // lights: [{ x, y, z, r, color: [r,g,b], power }] в пикселях экрана; ambient — [r,g,b]
     draw(lights, ambient, steps) {
+      if (lost || gl.isContextLost()) { lost = true; api.off(); return; }
       if (!on) { on = true; out.hidden = false; colorCanvas.classList.add('under-light'); }
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tColor);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, colorCanvas);
@@ -109,4 +120,5 @@ export function createLighting(colorCanvas) {
     // показать обычную картинку (заставка, карта, тёмные комнаты)
     off() { if (on) { on = false; out.hidden = true; colorCanvas.classList.remove('under-light'); } },
   };
+  return api;
 }

@@ -273,6 +273,7 @@ function drawWeapon(g, kind, wx, wy, angleDeg, facing, len, draw = 0, scab = fal
 //      view: 'side' | 'front' | 'back', squash, alpha, frame (имя кадра вместо подбора), rotate (рад), sheathed,
 //      flash (вспышка попадания), bowDraw, turn, depth, run }
 // Возвращает кончик оружия в координатах мира (для шлейфа) или null.
+let shadeCanvas = null;
 export function drawSprite(name, g, o) {
   const s = sets[name];
   const meta = s.meta;
@@ -330,6 +331,21 @@ export function drawSprite(name, g, o) {
     g.translate(X, G - size / 2 + 8);
     g.rotate(o.rotate);
     g.drawImage(img, -size / 2, -size / 2 - 4);
+    g.restore();
+    return null;
+  }
+  if (o.shade) {
+    // тень-отпечаток (рывок в тень, v0.71): силуэт кадра, залитый цветом o.shade
+    const sc = shadeCanvas ??= document.createElement('canvas');
+    if (sc.width < size) { sc.width = size; sc.height = size; }
+    const sx = sc.getContext('2d');
+    sx.clearRect(0, 0, sc.width, sc.height);
+    sx.globalCompositeOperation = 'source-over';
+    sx.drawImage(img, 0, 0);
+    sx.globalCompositeOperation = 'source-in';
+    sx.fillStyle = o.shade;
+    sx.fillRect(0, 0, size, size);
+    g.drawImage(sc, 0, 0, size, size, left, top, size, size);
     g.restore();
     return null;
   }

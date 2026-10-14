@@ -75,7 +75,7 @@ const ui = {
   callout: $('callout'), hint: $('hint'), debug: $('debug'), overlay: $('overlay'), version: $('version'),
   overlayTitle: $('overlay-title'), overlayText: $('overlay-text'), overlayPress: $('overlay-press'),
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkFace: $('talk-face'), talkName: $('talk-name'), talkText: $('talk-text'),
-  talkChoices: $('talk-choices'), talkNext: $('talk-next'),
+  talkChoices: $('talk-choices'), talkNext: $('talk-next'), talkSkip: $('talk-skip'), shopClose: $('shop-close'),
   reportBtn: $('report-btn'), reportText: $('report-text'), overlayMenu: $('overlay-menu'),
   floorcard: $('floorcard'), floorcardTitle: $('floorcard-title'), floorcardRoom: $('floorcard-room'),
   journal: $('journal'), journalList: $('journal-list'), journalPage: $('journal-page'), journalFig: $('journal-fig'),
@@ -177,6 +177,7 @@ function loadRoom(id, at) {
   game.token = null;
   game.arrows = [];
   game.waves = [];
+  game.puffs = [];
   ui.foe.hidden = true;
   const p = game.player;
   p.x = at.x;
@@ -197,6 +198,7 @@ function newGame() {
     flashColor: '#fff',
     camX: 0,
     particles: [],
+    puffs: [],
     arrows: [],
     waves: [],
     enemies: [],
@@ -349,6 +351,17 @@ const world = {
     game.waves.push({ x: e.x, z: e.z, dir: e.facing, t: 0 });
     sfx.heavy();
     shake(2);
+  },
+  // рывок в тень (v0.71): «шух», клуб дыма там, где стоял, и тёмные клочья вслед
+  vanish(e) {
+    sfx.whoosh();
+    sfx.dash();
+    const y = groundY(e.z);
+    for (let i = 0; i < 14; i++) game.puffs.push({
+      x: e.x + (Math.random() - 0.5) * 14, y: y - 4 - Math.random() * 30, r: 3 + Math.random() * 4,
+      vx: -e.facing * (8 + Math.random() * 20), vy: -6 - Math.random() * 10, life: 0.6 + Math.random() * 0.5, max: 1.1,
+    });
+    e.puffAt = 0;
   },
   defeated(e) {
     callout(`${e.def.shortName ?? e.def.name} отступил`, 'counter');
@@ -921,7 +934,8 @@ function handlePress(code) {
     return;
   }
   if (game.mode === 'talk') {
-    if (/^Digit[1-9]$/.test(code)) chooseTalk(Number(code.slice(5)) - 1);
+    if (code === 'Escape') skipTalk();
+    else if (/^Digit[1-9]$/.test(code)) chooseTalk(Number(code.slice(5)) - 1);
     else if (is(code, 'attack') || code === 'Enter' || code === 'KeyE') advanceTalk();
     return;
   }
@@ -1606,8 +1620,10 @@ function updateView(dt, engaged) {
 }
 
 function update(dt) {
-  if (game.mode === 'play') updateAim();  // высота — до нажатий этого кадра
-  for (const code of input.take()) handlePress(code);
+  if (game.mode === 'play') try { updateAim(); } catch (err) { frameError(performance.now(), err); }  // высота — до нажатий этого кадра
+  for (const code of input.take()) {
+    try { handlePress(code); } catch (err) { frameError(performance.now(), err); }   // сбой одной клавиши не глотает остальные (Esc)
+  }
   if (game.mode !== 'title') updateMusic(game.mode === 'play' && !!game.arena);  // играет и в разговорах, лавке, паузе
   if (game.mode !== 'play') return;
 
@@ -2222,6 +2238,15 @@ function updateFx(dt) {
     s.life -= dt;
   }
   game.particles = game.particles.filter(s => s.life > 0);
+  // дым: поднимается, расплывается, тает
+  for (const s of game.puffs) {
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.vx *= 1 - dt * 2;
+    s.r += dt * 6;
+    s.life -= dt;
+  }
+  game.puffs = game.puffs.filter(s => s.life > 0);
 }
 
 function step(dt) {
@@ -2307,6 +2332,7 @@ function showLine() {
   ui.talkText.textContent = '';
   ui.talkChoices.innerHTML = '';
   ui.talkNext.hidden = !!line.choices;
+  ui.talkSkip.hidden = !!line.choices;
   if (line.choices) {
     line.choices.forEach((c, i) => {
       const b = document.createElement('button');
@@ -2352,6 +2378,17 @@ function chooseTalk(i) {
   game.talk.choose(i);
   showLine();
 }
+
+// пропустить разговор (кнопка ✕ или Esc): реплики проматываются до выбора или до конца — флаги реплик
+// ставятся как обычно, сюжет не ломается; на выборе — остановка (выбор за игроком)
+function skipTalk() {
+  if (!game.talk?.current) return;
+  let n = 0;
+  while (game.talk.current && !game.talk.current.choices && n++ < 500) game.talk.advance();
+  showLine();
+}
+ui.talkSkip.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); skipTalk(); });
+ui.shopClose.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (game.shop) closeShop(); });
 
 // ---------- лавка ----------
 // Как в Undertale: продавец, его реплика и меню «Купить / Поговорить / Уйти».
@@ -2455,7 +2492,7 @@ function shopOptions() {
   ];
   if (sh.view === 'talk') {
     // идёт разговор по теме — только «Дальше», пока не кончатся реплики
-    if (sh.queue?.length) return [{ label: 'Дальше ▸', go: nextShopLine }];
+    if (sh.queue?.length) return [{ label: 'Дальше ▸', go: nextShopLine }, { label: 'Хватит', go: () => shopView('talk') }];
     // need — тема появляется после события (флаг), например после боя с Илиа
     return [...d.talk.filter(t => !t.need || game.flags[t.need]).map(t => ({ label: t.topic, go: () => { sh.queue = t.lines.slice(); nextShopLine(); } })), back];
   }
@@ -2510,7 +2547,8 @@ function shopPress(code) {
     return;
   }
   if (code === 'Escape' || code === 'Backspace') {
-    if (game.shop.view === 'main') closeShop();
+    if (game.shop.queue?.length) shopView('talk');
+    else if (game.shop.view === 'main') closeShop();
     else shopView('main');
     return;
   }
@@ -2730,6 +2768,7 @@ function render() {
   for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck, a.bolt);
   for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
+  renderPuffs(cam);
   renderCoinFx(cam);
   if (light && !r.dark) renderDust(cam);
 
@@ -2978,6 +3017,20 @@ function renderChokeHold(cam) {
   g.restore();
 }
 
+// клубы тёмного дыма (рывок в тень): пиксельные круги, тёмно-лиловые, к концу жизни прозрачнее
+function renderPuffs(cam) {
+  for (const s of game.puffs) {
+    const a = Math.min(1, s.life / s.max * 1.6) * 0.55;
+    const r = Math.round(s.r), cx = Math.round(s.x - cam), cy = Math.round(s.y);
+    g.globalAlpha = a;
+    for (let dy = -r; dy <= r; dy++) {
+      const hw = Math.round(Math.sqrt(r * r - dy * dy));
+      rect(g, cx - hw, cy + dy, hw * 2 + 1, 1, dy < -r / 3 ? '#6a5f8a' : dy < r / 3 ? '#4a4068' : '#2e2744');
+    }
+  }
+  g.globalAlpha = 1;
+}
+
 function renderEnemy(e, cam) {
   if (e.state === 'gone') return;
   const ex = e.x - cam;
@@ -2989,6 +3042,12 @@ function renderEnemy(e, cam) {
   const riseK = riser && e.state === 'rise' ? Math.min(1, e.t / RISE_TIME) : 1;
   let alpha = e.kind === 'ghost' ? (0.55 + 0.15 * Math.sin(game.time * 5 + e.x)) * (e.ghost ?? 1) : 1;  // призрак полупрозрачный и мерцает
   if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
+  const vanishing = (e.state === 'leave' || e.state === 'flee') && e.vanishFx;
+  if (vanishing) {
+    // рывок в тень: шлейф полупрозрачных теней позади, сам тает; по пути — клочья дыма
+    alpha *= e.fade ?? 1;
+    if ((e.puffAt = (e.puffAt ?? 0) + 1) % 3 === 0) game.puffs.push({ x: e.x - e.facing * 6, y: groundY(e.z) - 6 - Math.random() * 26, r: 2 + Math.random() * 3, vx: -e.facing * 30, vy: -8, life: 0.5, max: 0.5 });
+  }
   if (alpha <= 0.02) return;
   g.globalAlpha = alpha;
   const GROUND = groundY(e.z);
@@ -3006,7 +3065,9 @@ function renderEnemy(e, cam) {
   } else {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
     const whirl = e.state === 'strike' && e.strike?.pose === 'whirl';
-    if (whirl) disc(ex, GROUND - 27 - e.airY, 20);
+    // вихрь врага — тот же шлейф, что у рыцаря: задняя половина за ним, передняя — поверх (после спрайта)
+    const whirlK = whirl ? Math.min(0.5, e.t / 0.36) : 0;   // один оборот за удар
+    if (whirl) spinTrail(ex, GROUND - 24 - e.airY, whirlK, e.facing, true);
     if (e.kind === 'ghost') g.globalCompositeOperation = 'lighter';  // призрак светится, а не темнеет
     if (riseK < 1 && !spriteReady(e.type)) {
       g.save();
@@ -3024,6 +3085,16 @@ function renderEnemy(e, cam) {
     if (e.drawFacing !== undefined && e.drawFacing !== e.facing && e.state !== 'windup' && e.state !== 'strike' && e.state !== 'reel') e.turnFx = { t: game.time, toLeft: e.facing < 0 };
     e.drawFacing = e.facing;
     const turn = e.turnFx && game.time - e.turnFx.t < 0.22 ? { k: (game.time - e.turnFx.t) / 0.22, toLeft: e.turnFx.toLeft } : null;
+    if (vanishing && sprite) {
+      // тени-отпечатки рывка: через одну, тающие
+      e.trail?.forEach((t, i) => {
+        if (i % 2 || Math.abs(t.x - e.x) < 6) return;
+        g.globalAlpha = t.a * 0.7;
+        drawSprite(e.type, g, { x: t.x - cam, ground: groundY(t.z), facing: e.facing, pose: e.pose, state: 'ready', walking: true, step: t.step / 6.3,
+          time: game.time, airY: 0, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bladeHidden: true, shade: i % 4 ? '#2a2140' : '#4a3d6e' });
+      });
+      g.globalAlpha = alpha;
+    }
     const tip = sprite ? drawSprite(e.type, g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: depth ? game.time * 1.5 : e.step / 6.3, turn, depth,
       time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
@@ -3039,6 +3110,7 @@ function renderEnemy(e, cam) {
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd,
     });
     if (riseK < 1 && !sprite) g.restore();
+    if (whirl) spinTrail(ex, GROUND - 24 - e.airY, whirlK, e.facing, false);
     if (e.kind === 'boss' && e.eyes > 0) {
       // глаза вспыхивают под маской
       const hy = GROUND - 31 - e.airY, hx = ex + e.facing * 2;
@@ -3061,7 +3133,7 @@ function renderEnemy(e, cam) {
       const late = e.t > e.windupTime - 0.3;
       if (!late || Math.floor(e.t * 20) % 2 === 0) {
         g.globalAlpha = late ? 0.8 : 0.45;
-        for (let x = ex + e.facing * 12; e.facing > 0 ? x < end : x > end; x += e.facing * 4) rect(g, x, y, 2, 1, '#e8454f');
+        for (let x = ex + e.facing * 12, n = 0; (e.facing > 0 ? x < end : x > end) && n < 200; x += (e.facing || 1) * 4, n++) rect(g, x, y, 2, 1, '#e8454f');
         g.globalAlpha = 1;
       }
     }
@@ -3580,18 +3652,41 @@ function frame(now) {
   requestAnimationFrame(frame);
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
+  // логика и рисование — порознь: ошибка в одном не замораживает другое (картинка идёт, Esc и меню работают)
   try {
     while (acc >= STEP) {
-      step(STEP);
       acc -= STEP;
+      step(STEP);
     }
-    light?.clearNormals();
-    render();
-    applyLight();
   } catch (err) {
     acc = 0;
-    if (now - lastErrAt > 1000) { lastErrAt = now; console.error(err); }
+    frameError(now, err);
   }
+  try {
+    light?.clearNormals();
+    render();
+  } catch (err) {
+    resetCtx(g);   // упавший посреди кадра рисунок не оставляет холст прозрачным, «светящимся» или сдвинутым
+    if (light) resetCtx(light.normalCtx);
+    frameError(now, err);
+  }
+  try {
+    applyLight();
+  } catch (err) {
+    light?.off();
+    frameError(now, err);
+  }
+}
+function resetCtx(c) {
+  for (let i = 0; i < 64; i++) c.restore();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalAlpha = 1;
+  c.globalCompositeOperation = 'source-over';
+  c.filter = 'none';
+  c.imageSmoothingEnabled = false;
+}
+function frameError(now, err) {
+  if (now - lastErrAt > 1000) { lastErrAt = now; console.error(err); }
 }
 
 // ЛКМ — удар, держать ПКМ — защита; на заставке клик запускает игру

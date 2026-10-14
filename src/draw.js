@@ -7,14 +7,21 @@ export function rect(g, x, y, w, h, color) {
 }
 
 // Линия кистью w×w пикселей (алгоритм Брезенхэма), без сглаживания.
+let badLineSaid = false;
 export function thick(g, x0, y0, x1, y1, w, color) {
+  // NaN или бесконечность в координатах — цикл ниже никогда бы не кончился и вешал вкладку намертво (v0.71):
+  // такую линию просто не рисуем
+  if (!Number.isFinite(x0 + y0 + x1 + y1 + w)) {
+    if (!badLineSaid) { badLineSaid = true; console.warn('thick: координаты не числа', x0, y0, x1, y1, w, new Error().stack); }
+    return;
+  }
   g.fillStyle = color;
   x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
   const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
   const o = Math.floor(w / 2);
   let err = dx + dy;
-  for (;;) {
+  for (let n = Math.min(4000, dx - dy + 1); n-- > 0;) {
     g.fillRect(x0 - o, y0 - o, w, w);
     if (x0 === x1 && y0 === y1) break;
     const e2 = 2 * err;
