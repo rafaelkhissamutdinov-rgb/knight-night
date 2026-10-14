@@ -390,6 +390,33 @@ const world = {
     sfx.stagger();
     callout('Враг открыт!', 'counter');
   },
+  // босс: удушение. Подсказка при начале, проверка в конце: кувырок, рывок назад или далеко — ушёл
+  chokeCue(e) {
+    callout('Кувырок или рывок назад!', 'counter');
+    if (CONFIG.audioCues) sfx.cue('high');
+  },
+  choke(e) {
+    const p = game.player;
+    if (p.defense().dodge || p.state === 'backdash' || p.state === 'roll' || Math.abs(p.x - e.x) > e.def.chokeRange + 20) {
+      callout('Ушёл!', 'perfect');
+      game.stats.dodged++;
+      return false;
+    }
+    p.hp = Math.max(0, p.hp - 1);   // магия — мимо брони
+    p.heldBy(e);
+    renderHearts();
+    shake(2);
+    flash('#b07cff', 0.3);
+    callout('Душит! −1', 'hit');
+    game.lastHitBy = e.def.name;
+    game.stats.hit++;
+    return true;
+  },
+  bossPhase() {
+    callout('Маска треснула!', 'counter');
+    shake(4);
+    flash('#cfe8ff', 0.4);
+  },
 };
 
 // Удар врага или стрела дошли до рыцаря.
@@ -571,6 +598,14 @@ function handlePlayerEvents() {
       callout(p.weapon === 'rapier' ? 'Восьмёрка не готова' : 'Вихрь не готов', 'muted');
     } else if (ev.type === 'feint') {
       callout('Отмена', 'muted');
+    } else if (ev.type === 'slam') {
+      // босс швырнул об землю
+      p.hp = Math.max(0, p.hp - 2);
+      renderHearts();
+      sfx.heavy();
+      shake(5);
+      dust(p.x, groundY(p.z), p.facing);
+      callout('Об землю! −2', 'hit');
     } else if (ev.type === 'spit') {
       ev.slime.release();
       sfx.spit();
@@ -1042,7 +1077,9 @@ function updateArena() {
         callout('Лестница на второй этаж — в Столовой', 'perfect');
         save();
       }
-    }), 900);
+      if (enc.finish) finish(enc.finish);   // босс главы побеждён — конец главы
+    }), enc.finish ? 2200 : 900);
+    else if (enc.finish) setTimeout(() => finish(enc.finish), 2200);
     // отдых после победы над группой
     const healed = Math.min(CONFIG.restHeal, CONFIG.playerHp - p.hp);
     if (healed > 0) {
@@ -2118,6 +2155,7 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 const FACES = {
   knight: { default: 'assets/portraits/knight.png', tired: 'assets/portraits/knight-tired.png', nohelm: 'assets/portraits/knight-nohelm.png' },
   ilia: { default: 'assets/portraits/ilia.png' },
+  boss: { default: 'assets/portraits/boss.png' },
   trainer: { default: 'assets/portraits/alkima.png' },
   lika: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry']
     .map(m => [m, m === 'default' ? 'assets/portraits/lika.png' : `assets/portraits/lika-${m}.png`])),
@@ -2129,6 +2167,7 @@ const PORTRAITS = {
   ilia: { colors: ENEMY_TYPES.duelist.colors, face: true, rapier: true, robe: true },
   trainer: { colors: ENEMY_TYPES.trainer.colors, bun: true, ornate: true, robe: true, slim: true },
   lika: { ...NPC_TYPES.lika },
+  boss: { colors: ENEMY_TYPES.boss.colors },
 };
 
 // after — что сделать, когда разговор закончится (или сразу, если диалоги выключены)
@@ -2546,6 +2585,7 @@ function render() {
     g.globalAlpha = 1;
   }
   for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) drawPickup(g, it.x - cam, groundY(it.z), it.t);
+  renderChokeAura(cam);
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => a.z - b.z);
   for (const a of things) {
@@ -2647,6 +2687,23 @@ function render() {
   }
 }
 
+// удушение: под рыцарем лиловый круг, сжимается к концу заклинания
+function renderChokeAura(cam) {
+  const b = game.enemies.find(e => e.kind === 'boss' && (e.state === 'cast' || e.state === 'choking'));
+  if (!b) return;
+  const p = game.player, x = p.x - cam, y = groundY(p.z);
+  const k = b.state === 'cast' ? Math.min(1, b.t / (b.def.chokeCast * (b.phase === 2 ? b.def.phase2Speed : 1))) : 1;
+  const r = Math.round(18 - 8 * k);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  g.globalAlpha = 0.35 + 0.3 * k + 0.15 * Math.sin(game.time * 20);
+  for (let a = 0; a < 40; a++) {
+    const t = a / 40 * Math.PI * 2 + game.time * 2;
+    rect(g, Math.round(x + Math.cos(t) * r), Math.round(y + Math.sin(t) * r * 0.3), 1, 1, a % 4 ? '#b07cff' : '#e6d4ff');
+  }
+  g.restore();
+}
+
 function renderEnemy(e, cam) {
   if (e.state === 'gone') return;
   const ex = e.x - cam;
@@ -2699,6 +2756,20 @@ function renderEnemy(e, cam) {
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd,
     });
     if (riseK < 1 && !sprite) g.restore();
+    if (e.kind === 'boss' && e.eyes > 0) {
+      // глаза вспыхивают под маской
+      const hy = GROUND - 31 - e.airY, hx = ex + e.facing * 2;
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      const gr = g.createRadialGradient(hx, hy, 0, hx, hy, 9);
+      gr.addColorStop(0, `rgba(180,240,255,${0.6 * e.eyes})`);
+      gr.addColorStop(1, 'rgba(180,240,255,0)');
+      g.fillStyle = gr;
+      g.fillRect(hx - 9, hy - 9, 18, 18);
+      g.restore();
+      rect(g, hx - 1, hy, 1, 1, '#e8fbff');
+      rect(g, hx + 1, hy, 1, 1, '#e8fbff');
+    }
     g.globalCompositeOperation = 'source-over';
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (e.def.crossbow && e.state === 'windup' && e.alive && e.t > e.windupTime * 0.35) {
@@ -2791,8 +2862,8 @@ function renderDeath(e, ex) {
 // то же для врага в пиксель-арте: скелет оседает и рассыпается, призрак тает вверх, живой падает навзничь
 function renderSpriteDeath(e, ex, GROUND, t, f) {
   const o = { x: ex, ground: GROUND, facing: f, pose: e.pose, bladeHidden: true };
-  if (e.kind === 'ghost') {
-    const a = Math.max(0, 0.6 * (1 - t / 0.7));
+  if (e.kind === 'ghost' || e.kind === 'boss') {
+    const a = Math.max(0, (e.kind === 'boss' ? 0.9 : 0.6) * (1 - t / (e.kind === 'boss' ? 2 : 0.7)));
     if (a <= 0) return;
     g.save();
     g.globalCompositeOperation = 'lighter';

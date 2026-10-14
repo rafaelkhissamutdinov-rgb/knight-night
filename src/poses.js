@@ -74,6 +74,10 @@ export const POSES = {
   kneel:       { hx: 5,  hy: 10,  angle: 90,   lean: 1,  crouch: 9 },  // на одном колене, меч упёрт в пол
 
   hurt:        { hx: 4,  hy: 8,   angle: 50,   lean: -3, crouch: 0 },
+  // босс: стойка «Оби-Ван» — меч высоко над головой, вторая рука тянется к рыцарю (сигнал мощного удара)
+  obiwan:      { hx: -5, hy: -13, angle: -100, lean: -3, crouch: 1 },
+  // босс колдует удушение: рука вперёд, клинок опущен
+  cast:        { hx: 12, hy: -4,  angle: 70,   lean: 3,  crouch: 0 },
   stagger:     { hx: 1,  hy: -3,  angle: -115, lean: -4, crouch: 0 },
   dead:        { hx: 6,  hy: 10,  angle: 80,   lean: -6, crouch: 9 },
 };

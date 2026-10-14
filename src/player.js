@@ -83,7 +83,7 @@ export class Player {
     return {
       guard: this.state === 'ready' ? this.guard : null,
       broken: this.broken,
-      dodge: (this.state === 'roll' && this.t >= r[0] && this.t <= r[1]) || this.state === 'swallowed',
+      dodge: (this.state === 'roll' && this.t >= r[0] && this.t <= r[1]) || this.state === 'swallowed' || this.state === 'held',
       ward: this.state === 'backdash' && this.wardActive,
       attacking: this.state === 'attack',
       // «восьмёрка» рапирой: клинок сам закрывает от лёгких ударов
@@ -97,7 +97,7 @@ export class Player {
   get spinCharge() { return Math.min(1, 1 - (this.spinReadyAt - this.clock) / CONFIG.spinCooldown); }
 
   requestAttack(vert, spin) {
-    if (this.state === 'swallowed' || this.state === 'hurt') return;
+    if (this.state === 'swallowed' || this.state === 'held' || this.state === 'hurt') return;
     if (spin && this.clock < this.spinReadyAt) {
       // вихрь ещё перезаряжается — выйдет обычный удар
       spin = false;
@@ -201,6 +201,13 @@ export class Player {
     this.atk = null;
     this.swallower = slime;
     this.enter('swallowed');
+  }
+
+  // босс душит: поднимает в воздух, потом швыряет об землю (событие slam)
+  heldBy(e) {
+    this.atk = null;
+    this.holder = e;
+    this.enter('held');
   }
 
   // враг закрылся от удара: рыцаря немного отбрасывает, восстановление дольше
@@ -326,6 +333,18 @@ export class Player {
         this.x += this.knock * 20 * dt;
         target = POSES.hurt;
         if (this.t >= 0.3) this.enter('ready');
+        break;
+
+      case 'held':
+        target = POSES.hurt;
+        this.airY = Math.min(18, this.t * 45) + (this.t > 0.4 ? Math.sin(this.t * 40) : 0);  // висит и дёргается
+        if (this.t >= 1.0) {
+          this.events.push({ type: 'slam', by: this.holder });
+          this.holder = null;
+          this.airY = 0;
+          this.knock = Math.sign(this.x - (this.events.at(-1).by?.x ?? this.x)) || -this.facing;
+          this.enter('hurt');
+        }
         break;
 
       case 'swallowed':

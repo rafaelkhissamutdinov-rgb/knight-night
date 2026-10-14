@@ -9,7 +9,7 @@ import { thick } from './draw.js';
 
 const ROOT = 'assets/sprites/';
 // враги, у которых уже есть набор кадров (имя набора = тип врага в ENEMY_TYPES); остальные — старые фигурки
-export const ENEMY_SPRITES = ['skelShort', 'merc', 'skelShield', 'skelArcher', 'skelLong', 'duelist', 'axe'];
+export const ENEMY_SPRITES = ['skelShort', 'merc', 'skelShield', 'skelArcher', 'skelLong', 'duelist', 'axe', 'spear', 'crossbow', 'captain', 'halberd', 'commander', 'boss'];
 const sets = {};
 let normalCtx = null;  // куда рисовать нормали (холст живого света); null — не рисовать
 export const setNormalTarget = ctx => { normalCtx = ctx; };
@@ -146,8 +146,16 @@ function drawWeapon(g, kind, wx, wy, angleDeg, facing, len, draw = 0) {
   if (kind === 'axe') {
     const tx = wx + dx * len, ty = wy + dy * len;
     line(wx, wy, tx, ty, 2, '#5c3a22');
-    for (let i = 0; i < 8; i++) line(tx - dx * i, ty - dy * i, tx - dx * i + px * (9 - i * 0.6), ty - dy * i + py * (9 - i * 0.6), 1, i < 1 ? '#22202c' : '#9aa3b0');
-    return { tipX: tx + px * 9, tipY: ty + py * 9 };
+    // лезвие — сплошное: полуокружность от древка, кромка светлее
+    for (let i = -6; i <= 6; i += 0.5) {
+      const r = 11 - Math.abs(i) * 0.5;
+      line(tx + dx * i, ty + dy * i, tx + dx * i * 1.2 + px * r, ty + dy * i * 1.2 + py * r, 2, Math.abs(i) > 5.5 ? '#22202c' : '#7a8290');
+    }
+    for (let i = -6; i <= 6; i += 0.5) {
+      const r = 11 - Math.abs(i) * 0.5;
+      line(tx + dx * i * 1.2 + px * (r - 2), ty + dy * i * 1.2 + py * (r - 2), tx + dx * i * 1.2 + px * r, ty + dy * i * 1.2 + py * r, 1, '#c9d2de');
+    }
+    return { tipX: tx + px * 11, tipY: ty + py * 11 };
   }
   const rapier = kind === 'rapier';
   const gw = rapier ? 3 : 5;

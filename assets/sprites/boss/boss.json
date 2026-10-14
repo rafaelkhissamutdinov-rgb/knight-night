@@ -1,0 +1,318 @@
+{
+"size": 80,
+"foot": 68,
+"center": 38,
+"anims": {
+"walk": 4
+},
+"frames": {
+"pose_backdash": {
+"wrist": [
+53.7,
+41.8
+]
+},
+"pose_broken": {
+"wrist": [
+33.9,
+34.9
+]
+},
+"pose_cast": {
+"wrist": [
+64.6,
+28.0
+]
+},
+"pose_dash": {
+"wrist": [
+62.8,
+47.4
+]
+},
+"pose_dead": {
+"wrist": [
+39.6,
+71.7
+]
+},
+"pose_draw": {
+"wrist": [
+45.6,
+55.4
+]
+},
+"pose_fence": {
+"wrist": [
+60.6,
+44.6
+]
+},
+"pose_guard_high": {
+"wrist": [
+50.1,
+22.1
+]
+},
+"pose_guard_low": {
+"wrist": [
+57.2,
+52.5
+]
+},
+"pose_guard_mid": {
+"wrist": [
+58.9,
+42.7
+]
+},
+"pose_hurt": {
+"wrist": [
+43.3,
+51.6
+]
+},
+"pose_idle": {
+"wrist": [
+53.0,
+47.4
+]
+},
+"pose_kneel": {
+"wrist": [
+50.8,
+72.0
+]
+},
+"pose_lean_sword": {
+"wrist": [
+55.7,
+57.9
+]
+},
+"pose_obiwan": {
+"wrist": [
+27.1,
+17.0
+]
+},
+"pose_run_rapier": {
+"wrist": [
+44.3,
+54.0
+]
+},
+"pose_sheathed": {
+"wrist": [
+44.5,
+52.5
+]
+},
+"pose_stagger": {
+"wrist": [
+34.9,
+34.8
+]
+},
+"pose_strike_diagDown": {
+"wrist": [
+64.4,
+48.7
+]
+},
+"pose_strike_diagUp": {
+"wrist": [
+66.8,
+27.0
+]
+},
+"pose_strike_draw": {
+"wrist": [
+68.6,
+45.1
+]
+},
+"pose_strike_flick": {
+"wrist": [
+66.7,
+24.3
+]
+},
+"pose_strike_high": {
+"wrist": [
+66.9,
+34.6
+]
+},
+"pose_strike_low": {
+"wrist": [
+59.6,
+60.4
+]
+},
+"pose_strike_mid": {
+"wrist": [
+66.1,
+43.3
+]
+},
+"pose_strike_sweep": {
+"wrist": [
+62.2,
+66.3
+]
+},
+"pose_strike_thrust": {
+"wrist": [
+67.5,
+45.9
+]
+},
+"pose_strike_whirl": {
+"wrist": [
+60.9,
+45.2
+]
+},
+"pose_tuck": {
+"wrist": [
+56.3,
+61.0
+]
+},
+"pose_vault": {
+"wrist": [
+54.9,
+27.3
+]
+},
+"pose_windup_diagDown": {
+"wrist": [
+44.1,
+37.1
+]
+},
+"pose_windup_diagUp": {
+"wrist": [
+46.5,
+57.8
+]
+},
+"pose_windup_flick": {
+"wrist": [
+31.5,
+17.1
+]
+},
+"pose_windup_high": {
+"wrist": [
+31.0,
+15.4
+]
+},
+"pose_windup_low": {
+"wrist": [
+36.2,
+60.5
+]
+},
+"pose_windup_mid": {
+"wrist": [
+30.2,
+48.2
+]
+},
+"pose_windup_sweep": {
+"wrist": [
+38.1,
+59.3
+]
+},
+"pose_windup_thrust": {
+"wrist": [
+43.2,
+45.4
+]
+},
+"pose_windup_whirl": {
+"wrist": [
+37.4,
+55.3
+]
+},
+"walk_0": {
+"wrist": [
+44.8,
+52.9
+]
+},
+"walk_1": {
+"wrist": [
+44.6,
+51.5
+]
+},
+"walk_2": {
+"wrist": [
+43.8,
+52.1
+]
+},
+"walk_3": {
+"wrist": [
+44.8,
+52.5
+]
+}
+},
+"sheet": {
+"cols": 16,
+"order": [
+"pose_backdash",
+"pose_broken",
+"pose_cast",
+"pose_dash",
+"pose_dead",
+"pose_draw",
+"pose_fence",
+"pose_guard_high",
+"pose_guard_low",
+"pose_guard_mid",
+"pose_hurt",
+"pose_idle",
+"pose_kneel",
+"pose_lean_sword",
+"pose_obiwan",
+"pose_run_rapier",
+"pose_sheathed",
+"pose_stagger",
+"pose_strike_diagDown",
+"pose_strike_diagUp",
+"pose_strike_draw",
+"pose_strike_flick",
+"pose_strike_high",
+"pose_strike_low",
+"pose_strike_mid",
+"pose_strike_sweep",
+"pose_strike_thrust",
+"pose_strike_whirl",
+"pose_tuck",
+"pose_vault",
+"pose_windup_diagDown",
+"pose_windup_diagUp",
+"pose_windup_flick",
+"pose_windup_high",
+"pose_windup_low",
+"pose_windup_mid",
+"pose_windup_sweep",
+"pose_windup_thrust",
+"pose_windup_whirl",
+"walk_0",
+"walk_1",
+"walk_2",
+"walk_3",
+"front",
+"back"
+]
+}
+}

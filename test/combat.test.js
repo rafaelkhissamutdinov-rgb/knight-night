@@ -631,10 +631,10 @@ test('тройной выпад: три укола за один приём', ()
 test('сюжетные бои помечены story и не повторяются по имени', () => {
   const story = [];
   for (const r of Object.values(ROOMS)) for (const enc of r.encounters ?? []) {
-    if (enc.enemies.some(e => ['duelist', 'captain', 'commander'].includes(e.type))) assert.ok(enc.story, `нет story у встречи с ${enc.enemies.map(e => e.type)}`);
+    if (enc.enemies.some(e => ['duelist', 'captain', 'commander', 'boss'].includes(e.type))) assert.ok(enc.story, `нет story у встречи с ${enc.enemies.map(e => e.type)}`);
     if (enc.story) story.push(enc.story);
   }
-  assert.deepEqual(story.sort(), ['ataman', 'commander', 'ilia', 'keyguard']);
+  assert.deepEqual(story.sort(), ['ataman', 'boss', 'commander', 'ilia', 'keyguard']);
 });
 
 test('предметы: свитки учат навыки, у навыков есть удар нужного оружия, у всех вещей есть описание', async () => {
@@ -682,4 +682,46 @@ test('сеты: части и награда есть в ITEMS, части ле�
     assert.ok(ITEMS[set.gives]?.slot, set.gives);
     for (const id of set.pieces) { assert.ok(ITEMS[id], id); assert.ok(picks.includes(id), 'часть лежит в комнате: ' + id); }
   }
+});
+
+test('босс: двойка с разных сторон — после бокового перелетает за спину рыцаря и бьёт снова', () => {
+  const e = createEnemy('boss', 140, () => 0.2);   // 0.2 — без удушения, приём «двойка с разных сторон»
+  const w = world(100);
+  w.answer = () => 'block';
+  e.awake = true;
+  run(e, w, en => en.state === 'swapOut');
+  assert.deepEqual(w.impacts, ['mid']);
+  assert.equal(e.receiveAttack({ height: 'mid', damage: 1 }).out, 'miss', 'в перелёте удар проходит сквозь');
+  run(e, w, () => w.impacts.length === 2);
+  assert.deepEqual(w.impacts, ['mid', 'mid']);
+  assert.ok(e.x < w.player.x, `не перелетел на другую сторону: ${e.x}`);
+});
+
+test('босс: удушение — круг под рыцарем, не ушёл — душит; ушёл — передышка', () => {
+  for (const got of [true, false]) {
+    const e = createEnemy('boss', 120, () => 0.1);  // 0.1 < chokeChance — колдует
+    const w = world(100);
+    w.choke = () => { w.choked = true; return got; };
+    e.awake = true;
+    run(e, w, en => en.state === 'cast');
+    run(e, w, en => en.state === (got ? 'choking' : 'idle'));
+    assert.ok(w.choked);
+  }
+});
+
+test('босс: стойка «Оби-Ван» — затем мощный сверху и сбивающий боковой; с половины жизни — вторая фаза', () => {
+  const e = createEnemy('boss', 130, () => 0.85);
+  const w = world(100);
+  w.answer = () => 'block';
+  w.heavySwing = () => {};
+  e.awake = true;
+  run(e, w, en => en.state === 'stance');
+  run(e, w, () => w.impacts.length === 2);
+  assert.deepEqual(w.impacts, ['heavyHigh', 'heavyMid']);
+  w.bossPhase = () => { w.phased = true; };
+  e.state = 'idle';
+  e.damage(ENEMY_TYPES.boss.hp / 2);
+  e.update(1 / 60, w);
+  assert.ok(w.phased);
+  assert.equal(e.phase, 2);
 });

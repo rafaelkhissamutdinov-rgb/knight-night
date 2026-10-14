@@ -11,6 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ap = argparse.ArgumentParser()
 ap.add_argument('set'); ap.add_argument('desc'); ap.add_argument('--size', type=int, default=64)
 ap.add_argument('--walk', default='walk')
+ap.add_argument('--ref', default=None)   # картинка-образец (вид спереди): персонаж по ней, а не только по описанию
 a = ap.parse_args()
 OUT = os.path.join(ROOT, 'assets', 'sprites', a.set); os.makedirs(OUT + '/n', exist_ok=True)
 WORK = os.path.join(ROOT, '.pixellab_work', a.set); os.makedirs(WORK, exist_ok=True)
@@ -26,8 +27,10 @@ def wait(job):
 # 1. персонаж (вид сбоку, 8 сторон), если ещё нет
 cj = os.path.join(WORK, 'character.json')
 if not os.path.exists(cj):
-    r = req('POST', '/create-character-v3', {'description': a.desc, 'image_size': {'width': a.size, 'height': a.size}, 'view': 'side',
-                                               'n_directions': 8, 'outline': 'single color black outline', 'detail': 'medium detail', 'no_background': True})
+    body = {'description': a.desc, 'image_size': {'width': a.size, 'height': a.size}, 'view': 'side',
+            'n_directions': 8, 'outline': 'single color black outline', 'detail': 'medium detail', 'no_background': True}
+    if a.ref: body['reference_image'] = b64img(a.ref)[0]
+    r = req('POST', '/create-character-v3', body)
     s = wait(r['background_job_id']); json.dump(s, open(cj, 'w'))
 ch = json.load(open(cj))['last_response']
 cid = ch['character_id']
