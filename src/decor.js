@@ -488,7 +488,14 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
     rect(g, sx - 10, floorTop - 1, 20, 1, pulse > 0.5 ? '#d9b8ff' : '#a46be0');  // щель под дверью
   } else if (d.type === 'chandelier') {
     const y = d.y ?? 30;
-    for (const dx of CANDLES) {
+    const im = decorImages.chandelier;   // люстра картинкой — пламя на её фитилях
+    if (im) for (const dx of im.wicks) {
+      const flick = Math.floor(time * 9 + dx) % 2;
+      const fx = Math.round((sx + dx) * 2) / 2;   // пиксели экрана (полпикселя мира)
+      g.fillStyle = PAL.flame1; g.fillRect(fx - 0.5, y - 9 - flick * 0.5, 1.5, 2);
+      g.fillStyle = PAL.flame0; g.fillRect(fx - 0.5, y - 8, 1, 1);
+    }
+    else for (const dx of CANDLES) {
       const flick = Math.floor(time * 9 + dx) % 2;
       rect(g, sx + dx, y - 7 - flick, 2, 2, PAL.flame1);
       rect(g, sx + dx, y - 7, 1, 1, PAL.flame0);

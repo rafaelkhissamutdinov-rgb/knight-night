@@ -98,9 +98,101 @@ function nearestPose(s, p) {
   return best;
 }
 
-// Оружие кодом (в пикселях экрана): kind — sword | rapier | axe | spear | halberd | bow | crossbow.
-// Возвращает кончик (для шлейфа удара).
+// Оружие картинкой (v0.68): assets/objects/wpn_<имя>.png лежит горизонтально, рукоять слева, острие справа.
+// Хват ищется по картинке: у клинков — чуть позади гарды (самый высокий столбец в левой части), у древкового — доля длины.
+// reach — во сколько раз вынос от кисти больше длины weaponLen (у копья наконечник дальше); flipY — лезвие вниз.
+// Короткий клинок и двуручник — свои картинки (масштаб пиксель-арта сильно не меняем).
+const WEAPON_IMG = {
+  sword: { file: 'wpn_sword' },
+  short: { file: 'wpn_short' },
+  great: { file: 'wpn_great' },
+  rapier: { file: 'wpn_rapier' },
+  ghostsword: { file: 'wpn_ghostsword' },
+  axe: { file: 'wpn_axe', grip: 0.16 },
+  spear: { file: 'wpn_spear', grip: 0.26, reach: 1.2 },
+  halberd: { file: 'wpn_halberd', grip: 0.26, reach: 1.15 },
+  crossbow: { file: 'wpn_crossbow', grip: 0.3, reach: 1.0, fixed: true },
+};
+const wpn = {};
+export function loadWeapons() {
+  for (const [kind, d] of Object.entries(WEAPON_IMG)) {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width, h = img.height;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const x = c.getContext('2d');
+      if (d.flipY) { x.translate(0, h); x.scale(1, -1); }
+      x.drawImage(img, 0, 0);
+      const a = x.getImageData(0, 0, w, h).data;
+      const col = i => { let n = 0, lo = h, hi = -1; for (let y = 0; y < h; y++) if (a[(y * w + i) * 4 + 3] > 40) { n++; lo = Math.min(lo, y); hi = y; } return { n, lo, hi }; };
+      let gx;
+      if (d.grip != null) gx = Math.round(w * d.grip);
+      else {
+        let best = 0, bn = -1;   // гарда — самый высокий столбец в левых 45 %
+        for (let i = 0; i < w * 0.45; i++) { const n = col(i).n; if (n > bn) { bn = n; best = i; } }
+        gx = Math.max(1, best - 3);
+      }
+      const cg = col(gx), cb = col(Math.round(w * 0.75));
+      const gy = cg.n ? (cg.lo + cg.hi) / 2 : cb.n ? (cb.lo + cb.hi) / 2 : h / 2;
+      wpn[kind] = { c, gx, gy, front: w - gx, reach: d.reach ?? 1, fixed: d.fixed };
+    };
+    img.src = 'assets/objects/' + d.file + '.png';
+  }
+}
+
+// подбор картинки по виду и длине: короткий меч и двуручник — свои
+function weaponImage(kind, len) {
+  if (kind === 'sword') {
+    if (len < 28 && wpn.short) return wpn.short;
+    if (len > 50 && wpn.great) return wpn.great;
+  }
+  return wpn[kind];
+}
+
+function drawWeaponImage(g, im, wx, wy, angleDeg, facing, len) {
+  const a = angleDeg * Math.PI / 180;
+  // длина подгоняется под weaponLen, но близкие масштабы не трогаем — пиксели остаются целыми
+  let k = im.fixed ? 1 : (len * im.reach) / im.front;
+  if (Math.abs(k - 1) < 0.3) k = 1;
+  g.save();
+  g.translate(Math.round(wx), Math.round(wy));
+  g.scale(facing, 1);
+  g.rotate(a);
+  g.scale(k, k);
+  g.drawImage(im.c, -im.gx, -Math.round(im.gy));
+  g.restore();
+  const f = im.front * k;
+  return { tipX: wx + Math.cos(a) * facing * f, tipY: wy + Math.sin(a) * f };
+}
+
+// Оружие на полу (подобрать): картинка лежит, по клинку пробегает блик. false — картинки нет, рисовать кодом.
+export function drawLyingWeapon(g, kind, x, ground, t) {
+  const im = wpn[kind];
+  if (!im) return false;
+  const tr = g.getTransform(), S = tr.a;
+  g.save();
+  g.setTransform(1, 0, 0, 1, tr.e, tr.f);
+  g.imageSmoothingEnabled = false;
+  const w = im.c.width, h = im.c.height;
+  const X = Math.round(x * S - w / 2), Y = Math.round((ground - Math.max(0, Math.sin(t * 3))) * S - h / 2 - 2);
+  g.drawImage(im.c, X, Y);
+  const k = (t * 0.8) % 1;
+  if (k < 0.5) {
+    g.globalCompositeOperation = 'lighter';
+    g.fillStyle = 'rgba(255,255,255,0.7)';
+    g.fillRect(X + im.gx + Math.round(k * 2 * im.front), Y + Math.round(im.gy) - 1, 2, 2);
+  }
+  g.restore();
+  return true;
+}
+
+// Оружие (в пикселях экрана): kind — sword | rapier | ghostsword | axe | spear | halberd | bow | crossbow.
+// Есть картинка — рисуется она; нет (не загрузилась) и у лука (тетива тянется) — кодом. Возвращает кончик (для шлейфа удара).
 function drawWeapon(g, kind, wx, wy, angleDeg, facing, len, draw = 0) {
+  const im = kind !== 'bow' && weaponImage(kind, len);
+  if (im) return drawWeaponImage(g, im, wx, wy, angleDeg, facing, len);
+  if (kind === 'ghostsword') kind = 'sword';
   const a = angleDeg * Math.PI / 180;
   const dx = Math.cos(a) * facing, dy = Math.sin(a);
   const px = -dy, py = dx;
