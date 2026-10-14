@@ -120,3 +120,6 @@ def nm(g):
     for i, n in enumerate(g): o.crop((a.size * i, 0, a.size * i + a.size, a.size)).save(os.path.join(OUT, 'n', n + '.png'))
 with ThreadPoolExecutor(2) as ex: list(ex.map(nm, [alln[i:i + 32] for i in range(0, len(alln), 32)]))
 print(a.set, 'frames', len(frames), 'walk', walkN, 'balance', req('GET', '/balance')['subscription']['generations'])
+
+# 6. кадры → лист спрайтов (assets/sprites/<set>/<set>.png + _n.png)
+subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'pack_sprites.py'), a.set], check=True)

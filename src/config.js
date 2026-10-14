@@ -449,7 +449,7 @@ export const ROOMS = {
     ],
   },
   shop: {
-    name: 'Лавка Лики', length: 320, columns: false, torches: [110, 306],
+    name: 'Лавка Лики', tiles: 'shop', length: 320, columns: false, torches: [110, 306],
     doors: [{ id: 'out', x: 64, kind: 'wood', to: 'gallery', toDoor: 'shop', name: 'Галерея' }],
     npcs: [{ type: 'lika', x: 214, z: 12 }],
     // место отдыха: сесть (E) — лечение и сохранение; «продолжить» начнётся отсюда

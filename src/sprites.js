@@ -35,6 +35,7 @@ export function loadSpriteSet(name) {
   const s = sets[name] = { meta: null, imgs: {}, flipped: {}, nimgs: {}, nflipped: {}, pending: 1, poseList: null };
   const base = ROOT + name + '/';
   fetch(base + name + '.json').then(r => (r.ok ? r.json() : Promise.reject())).then(m => {
+    if (m.sheet) { loadSheet(s, m, base + name); return; }
     const names = [...Object.keys(m.frames), 'front', 'back'];
     s.pending = names.length;
     for (const n of names) {
@@ -48,6 +49,27 @@ export function loadSpriteSet(name) {
     }
     s.meta = m;
   }).catch(() => { s.pending = -1; });  // набора нет — рисуется старая фигурка
+}
+
+// лист спрайтов (v0.64): кадры сеткой по sheet.cols, порядок — sheet.order; нормали — <набор>_n.png
+function loadSheet(s, m, path) {
+  const { cols, order } = m.sheet, size = m.size;
+  const cut = (img, i) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    c.getContext('2d').drawImage(img, (i % cols) * size, Math.floor(i / cols) * size, size, size, 0, 0, size, size);
+    return c;
+  };
+  const img = new Image();
+  img.onload = () => {
+    order.forEach((n, i) => { const c = cut(img, i); s.imgs[n] = c; s.flipped[n] = flip(c); });
+    s.meta = m; s.pending = 0;
+  };
+  img.onerror = () => { s.pending = -1; };
+  img.src = path + '.png';
+  const nm = new Image();
+  nm.onload = () => order.forEach((n, i) => { const c = cut(nm, i); s.nimgs[n] = c; s.nflipped[n] = flipNormal(c); });
+  nm.src = path + '_n.png';
 }
 
 export const spriteReady = name => { const s = sets[name]; return !!s?.meta && s.pending === 0 && !!s.imgs.pose_idle; };
