@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -105,8 +105,10 @@ const tileSets = {};
 const farImgs = {};
 for (const r of Object.values(ROOMS)) if (r.tiles && !tileSets[r.tiles]) {
   tileSets[r.tiles] = Array.from({ length: r.tileCount ?? TILE_COUNT[r.tiles] ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
+  // нормали кусков (tools/wall_normals.py): рельеф кладки под живым светом
+  tileSets[r.tiles].normals = tileSets[r.tiles].map((_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/n/${r.tiles}_${n}.png`; return im; });
 }
-const tilesReady = r => r.tiles && objectsReady() && tileSets[r.tiles].every(im => im.complete && im.naturalWidth);
+const tilesReady = r => r.tiles && objectsReady() && tileSets[r.tiles].every(im => im.complete && im.naturalWidth) && tileSets[r.tiles].normals.every(im => im.complete);
 function bgFor(id) {
   const img = bgImages[id];
   if (img?.complete && img.naturalWidth) return (imageRooms[id] ??= buildImageRoom(ROOMS[id], img, H, CONFIG.floorTop));
@@ -2603,6 +2605,9 @@ function render() {
   if (farImg?.complete && farImg.naturalWidth && (bgFor(game.room).k ?? 1) === 2) g.drawImage(farImg, 0, 0, farImg.width / 2, farImg.height / 2);
   const bg = bgFor(game.room), bk = bg.k ?? 1;
   g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
+  // карта объёма фона (рельеф стен, нормали предметов) — под живой свет; предметы на полу допишут свои по ходу кадра
+  if (light && bg.normal) light.normalCtx.drawImage(bg.normal, cam * bk, 0, W * bk, H * bk, 0, 0, W * S, H * S);
+  if (light) pairNormals(g, light.normalCtx);
   drawTorches(g, cam, r.torches ?? [], game.time);
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   for (const d of r.decor ?? []) {
@@ -2656,6 +2661,7 @@ function render() {
     const c = game.current;
     rect(g, c.x - cam - 1, groundY(c.z) + 2, 3, 1, PAL.gold);
   }
+  if (light) pairNormals(g, null);
   renderChokeHold(cam);
   for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck, a.bolt);
   for (const w of game.waves) renderWave(w, cam);
@@ -3136,7 +3142,7 @@ function renderPlayer(cam) {
     sheath: sk != null ? { kind: sheathKind, len: sheathLen, k: sk } : null,
     anim: sheathing ? { key: 'sheathe', k: sk } : spinFrames ? { key: 'spin', k: (spinK * 2) % 1 }   // два оборота
       : p.state === 'held' && spriteAnim('knight', 'held') ? { key: 'held', k: (p.t * 0.9) % 1 } : null,   // висит, хватается за горло
-    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames,   // у кадров вихря свой меч с росчерком
+    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
     alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
   }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
