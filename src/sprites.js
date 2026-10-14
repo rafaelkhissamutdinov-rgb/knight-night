@@ -339,9 +339,12 @@ export function drawSprite(name, g, o) {
   let sheathFront = null;
   if (o.sheath && fr0?.back) {
     const by = top + fr0.back[1];
-    const BACK = 104;   // почти вдоль спины: клинок вниз и чуть назад, его закрывает корпус; рукоять — над плечом
+    // меч — за спиной: почти вдоль спины, рукоять над плечом. Рапира — на поясе (владелец): у бедра, эфес впереди,
+    // ножны назад и чуть вниз
+    const hip = o.sheath.kind === 'rapier';
+    const BACK = hip ? 140 : 104;
     const k = Math.max(0, Math.min(1, o.sheath.k ?? 1));
-    const sx = X - o.facing * 3, sy = by - 9;   // хват — у шеи, над плечом (X — середина корпуса)
+    const sx = hip ? X + o.facing * 4 : X - o.facing * 3, sy = hip ? G - 29 : by - 9;
     let wx = sx, wy = sy, ang = BACK;
     if (k < 1 && fr0.wrist) {
       const hx = left + (right ? fr0.wrist[0] : size - fr0.wrist[0]), hy = top + fr0.wrist[1];

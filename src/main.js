@@ -2775,6 +2775,96 @@ function renderChokeAura(cam) {
   g.restore();
 }
 
+// Бубновый туз (v0.70): щит-заклинание. Вспышка (звезда, лучи, кольцо) → ромб раскрывается, как переворачиваемая карта,
+// с отскоком → держится: алое тело, сияющая золотая кайма, бегущие руны, пульсирующая масть, искры вверх →
+// рассыпается осколками. a — сколько прошло (0…0,8 с). Свет на сцену — в sceneLights.
+function renderAceWard(cx, cy, a) {
+  const T = 0.8;
+  if (a < 0 || a > T) return;
+  const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+  const back = x => { x = Math.min(1, Math.max(0, x)); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+  const HW = 12, HH = 20;
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  // 1. вспышка: звезда, лучи, кольцо
+  if (a < 0.22) {
+    const f = a / 0.22;
+    g.globalAlpha = 1 - f;
+    const R = 6 + 30 * ease(f);
+    for (let i = 0; i < 12; i++) {
+      const an = i / 12 * Math.PI * 2 + 0.2, len = (i % 2 ? 0.55 : 1) * R;
+      for (let r = 2; r < len; r += 1.5) { g.fillStyle = r < len * 0.5 ? '#fff6e0' : '#ffb070'; g.fillRect(Math.round((cx + Math.cos(an) * r) * 2) / 2, Math.round((cy + Math.sin(an) * r * 0.9) * 2) / 2, 0.5, 0.5); }
+    }
+    for (let i = 0; i < 48; i++) {
+      const an = i / 48 * Math.PI * 2;
+      g.fillStyle = '#ff9aa6';
+      g.fillRect(Math.round((cx + Math.cos(an) * R * 0.8) * 2) / 2, Math.round((cy + Math.sin(an) * R * 0.5) * 2) / 2, 0.5, 0.5);
+    }
+    const gr = g.createRadialGradient(cx, cy, 0, cx, cy, 14);
+    gr.addColorStop(0, 'rgba(255,250,235,0.9)'); gr.addColorStop(1, 'rgba(255,120,120,0)');
+    g.fillStyle = gr; g.fillRect(cx - 14, cy - 14, 28, 28);
+  }
+  // 2–4. ромб: раскрытие, держится, рассыпается
+  const open = back((a - 0.04) / 0.2);                       // 0 → 1 с отскоком
+  const flip = Math.abs(Math.sin(Math.min(1, Math.max(0, (a - 0.04) / 0.2)) * Math.PI / 2));   // карта переворачивается
+  const fade = a > 0.62 ? 1 - (a - 0.62) / 0.18 : 1;
+  const hw = HW * open * flip, hh = HH * Math.min(1.15, 0.35 + 0.65 * open);
+  if (open > 0.02 && a < 0.62) {
+    // ореол
+    const gr = g.createRadialGradient(cx, cy, 2, cx, cy, HH * 1.4);
+    gr.addColorStop(0, `rgba(255,90,100,${0.32 * fade})`); gr.addColorStop(1, 'rgba(255,60,80,0)');
+    g.globalAlpha = 1; g.fillStyle = gr; g.fillRect(cx - HH * 1.4, cy - HH * 1.4, HH * 2.8, HH * 2.8);
+    g.globalCompositeOperation = 'source-over';
+    // тело ромба: построчно, от тёмно-алого по краю к яркому к середине
+    for (let y = -hh; y <= hh; y += 0.5) {
+      const w = hw * (1 - Math.abs(y) / hh);
+      if (w < 0.5) continue;
+      const d = Math.abs(y) / hh;
+      g.globalAlpha = 0.82 * fade;
+      g.fillStyle = d > 0.75 ? '#7a1426' : d > 0.45 ? '#a81d33' : '#c8303f';
+      g.fillRect(Math.round((cx - w) * 2) / 2, y + cy, Math.round(w * 4) / 2, 0.5);
+      // кайма — светлая, с бликом наверху слева
+      g.globalAlpha = fade;
+      g.fillStyle = y < 0 ? '#ffe6a8' : '#ffb3b8';
+      g.fillRect(Math.round((cx - w) * 2) / 2, y + cy, 0.5, 0.5);
+      g.fillRect(Math.round((cx + w) * 2) / 2 - 0.5, y + cy, 0.5, 0.5);
+    }
+    g.globalCompositeOperation = 'lighter';
+    // руны бегут по кромке внутри
+    for (let i = 0; i < 16; i++) {
+      const u = (i / 16 + a * 0.9) % 1, side = Math.floor(u * 4), f = (u * 4) % 1;
+      const P = [[0, -hh * 0.72], [hw * 0.72, 0], [0, hh * 0.72], [-hw * 0.72, 0]];
+      const [x0, y0] = P[side], [x1, y1] = P[(side + 1) % 4];
+      g.globalAlpha = (0.5 + 0.5 * Math.sin(a * 30 + i)) * fade;
+      g.fillStyle = i % 4 ? '#ffd27a' : '#ffffff';
+      g.fillRect(Math.round((cx + x0 + (x1 - x0) * f) * 2) / 2, Math.round((cy + y0 + (y1 - y0) * f) * 2) / 2, 0.5, 0.5);
+    }
+    // масть посередине — пульсирует
+    const pul = 0.75 + 0.25 * Math.sin(a * 22);
+    g.globalAlpha = fade * pul;
+    for (let y = -4.5; y <= 4.5; y += 0.5) { const w = 3 * (1 - Math.abs(y) / 4.5) * flip; if (w > 0.2) { g.fillStyle = Math.abs(y) < 1.5 ? '#ffffff' : '#ffe0e4'; g.fillRect(Math.round((cx - w) * 2) / 2, cy + y, Math.round(w * 4) / 2, 0.5); } }
+    // искры вверх
+    for (let i = 0; i < 6; i++) {
+      const u = (a * 2.2 + i * 0.17) % 1;
+      g.globalAlpha = (1 - u) * fade;
+      g.fillStyle = i % 2 ? '#ffd27a' : '#ff9aa6';
+      g.fillRect(Math.round((cx + Math.sin(i * 2.3 + a * 6) * hw * 0.9) * 2) / 2, Math.round((cy + hh * 0.4 - u * hh * 1.8) * 2) / 2, 0.5, 0.5);
+    }
+  }
+  // 4. осколки
+  if (a >= 0.6) {
+    const f = (a - 0.6) / 0.2;
+    for (let i = 0; i < 14; i++) {
+      const an = i / 14 * Math.PI * 2 + i, r = 4 + f * (18 + (i % 4) * 5);
+      const x = cx + Math.cos(an) * r * 0.8, y = cy + Math.sin(an) * r + f * f * 6;
+      g.globalAlpha = 1 - f;
+      g.fillStyle = i % 3 ? '#c8303f' : '#ffb3b8';
+      g.fillRect(Math.round(x * 2) / 2, Math.round(y * 2) / 2, 1, i % 2 ? 1 : 0.5);
+    }
+  }
+  g.restore();
+}
+
 // удушение (v0.69): на шее рыцаря — светящийся обод с рунами, от руки призрака к нему тянется дрожащая нить,
 // по ней бегут искры; рыцарь висит в воздухе и хватается за горло (кадры held). Рисуется поверх бойцов.
 function renderChokeHold(cam) {
@@ -3135,7 +3225,7 @@ function renderPlayer(cam) {
   const SHEATHE_T = 0.5;
   const sk = p.sheathed ? (p.sheatheAt != null ? Math.min(1, (p.clock - p.sheatheAt) / SHEATHE_T) : 1)
     : drawing ? Math.max(0, 1 - p.t / Math.max(0.05, p.atk.windup)) : null;
-  const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && spriteAnim('knight', 'sheathe');
+  const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && !rapier && spriteAnim('knight', 'sheathe');   // кадры «рука за спину» — только для меча
   const tip = sprite ? drawKnight(g, {
     x: px, ground: GROUND, facing, pose: p.pose, state: p.state, walking: p.walking, step: p.step, time: game.time, airY: p.airY,
     turn, run: (p.gaitRun ?? 0) > 0.5, depth,
@@ -3157,21 +3247,7 @@ function renderPlayer(cam) {
     if (p.trail.length > (spinning || weaving ? 6 : 3)) p.trail.shift();
   } else p.trail = [];
 
-  if (game.wardFlash > 0) {
-    // Бубновый туз: большой щит-карта встаёт перед рыцарем со стороны удара и гаснет
-    const k = game.wardFlash / 0.8, grow = Math.min(1, (1 - k) * 6);
-    const sx = Math.round(px + (game.wardSide ?? p.facing) * 13), sy = GROUND - 22;
-    const hh = Math.round(16 * grow), hw = Math.round(9 * grow);
-    g.globalAlpha = Math.min(1, k * 1.6) * 0.85;
-    for (let y = -hh; y <= hh; y++) {
-      const w = Math.round(hw * (1 - Math.abs(y) / (hh + 1)));
-      rect(g, sx - w, sy + y, w * 2 + 1, 1, Math.abs(y) > hh - 2 || w < 2 ? '#ffb3b8' : '#c8303f');
-      if (w >= 2) { rect(g, sx - w, sy + y, 1, 1, '#ffb3b8'); rect(g, sx + w, sy + y, 1, 1, '#ffb3b8'); }
-    }
-    // белый ромб — масть
-    for (let y = -4; y <= 4; y++) { const w = 3 - Math.abs(Math.round(y * 0.75)); if (w >= 0) rect(g, sx - w, sy + y, w * 2 + 1, 1, '#ffffff'); }
-    g.globalAlpha = 1;
-  }
+  if (game.wardFlash > 0) renderAceWard(px + (game.wardSide ?? p.facing) * 15, GROUND - 22, 0.8 - game.wardFlash);
   // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
   if (!game.cutscene && !tr) heightIcon(game.aim, px - p.facing * 13, GROUND - 26, held('guard') ? '#8fd3ff' : '#9f97b0');
   if (p.state === 'backdash' && p.wardActive) {
@@ -3329,6 +3405,12 @@ function sceneLights() {
   for (const e of game.enemies) if ((e.kind === 'ghost' || e.kind === 'boss') && e.alive && e.state !== 'dormant') {
     const k = (e.ghost ?? 1) * (e.kind === 'boss' ? 0.7 + 0.5 * e.eyes : 0.45);
     add(e.x, groundY(e.z) - 20 - e.airY, e.kind === 'boss' ? 90 : 60, [0.6, 0.85, 1], k * (0.9 + 0.1 * Math.sin(t * 5 + e.x)), 18);
+  }
+  // бубновый туз: вспышка и алое сияние щита
+  if (game.wardFlash > 0) {
+    const p = game.player, a = 0.8 - game.wardFlash;
+    const pw = a < 0.15 ? 2.4 * (1 - a / 0.15) + 1 : a < 0.6 ? 1 : Math.max(0, 1 - (a - 0.6) / 0.2);
+    add(p.x + (game.wardSide ?? p.facing) * 15, groundY(p.z) - 22, 90, [1, 0.42, 0.45], pw, 22);
   }
   // ближние к центру экрана — вперёд
   return L.sort((a, b) => Math.abs(a.x - W) - Math.abs(b.x - W));
