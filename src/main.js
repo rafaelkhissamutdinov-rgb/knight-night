@@ -100,6 +100,7 @@ for (const [id, r] of Object.entries(ROOMS)) if (r.image) (bgImages[id] = new Im
 // фон-картинка, если есть и загрузилась; иначе — нарисованный кодом
 // куски стены из PixelLab (v0.64): tiles: 'dungeon' у комнаты → assets/backgrounds/dungeon/dungeon_<n>.png
 const tileSets = {};
+const farImgs = {};
 for (const r of Object.values(ROOMS)) if (r.tiles && !tileSets[r.tiles]) {
   tileSets[r.tiles] = Array.from({ length: r.tileCount ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
 }
@@ -2544,6 +2545,9 @@ function render() {
   }
   const r = room();
   const cam = Math.round(game.camX);
+  // даль под открытым небом (балкон): неподвижный дальний план за полом и перилами
+  const farImg = r.far && (farImgs[r.far] ??= Object.assign(new Image(), { src: r.far }));
+  if (farImg?.complete && farImg.naturalWidth && (bgFor(game.room).k ?? 1) === 2) g.drawImage(farImg, 0, 0, farImg.width / 2, farImg.height / 2);
   const bg = bgFor(game.room), bk = bg.k ?? 1;
   g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
   drawTorches(g, cam, r.torches ?? [], game.time);

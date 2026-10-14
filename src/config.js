@@ -572,7 +572,7 @@ export const ROOMS = {
   },
   // тупик: обрыв и вид на долину, деревню, поля и леса — туда рыцарь пойдёт во второй локации
   balcony: {
-    name: 'Обрушенный балкон', length: 400, balcony: true, torches: [], limitRight: 348,  // дальше — обрыв
+    name: 'Обрушенный балкон', tiles: 'castle', far: 'assets/backgrounds/balcony/far.png', length: 400, balcony: true, torches: [], limitRight: 348,  // дальше — обрыв; far — даль за перилами (v0.67)
     edges: { left: { to: 'dining', x: 450, name: 'Столовая' } },
     encounters: [
       { x: 240, story: 'commander', before: 'commander_meet', after: 'balcony_after', enemies: [{ type: 'commander', dx: 40, z: 22 }] },

@@ -16,7 +16,7 @@ const DECOR_IMG = {
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -76,6 +76,7 @@ export function buildRoom(room, height, floorTop, tiles = null) {
       g.drawImage(t, x, dy);
       if (dy < 0) g.drawImage(t, 0, th + dy - 20, TILE_W, 20 - dy, x, height * 2 - 20 + dy, TILE_W, 20 - dy);
     }
+    if (room.far) g.clearRect(0, 0, length * 2, floorTop * 2);   // под открытым небом: стены нет, за полом — дальний план (рисуется отдельно)
     g.scale(2, 2);
     finishRoom(g, room, length, height, floorTop, rand, true);
     return c;
@@ -164,7 +165,7 @@ function finishRoom(g, room, length, height, floorTop, rand, tiled) {
   for (const d of doors) drawDoor(g, d, floorTop, tiled);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
   if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop, tiled);
-  if (room.balcony) drawBalcony(g, length, height, floorTop, rand);
+  if (room.balcony) (tiled && room.far ? drawBalconyTiled : drawBalcony)(g, length, height, floorTop, rand);
   for (const d of room.decor ?? []) if (!(tiled && decorImage(g, d, floorTop))) drawDecor(g, d, floorTop);  // поверх лестниц и дверей (завал на лестнице)
   if (room.magic) {
     // вершина башни: стены в лиловом отсвете, на стене знаки
@@ -258,6 +259,30 @@ function drawStairs(g, x0, floorTop, tiled = false) {
 // Обрушенный балкон: замок стоит высоко на горе — вдали хребты, а далеко внизу долина: река петляет,
 // леса пятнами, лоскуты полей и маленькая деревенька кольцом вокруг церкви, дым из труб.
 // Балюстрада с проломами, справа пол обрывается в пропасть.
+// балкон в разрешении экрана: каменные перила картинкой, с проломом; справа пол обрывается в пропасть
+function drawBalconyTiled(g, length, height, floorTop) {
+  const im = objImg('balustrade');
+  if (im) {
+    const w = im.width / 2;
+    for (let x = 0, i = 0; x < length - 50; x += w, i++) {
+      if (i % 4 === 2) continue;   // пролом
+      g.drawImage(im, x, floorTop - im.height / 2 + 2, w, im.height / 2);
+    }
+  }
+  const edge = length - 44;
+  const abyss = g.createLinearGradient(0, floorTop, 0, height);
+  abyss.addColorStop(0, '#8a8aa8');
+  abyss.addColorStop(0.4, '#3f5a50');
+  abyss.addColorStop(1, '#16201e');
+  g.clearRect(edge, floorTop, 44, height - floorTop);
+  for (let y = floorTop; y < height; y++) {
+    const w = 44 - Math.round(((y - floorTop) / (height - floorTop)) * 18 + Math.sin(y * 0.7) * 3);
+    g.fillStyle = abyss;
+    g.fillRect(edge + (44 - w), y, w, 1);
+    rect(g, edge + (44 - w) - 1, y, 2, 1, '#2a2538');
+  }
+}
+
 function drawBalcony(g, length, height, floorTop, rand) {
   const horizon = 34;  // смотрим сверху: горизонт высоко, долина занимает почти всё
   const sky = g.createLinearGradient(0, 0, 0, horizon + 6);
