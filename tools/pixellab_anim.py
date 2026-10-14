@@ -8,7 +8,7 @@ from pixellab import *
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUBJ = {
     'knight': 'a slender elegant knight in worn steel plate armour with a closed great helm and a red plume, a dark blue tabard, brown leather belt, side view',
-    'boss': 'the ghost of the captain of the royal guard: a tall spectral knight in pale ice-blue ornate plate armour with gold trim, a white tabard, a tall crimson plume, glowing cyan eyes, a royal blue cape, legs fading into a cyan ghostly mist tail, side view',
+    'boss': 'the ghost of the captain of the royal guard: a steel morion helmet with a red crest, a pale white mask for a face, a long white surcoat with an orange cross emblem, black chainmail sleeves, his body fades into a swirling cyan ghostly mist below the waist, side view',
     'duelist': 'a young holy knight fencer in a long beige coat and dark trousers with a ponytail, elegant and agile, side view',
 }
 ACTIONS = {
@@ -39,7 +39,7 @@ def wait(job):
 if __name__ == '__main__':
     set_, act = sys.argv[1], sys.argv[2]; n = int(sys.argv[3]) if len(sys.argv) > 3 else 12
     first, desc, pose = ACTIONS[(set_, act)]
-    C = 192 if set_ == 'boss' else 128
+    C = 128
     W = os.path.join(ROOT, '.pixellab_work', 'anim_' + set_); os.makedirs(W, exist_ok=True)
     f = frame(set_, first, C); p0 = os.path.join(W, f'{act}_first.png'); f.save(p0)
     r = req('POST', '/animate-pixminimax', {'first_frame': b64img(p0)[0], 'description': desc, 'frame_count': n, 'no_background': True,

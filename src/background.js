@@ -19,7 +19,7 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'door_wood_open_0', 'door_wood_open_1', 'door_wood_open_2', 'door_iron_open_0', 'door_iron_open_1',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -36,7 +36,22 @@ if (typeof fetch !== 'undefined') fetch('assets/objects/n/index.json').then(r =>
     const nm = new Image(); nm.onload = () => NORMAL_OF.set(obj[n], nm); nm.src = `assets/objects/n/${n}.png`;
   }
 }).catch(() => {});
-export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete);   // загрузились или не нашлись — дальше не ждать
+// под потолком всё, что висит на стене (окна, знамёна, портреты, люстра…), опускается под карниз — один раз на комнату
+export const CEIL_DY = 26;
+const HANGING = new Set(['window', 'banner', 'portrait', 'tapestry', 'chains', 'shield', 'shelf', 'sign', 'chandelier', 'stainedglass', 'sigil', 'ivy']);
+function ceilingShift(room) {
+  if (room._ceil) return;
+  room._ceil = true;
+  for (const d of room.decor ?? []) {
+    if (!HANGING.has(d.type)) continue;
+    const top0 = DECOR_IMG[d.type]?.[2] ?? (d.type === 'chandelier' ? 30 : d.type === 'ivy' ? 0 : 20);
+    d.y = (d.y ?? top0) + CEIL_DY;
+  }
+}
+// потолок (v0.70, владелец: «потолок ниже»): своды с балками поверх верха стены; нормали — рельеф
+const CEIL = typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: 'assets/backgrounds/ceiling.png' });
+const CEIL_N = typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: 'assets/backgrounds/n/ceiling.png' });
+export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete) && (!CEIL || (CEIL.complete && CEIL_N.complete));   // загрузились или не нашлись — дальше не ждать
 const objImg = n => (obj[n]?.complete && obj[n].naturalWidth ? obj[n] : null);
 if (obj.stainedglass) obj.stainedglass.onload = () => { decorImages.stainedglass = obj.stainedglass; };
 // люстра (v0.68): фитили — верхушки свечей на картинке (самые высокие столбцы); живое пламя ставится на них (decor.js)
@@ -196,9 +211,29 @@ export function buildRoom(room, height, floorTop, tiles = null) {
     }
     if (room.far) { g.clearRect(0, 0, length * 2, floorTop * 2); ng?.clearRect(0, 0, length * 2, floorTop * 2); }   // под открытым небом: стены нет, за полом — дальний план (рисуется отдельно)
     g.scale(2, 2);
+    const ceiling = !room.far && room.tiles !== 'shop' && room.ceiling !== false && !!CEIL?.naturalWidth;
+    if (ceiling) ceilingShift(room);
     pairNormals(g, ng);
     finishRoom(g, room, length, height, floorTop, rand, true);
     pairNormals(g, null);
+    if (ceiling) {
+      // своды тянутся по всей длине; каждый второй кусок отражён — без видимого шва
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      ng?.setTransform(1, 0, 0, 1, 0, 0);
+      for (let x = 0, i = 0; x < length * 2; x += CEIL.width, i++) {
+        for (const [ctx, im] of [[g, CEIL], [ng, CEIL_N]]) {
+          if (!ctx || !im.naturalWidth) continue;
+          ctx.save();
+          if (i % 2) { ctx.translate(x + im.width, 0); ctx.scale(-1, 1); ctx.drawImage(im, 0, 0); }
+          else ctx.drawImage(im, x, 0);
+          ctx.restore();
+        }
+      }
+      // тень под карнизом на стене
+      const gr = g.createLinearGradient(0, CEIL.height, 0, CEIL.height + 14);
+      gr.addColorStop(0, 'rgba(8,6,12,0.55)'); gr.addColorStop(1, 'rgba(8,6,12,0)');
+      g.fillStyle = gr; g.fillRect(0, CEIL.height, length * 2, 14);
+    }
     return c;
   }
 
@@ -299,7 +334,7 @@ function finishRoom(g, room, length, height, floorTop, rand, tiled) {
 export function drawDoor(g, d, floorTop, tiled = false) {
   if (d.kind === 'none') return;  // проход без двери (например, у подножия лестницы)
   const im = tiled && objImg('door_' + (['bars', 'iron', 'hole'].includes(d.kind) ? d.kind : 'wood'));
-  if (im) { drawObj(g, im, d.x, floorTop + 1); return; }
+  if (im) { drawObj(g, im, d.x, floorTop); return; }   // низ двери — ровно на линии пола
   if (d.kind === 'hole') {
     // пролом в стене: рваный край, за ним темнота
     const x0 = Math.round(d.x - 13), top = floorTop - 38;
@@ -573,7 +608,16 @@ export function drawGatePanel(g, x, floorTop, H, dir) {
 }
 
 // Открывающаяся дверь: проём темнеет, створка уходит внутрь (k от 0 до 1).
+const DOOR_OPEN = { wood: 3, iron: 2 };   // кадры открытия (tools/pixellab_door_open.py): створки уходят внутрь, за ними — проход
 export function drawDoorOpen(g, d, floorTop, cam, k) {
+  const kind = d.kind === 'iron' ? 'iron' : d.kind === 'wood' || !d.kind ? 'wood' : null;
+  const n = kind && DOOR_OPEN[kind];
+  if (n && objImg(`door_${kind}_open_0`)) {
+    if (k <= 0.08) return;
+    const im = objImg(`door_${kind}_open_${Math.min(n - 1, Math.floor(k * n))}`);
+    if (im) drawObj(g, im, Math.round(d.x - cam), floorTop);
+    return;
+  }
   const x0 = Math.round(d.x - DOOR_W / 2 - cam), top = floorTop - DOOR_H;
   const w = Math.round(DOOR_W * k);
   rect(g, x0, top, w, DOOR_H, '#050409');

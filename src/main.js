@@ -1376,7 +1376,7 @@ function updateEdges() {
   else if (edges.right && p.x >= L - 10 && held('right')) game.transition = { kind: 'edge', edge: edges.right, dir: 1, phase: 'out', t: 0 };
 }
 
-const DOOR_PHASES = { turn: 0.14, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.12 };
+const DOOR_PHASES = { turn: 0.35, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.3 };   // створка видна, пока поворачивается
 const EDGE_PHASES = { out: 0.3, in: 0.3 };
 const STAIR_PHASES = { out: 0.4, in: 0.35 };
 
