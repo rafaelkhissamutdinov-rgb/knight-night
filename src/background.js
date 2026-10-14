@@ -12,12 +12,13 @@ export const DOOR_W = 22, DOOR_H = 36;
 const DECOR_IMG = {
   window: [2, 'top', 22, -3], banner: [2, 'top', 10, -3], portrait: [3, 'top', 36, -2], tapestry: [1, 'top', 14, -2],
   chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'], rack: [2, 'floor'], bunk: [2, 'floor'], bookshelf: [2, 'floor'], shelf: [2, 'top', 40, 0], fireplace: [1, 'floor'],
-  pit: [1, 'hole'], rubble: [1, 'stairs'],
+  pit: [1, 'hole'], rubble: [1, 'stairs'], sign: [1, 'top', 12, 0],
 };
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
-  sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'slime', 'slime_squash', 'slime_stretch',
+  sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
+  bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1 };
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -582,8 +583,31 @@ export function drawPortal(g, cx, cy, time, lit = 1, glow = 0.5) {
 }
 
 // Бочки, ящики, мешки и кости — стоят на полу и сортируются по глубине вместе с бойцами.
+// живой огонь костра: язычки пляшут, искры летят вверх
+function campfireFlames(g, x, gy, time) {
+  const f = Math.floor(time * 10);
+  const h = 9 + (f % 3);
+  for (let i = 0; i < h; i++) {
+    const w = Math.max(1, Math.round(6 * (1 - i / h)) + ((f + i) % 2));
+    const sway = Math.round(Math.sin(time * 8 + i * 0.7) * (i / h) * 2);
+    rect(g, x - Math.floor(w / 2) + sway, gy - 4 - i, w, 1, i < 3 ? '#ffe9a8' : i < h * 0.6 ? '#f2a03d' : '#d0532a');
+  }
+  for (let k = 0; k < 3; k++) {
+    const t = (time * 0.9 + k * 0.37) % 1;
+    rect(g, x + Math.round(Math.sin((time + k) * 3) * 4), gy - 12 - Math.round(t * 22), 1, 1, t < 0.6 ? '#ffd27a' : '#a0442a');
+  }
+}
+
 export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
   x = Math.round(x);
+  if ((type === 'loot' || type === 'cup') && opened) return;   // подобрали
+  if (type === 'campfire' && objImg('prop_campfire')) { drawObj(g, objImg('prop_campfire'), x, gy + 1); campfireFlames(g, x, gy, time); return; }
+  if (type === 'cup' && objImg('prop_cup')) {
+    // серебряная чаша стоит на столе, поблёскивает
+    drawObj(g, objImg('prop_cup'), x, gy - 13);
+    if (Math.floor(time * 3) % 3 === 0) rect(g, x + 1, gy - 20, 1, 1, '#ffffff');
+    return;
+  }
   if (PROP_IMG[type]) {
     const i = Math.abs(Math.round(seed / 10)) % PROP_IMG[type];
     const im = objImg(type === 'chest' && opened ? 'prop_chest_open' : 'prop_' + type + (i ? '_' + i : ''));
@@ -774,17 +798,7 @@ export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
     for (const [dx, c] of [[-9, '#5a5560'], [-6, '#6e6874'], [6, '#6e6874'], [9, '#5a5560'], [-3, '#4a4550'], [3, '#4a4550']]) rect(g, x + dx - 1, gy - 2, 3, 2, c);
     thick(g, x - 7, gy - 1, x + 6, gy - 5, 2, '#5b3a24');
     thick(g, x + 7, gy - 1, x - 6, gy - 5, 2, '#6b4532');
-    const f = Math.floor(time * 10);
-    const h = 9 + (f % 3);
-    for (let i = 0; i < h; i++) {
-      const w = Math.max(1, Math.round(6 * (1 - i / h)) + ((f + i) % 2));
-      const sway = Math.round(Math.sin(time * 8 + i * 0.7) * (i / h) * 2);
-      rect(g, x - Math.floor(w / 2) + sway, gy - 4 - i, w, 1, i < 3 ? '#ffe9a8' : i < h * 0.6 ? '#f2a03d' : '#d0532a');
-    }
-    for (let k = 0; k < 3; k++) {
-      const t = (time * 0.9 + k * 0.37) % 1;
-      rect(g, x + Math.round(Math.sin((time + k) * 3) * 4), gy - 12 - Math.round(t * 22), 1, 1, t < 0.6 ? '#ffd27a' : '#a0442a');
-    }
+    campfireFlames(g, x, gy, time);
   } else if (type === 'bedroll') {
     rect(g, x - 12, gy - 3, 24, 3, '#6a3b3b');
     rect(g, x - 12, gy - 4, 24, 1, '#8a5050');
