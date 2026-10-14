@@ -19,7 +19,7 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -477,70 +477,19 @@ function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
 // балкон в разрешении экрана: каменные перила картинкой, с проломом; справа пол обрывается в пропасть
 function drawBalconyTiled(g, length, height, floorTop) {
   const im = objImg('balustrade');
-  const edge = length - 44;
-  // край плиты (v0.74): ломаная с углами, а не волна; y — от линии стены к зрителю
-  const H2 = height - floorTop;
-  const EDGE = [[0, 0], [5, -3], [10, 4], [17, -1], [24, 6], [30, 2], [37, 9], [44, 4], [51, 11], [58, 7], [70, 12]];
-  const edgeX = y => {
-    const t = y - floorTop;
-    for (let i = 1; i < EDGE.length; i++) if (t <= EDGE[i][0]) {
-      const [y0, x0] = EDGE[i - 1], [y1, x1] = EDGE[i];
-      return Math.round(edge + x0 + (x1 - x0) * (t - y0) / (y1 - y0));
-    }
-    return edge + EDGE[EDGE.length - 1][1];
-  };
-  if (im) {
-    // перила — до самого края, последний пролёт обрублен и надломлен (владелец: «чуть-чуть подрушенная колонна»)
-    const w = im.width / 2, ih = im.height / 2, y0 = floorTop - ih + 2, end = edge - 1;
-    for (let x = 0, i = 0; x < end; x += w, i++) {
-      if (i % 4 === 2) continue;   // пролом
-      const cw = Math.min(w, end - x);
-      g.drawImage(im, 0, 0, cw * 2, im.height, x, y0, cw, ih);
-      if (x + w >= end) {
-        // обломанный конец: вырван кусок перил сверху и сбоку, у подножия — каменная крошка
-        for (const [dx, dy, ww, hh] of [[-3, 0, 4, 3], [-2, 3, 3, 2], [-6, 0, 3, 1], [-1, 5, 2, 4]]) g.clearRect(end + dx, y0 + dy, ww, hh);
-        for (const [dx, dy, sz] of [[-8, ih - 1, 2], [-4, ih, 3], [1, ih + 1, 2]]) { rect(g, end + dx, y0 + dy, sz, sz - 1, '#8a8299'); rect(g, end + dx, y0 + dy, sz, 1, '#b0a8bc'); }
-      }
-    }
+  // обрыв (v0.74, владелец): конец балкона обломан и опирается на скалу, уступы уходят вниз, внизу — ельник.
+  // Картинка — дорисовка PixelLab по маске поверх настоящей сцены (tools/pixellab_cliff.py), поэтому срастается с полом
+  // и перилами. Кусок сцены 320×320 px экрана = мир (240, 20)…(400, 180); маска — правая часть ниже перил наискось.
+  const cliff = objImg('balcony_cliff');
+  if (im) for (let x = 0, i = 0; x < length; x += im.width / 2, i++) if (i % 4 !== 2) g.drawImage(im, x, floorTop - im.height / 2 + 2, im.width / 2, im.height / 2);
+  if (!cliff || globalThis.knightNightNoCliff) return;
+  const CX = 240, CY = 20;
+  for (let y = 140; y < 320; y++) {
+    const x0 = CX + (110 - (y - 140) * 0.12) / 2;
+    g.clearRect(x0, CY + y / 2, length - x0 + 1, 0.5);
+    normalPair.get(g)?.clearRect(x0 * 2, (CY + y / 2) * 2, (length - x0 + 1) * 2, 1);
   }
-  // за краем — пусто: сквозь холст фона видна долина далеко внизу (её рисует render из дальнего плана)
-  for (let y = floorTop; y < height; y++) g.clearRect(edgeX(y), y, length - edgeX(y) + 2, 1);
-  // скальный склон под балконом: глыбы со светом сверху-слева и тенью снизу-справа, ниже — мельче и темнее
-  const blob = (cx, cy, rx, ry, base, lite, dark) => {
-    for (let dy = -ry; dy <= ry; dy++) {
-      const hw = Math.round(rx * Math.sqrt(1 - (dy / ry) ** 2) * (1 - 0.25 * (dy / ry)));
-      if (hw <= 0) continue;
-      const y = cy + dy;
-      rect(g, cx - hw - 1, y, hw * 2 + 2, 1, '#151220');
-      rect(g, cx - hw, y, hw * 2, 1, base);
-      if (dy < -ry / 3) rect(g, cx - hw, y, Math.max(1, hw), 1, lite);
-      if (dy > ry / 4) rect(g, cx, y, hw, 1, dark);
-    }
-  };
-  const ROCKS = [[8, 6, 9, 6], [16, 18, 10, 8], [10, 30, 8, 7], [22, 40, 12, 9], [12, 52, 9, 8], [26, 60, 13, 9], [34, 26, 7, 6]];
-  for (const [dx, dy, rx, ry] of ROCKS) {
-    const y = floorTop + dy, f = dy / H2;
-    const sh = v => `rgb(${Math.round(v[0] * (1 - f * 0.35))},${Math.round(v[1] * (1 - f * 0.35))},${Math.round(v[2] * (1 - f * 0.3))})`;
-    blob(edgeX(y) + dx, y + 4, rx, ry, sh([62, 55, 80]), sh([96, 88, 118]), sh([38, 32, 52]));
-  }
-  // толщина обломанной плиты: каменный торец вдоль края, светлая кромка сверху, тёмный низ; швы кладки
-  for (let y = floorTop; y < height; y++) {
-    const x = edgeX(y), t = (y - floorTop) % 9;
-    rect(g, x, y, 5, 1, t === 0 ? '#2a2438' : '#463e5a');
-    rect(g, x + 4, y, 1, 1, '#1c1828');
-    rect(g, x - 1, y, 1, 1, '#7a7294');      // кромка пола
-  }
-  // обломки плиты, торчащие наружу под разными углами: верхняя грань светлая, торец тёмный
-  for (const [dy, len, tilt] of [[3, 7, -2], [21, 9, 2], [39, 6, -1], [55, 8, 3]]) {
-    const y = floorTop + dy, x = edgeX(y);
-    for (let i = 0; i < len; i++) {
-      const yy = y + Math.round(i * tilt / len);
-      rect(g, x + i, yy, 1, 2, '#6a6288');
-      rect(g, x + i, yy + 2, 1, 3, '#3a3448');
-      rect(g, x + i, yy + 5, 1, 1, '#151220');
-    }
-    rect(g, x + len, y + tilt, 1, 5, '#151220');
-  }
+  drawObj(g, cliff, CX + 80, CY + 160);
 }
 
 function drawBalcony(g, length, height, floorTop, rand) {
