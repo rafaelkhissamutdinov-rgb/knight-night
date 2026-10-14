@@ -2876,14 +2876,6 @@ function render() {
   const farImg = r.far && (farImgs[r.far] ??= Object.assign(new Image(), { src: r.far }));
   if (farImg?.complete && farImg.naturalWidth && (bgFor(game.room).k ?? 1) === 2) {
     g.drawImage(farImg, 0, 0, farImg.width / 2, farImg.height / 2);
-    // под обрывом (v0.74): долина далеко внизу — нижняя полоса дальнего плана продолжается вниз, темнее к краю экрана
-    const ft = CONFIG.floorTop, band = 40;
-    g.drawImage(farImg, 0, (ft - band) * 2, farImg.width, band * 2, 0, ft, farImg.width / 2, H - ft);
-    const dk = g.createLinearGradient(0, ft, 0, H);
-    dk.addColorStop(0, 'rgba(20,16,36,0.05)');
-    dk.addColorStop(1, 'rgba(20,16,36,0.35)');
-    g.fillStyle = dk;
-    g.fillRect(0, ft, W, H - ft);
   }
   const bg = bgFor(game.room), bk = bg.k ?? 1;
   g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
@@ -3906,4 +3898,4 @@ requestAnimationFrame(frame);
 
 // для автотестов в браузере
 window.knightNight = game;
-window.knightNightDebug = { groundY, input, ROOMS };   // для ботов-тестеров
+window.knightNightDebug = { groundY, input, ROOMS, bgFor };   // для ботов-тестеров
