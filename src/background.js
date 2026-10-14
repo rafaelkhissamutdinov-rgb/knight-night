@@ -13,7 +13,10 @@ const DECOR_IMG = {
   window: [2, 'top', 22, -3], banner: [2, 'top', 10, -3], portrait: [3, 'top', 36, -2], tapestry: [1, 'top', 14, -2],
   chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'],
 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole',
+// предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
+const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1 };
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open',
+  ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
 for (const n of OBJECTS) { if (typeof Image === 'undefined') break; const im = new Image(); im.src = `assets/objects/${n}.png`; obj[n] = im; }
@@ -486,8 +489,13 @@ export function drawPortal(g, cx, cy, time, lit = 1, glow = 0.5) {
 }
 
 // Бочки, ящики, мешки и кости — стоят на полу и сортируются по глубине вместе с бойцами.
-export function drawProp(g, type, x, gy, opened = false, time = 0) {
+export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
   x = Math.round(x);
+  if (PROP_IMG[type]) {
+    const i = Math.abs(Math.round(seed / 10)) % PROP_IMG[type];
+    const im = objImg(type === 'chest' && opened ? 'prop_chest_open' : 'prop_' + type + (i ? '_' + i : ''));
+    if (im) { drawObj(g, im, x, gy + 1); return; }
+  }
   if (type === 'barrel') {
     rect(g, x - 5, gy - 13, 10, 13, '#6b4532');
     rect(g, x - 6, gy - 10, 12, 7, '#6b4532');

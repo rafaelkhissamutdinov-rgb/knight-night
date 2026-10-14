@@ -2549,7 +2549,7 @@ function render() {
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => a.z - b.z);
   for (const a of things) {
-    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time);
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) renderPlayer(cam);
     else if (a.npc) renderNpc(a, cam);
     else renderEnemy(a, cam);
@@ -2965,6 +2965,11 @@ function renderNpc(n, cam) {
   const x = n.x - cam;
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
+  if (n.def.sprite && spriteReady(n.def.sprite)) {
+    // NPC в пиксель-арте (v0.64): сидит у костра — на колене, иначе стоит без оружия
+    drawSprite(n.def.sprite, g, { x, ground: groundY(n.z), facing: n.facing, pose: POSES.idle, weapon: 'none', frame: n.def.sit ? 'pose_kneel' : 'pose_idle' });
+    return;
+  }
   drawFigureOutlined(g, {
     x, ground: groundY(n.z), facing: n.facing, pose: n.def.sit ? { ...POSES.sheathed, hy: 7 + breathe, lean: 0, crouch: 0 } : { ...POSES.idle, hy: 8, angle: 80, crouch: breathe },
     colors: n.def.colors, robe: n.def.robe, hood: n.def.hood, pack: n.def.pack, bladeHidden: true,

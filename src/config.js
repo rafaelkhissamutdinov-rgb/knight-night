@@ -292,11 +292,11 @@ export const NPC_TYPES = {
   // (по портрету владельца assets/portraits/lika.png)
   // Илиа после поражения: сидит у костра на Привале (решение владельца); face: 'ilia' — портрет, human — лицо на фигурке
   ilia: {
-    name: 'Илиа', face: 'ilia', talk: 'ilia_camp_again', human: true, robe: true, sit: true,
+    name: 'Илиа', face: 'ilia', talk: 'ilia_camp_again', human: true, robe: true, sit: true, sprite: 'duelist',
     colors: { armor: '#d9c7a3', armorDark: '#b39f7c', tabard: '#efe4cc', belt: '#6b4a32', helm: '#e2b896', visor: '#1b1b22', hair: '#15151c', hairLight: '#2a2a34', boots: '#4a3626', blade: '#c9d2dc', hilt: '#8a6a3a' },
   },
   lika: {
-    name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true,
+    name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika',
     colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' },
   },
 };
