@@ -179,6 +179,16 @@ kbd {
 }
 .talk-choices button:hover, .talk-choices button:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
 .talk-next { font-family: var(--pixel); font-size: 1.6cqw; color: var(--muted); justify-self: end; }
+.talk-foot { display: flex; justify-content: space-between; align-items: center; gap: 2cqw; }
+.talk-foot .talk-next { margin-left: auto; }
+/* кнопка выхода (v0.71): лавка и разговор закрываются мышью, не только Esc */
+.close-btn {
+  font-family: var(--pixel); font-size: 1.7cqw; color: var(--muted); cursor: pointer;
+  background: var(--panel); border: 0.3cqw solid var(--line); padding: 0.3cqw 1cqw;
+}
+.close-btn:hover, .close-btn:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
+.shop-head .close-btn { margin-left: auto; align-self: center; }
+.shop-head { gap: 2cqw; }
 
 /* лавка: как в Undertale — продавец, его реплика и меню */
 .shop {

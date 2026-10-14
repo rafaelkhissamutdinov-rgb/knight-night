@@ -538,7 +538,7 @@ test('обучение: шаг засчитывается, только когд
   assert.equal(t.i, TUTORIAL.length);
 });
 
-test('наставница бьёт только по плану шага и не наносит урона', () => {
+test('наставница бьёт только по плану шага и не наносит урона', async () => {
   const e = createEnemy('trainer', 100, () => 0.5);
   const w = world(80);
   w.heavySwing = () => {};
@@ -554,8 +554,14 @@ test('наставница бьёт только по плану шага и н�
   assert.equal(e.def.damage, 0);
   e.leave();
   assert.equal(e.alive, false);
-  run(e, w, x => x.state === 'gone', 10);
-  assert.ok(e.x > 300, 'ушла вперёд');
+  const x0 = e.x;
+  let tLeave = 0;
+  while (e.state !== 'gone' && tLeave < 2) { e.update(1 / 60, w); tLeave += 1 / 60; }
+  assert.equal(e.state, 'gone', 'исчезла рывком меньше чем за 2 с');
+  assert.ok(e.x - x0 > 120, 'рывок вперёд');
+  const { CONFIG } = await import('../src/config.js');
+  const { VANISH } = await import('../src/enemy.js');
+  assert.ok(VANISH.speed > CONFIG.runSpeed * 1.5, 'рывок быстрее бега рыцаря');
 });
 
 test('комнаты: двери ведут друг к другу, края и встречи на месте', async () => {

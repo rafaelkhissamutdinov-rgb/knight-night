@@ -995,11 +995,7 @@ class Duelist extends Melee {
         return;
 
       case 'flee':
-        this.t += dt;
-        this.pose = approachPose(this.pose, POSES.idle, dt, 15);
-        this.x += this.facing * 190 * dt;
-        this.step += dt * 18;
-        if (this.t >= 2.5) this.enter('gone');
+        if (vanishTick(this, dt, w)) this.enter('gone');
         return;
 
       case 'gone':
@@ -1007,6 +1003,26 @@ class Duelist extends Melee {
     }
     super.update(dt, w);
   }
+}
+
+// Уход «рывком в тень» (v0.71, владелец): NPC не плетётся медленнее рыцаря мимо монстров —
+// пригнулся, рывок быстрее любого бега (шлейф теней), растворился в клубе дыма. true — исчез.
+export const VANISH = { crouch: 0.3, dash: 0.4, speed: 440 };
+function vanishTick(e, dt, w) {
+  e.t += dt;
+  if (e.t < VANISH.crouch) {
+    e.pose = approachPose(e.pose, POSES.dash, dt, 14);
+    return false;
+  }
+  if (!e.vanishFx) { e.vanishFx = true; w.vanish?.(e); }
+  const k = Math.min(1, (e.t - VANISH.crouch) / VANISH.dash);
+  e.x += e.facing * VANISH.speed * dt;
+  e.step += dt * 26;
+  e.fade = Math.max(0, 1 - k * k);
+  for (const t of e.trail ?? []) t.a -= dt * 2.5;
+  e.trail = (e.trail ?? []).filter(t => t.a > 0);
+  e.trail.push({ x: e.x, z: e.z, a: 0.55 * e.fade, step: e.step });
+  return k >= 1;
 }
 
 // Наставница: бьёт только так, как велит текущий шаг обучения (plan), урона не наносит.
@@ -1055,12 +1071,7 @@ class Trainer extends Melee {
 
   update(dt, w) {
     if (this.state === 'leave') {
-      this.t += dt;
-      this.pose = approachPose(this.pose, POSES.idle, dt, 12);
-      this.x += 70 * dt;
-      this.step += dt * 10;
-      this.z += (this.homeZ - this.z) * Math.min(1, dt * 2);
-      if (this.t >= 7) this.enter('gone');
+      if (vanishTick(this, dt, w)) this.enter('gone');
       return;
     }
     if (this.state === 'gone') return;

@@ -19,7 +19,7 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'door_wood_open_0', 'door_wood_open_1', 'door_wood_open_2', 'door_iron_open_0', 'door_iron_open_1',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -622,14 +622,59 @@ export function drawGatePanel(g, x, floorTop, H, dir) {
 }
 
 // Открывающаяся дверь: проём темнеет, створка уходит внутрь (k от 0 до 1).
-const DOOR_OPEN = { wood: 3, iron: 2 };   // кадры открытия (tools/pixellab_door_open.py): створки уходят внутрь, за ними — проход
+// Дверь открывается (v0.71): створка — вырезка из той же картинки закрытой двери (раньше были отдельные кадры
+// PixelLab — другая, двустворчатая дверь: казалось, что поверх появляется вторая дверь). За створкой — тёмный проём,
+// створка поворачивается на петле слева внутрь: сжимается к петле, темнеет, у свободного края виден торец.
+// Арка проёма в пикселях картинки: L, R — края, T — верх свода, S — где кончается скругление
+const DOOR_LEAF = { wood: { L: 10, R: 52, T: 11, S: 30 }, iron: { L: 10, R: 60, T: 11, S: 30 } };
+const doorParts = {};
+function doorPart(kind) {
+  if (doorParts[kind]) return doorParts[kind];
+  const im = objImg('door_' + kind), a = DOOR_LEAF[kind];
+  if (!im || !a) return null;
+  const w = a.R - a.L + 1, h = im.height - a.T;
+  const mk = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; return [c, x]; };
+  const [leaf, lx] = mk(), [dark, dx] = mk(), [hole, hx] = mk();
+  const half = w / 2;
+  for (let y = 0; y < h; y++) {
+    // ширина строки свода: полуэллипс от T до S, ниже — во всю ширину
+    const u = y + a.T < a.S ? (a.S - a.T - y) / (a.S - a.T) : 0;
+    const hw = Math.round(half * Math.sqrt(Math.max(0, 1 - u * u)));
+    if (hw < 1) continue;
+    const l = Math.round(half - hw);
+    lx.drawImage(im, a.L + l, a.T + y, hw * 2, 1, l, y, hw * 2, 1);
+    // проём: почти чёрный, к полу чуть светлее (там коридор)
+    const t = y / h;
+    hx.fillStyle = `rgb(${8 + t * 14 | 0},${6 + t * 10 | 0},${14 + t * 14 | 0})`;
+    hx.fillRect(l, y, hw * 2, 1);
+  }
+  dx.drawImage(leaf, 0, 0);
+  dx.globalCompositeOperation = 'source-in';
+  dx.fillStyle = '#0a0812';
+  dx.fillRect(0, 0, w, h);
+  return (doorParts[kind] = { leaf, dark, hole, w, h, im, a });
+}
+
+// k: 0 — закрыта, 1 — распахнута
 export function drawDoorOpen(g, d, floorTop, cam, k) {
   const kind = d.kind === 'iron' ? 'iron' : d.kind === 'wood' || !d.kind ? 'wood' : null;
-  const n = kind && DOOR_OPEN[kind];
-  if (n && objImg(`door_${kind}_open_0`)) {
-    if (k <= 0.08) return;
-    const im = objImg(`door_${kind}_open_${Math.min(n - 1, Math.floor(k * n))}`);
-    if (im) drawObj(g, im, Math.round(d.x - cam), floorTop);
+  const part = kind && doorPart(kind);
+  if (part) {
+    if (k <= 0.02) return;
+    const { leaf, dark, hole, w, h, im, a } = part;
+    const x0 = Math.round(d.x - cam) - im.width / 4 + a.L / 2, y0 = floorTop - im.height / 2 + a.T / 2;
+    const lw = w / 2, lh = h / 2;
+    g.save();
+    g.imageSmoothingEnabled = false;
+    g.drawImage(hole, x0, y0, lw, lh);
+    const e = k * k * (3 - 2 * k), th = e * 1.38;           // угол створки, до ~80°
+    const ww = Math.max(0.5, Math.round(lw * Math.cos(th) * 2) / 2);
+    g.drawImage(leaf, x0, y0, ww, lh);
+    g.globalAlpha = 0.65 * Math.sin(th);                     // уходит от света — темнеет
+    g.drawImage(dark, x0, y0, ww, lh);
+    g.globalAlpha = 1;
+    if (th > 0.15) g.drawImage(dark, w - 2, 0, 2, h, x0 + ww, y0, 1, lh);   // торец створки
+    g.restore();
     return;
   }
   const x0 = Math.round(d.x - DOOR_W / 2 - cam), top = floorTop - DOOR_H;
