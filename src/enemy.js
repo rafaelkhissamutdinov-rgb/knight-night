@@ -630,7 +630,7 @@ class Ghost extends Melee {
 // Приёмы — patterns в ENEMY_TYPES.boss. Сверх призрака: перелёт на другую сторону посреди двойки (swapOut → swapIn),
 // стойка «Оби-Ван» (stance) перед мощной парой, удушение (cast → choking, world.choke), отлёт назад перед телепортом,
 // вторая фаза с половины жизни (быстрее, телепорт чаще, комбо с разворотом). Не вздрагивает от ударов посреди приёма.
-const BOSS_BUSY = ['stance', 'cast', 'choking', 'swapOut', 'swapIn', 'windup', 'strike'];
+const BOSS_BUSY = ['stance', 'cast', 'choking', 'swapOut', 'swapIn', 'windup', 'strike', 'dash'];
 class Boss extends Ghost {
   constructor(type, x, rng) {
     super(type, x, rng);
@@ -648,7 +648,7 @@ class Boss extends Ghost {
     return base * CONFIG.windupMult * (this.phase === 2 ? this.def.phase2Speed : 1);
   }
 
-  get solid() { return super.solid && this.state !== 'swapOut' && this.state !== 'swapIn'; }
+  get solid() { return super.solid && this.state !== 'swapOut' && this.state !== 'swapIn' && this.state !== 'dash'; }
 
   receiveAttack(atk) {
     if (this.state === 'swapOut' || this.state === 'swapIn') return { out: 'miss' };  // перелетает — удар сквозь
@@ -666,11 +666,17 @@ class Boss extends Ghost {
     if (!this.alive) { this.pat = null; this.eyes = 0; }
   }
 
-  pickPattern() {
+  // рыцарь прячется в блоке — чаще приёмы, которые пробивают защиту (тяжёлые, вихрь)
+  weightOf(p, w) {
+    const turtle = (this.turtleT ?? 0) > 0.6;
+    return p.weight * (turtle && p.breaker ? 3 : 1);
+  }
+
+  pickPattern(w) {
     const list = this.def.patterns.map((p, i) => [p, i]).filter(([p, i]) => (p.phase ?? 1) <= this.phase && i !== this.lastPat);
-    let r = this.rng() * list.reduce((s, [p]) => s + p.weight, 0);
+    let r = this.rng() * list.reduce((s, [p]) => s + this.weightOf(p, w), 0);
     for (const [p, i] of list) {
-      r -= p.weight;
+      r -= this.weightOf(p, w);
       if (r <= 0) { this.lastPat = i; return p; }
     }
     this.lastPat = list[0][1];
@@ -681,12 +687,13 @@ class Boss extends Ghost {
   decide(w, dist) {
     if (this.t < this.waitFor) return false;
     const d = this.def;
-    if (dist < d.chokeRange && this.rng() < (dist > d.reach + 10 ? d.chokeChance * 2 : d.chokeChance) * (this.phase === 2 ? 1.3 : 1)) {
+    const turtle = (this.turtleT ?? 0) > 0.6 ? 2 : 1;   // за щитом не отсидеться — душит чаще
+    if (dist < d.chokeRange && this.rng() < (dist > d.reach + 10 ? d.chokeChance * 2 : d.chokeChance) * turtle * (this.phase === 2 ? 1.3 : 1)) {
       this.enter('cast');
       return true;
     }
     if (dist > d.reach + 4 || Math.abs(this.z - w.player.z) > CONFIG.depthReach) return false;
-    this.pat = this.pickPattern();
+    this.pat = this.pickPattern(w);
     this.combo = this.pat.combo;
     this.idx = 0;
     this.allPerfect = true;
@@ -703,8 +710,44 @@ class Boss extends Ghost {
     return Math.max(lo + 12, Math.min(hi - 12, x));
   }
 
+  // закрылся от удара рыцаря — сразу отвечает (контратака)
+  blocks(height) {
+    const b = super.blocks(height);
+    if (b && this.alive && !BOSS_BUSY.includes(this.state) && this.state !== 'dash') this.riposte = true;
+    return b;
+  }
+
+  // начать серию сразу (контратака, удар после рывка)
+  attackNow(w, combo, windup) {
+    this.pat = { id: 'quick', combo, windup: [windup, this.def.comboWindup] };
+    this.combo = combo;
+    this.idx = 0;
+    this.allPerfect = true;
+    this.faceTo(w);
+    this.enter('windup');
+  }
+
   update(dt, w) {
     const d = this.def;
+    const dist = Math.abs(w.player.x - this.x);
+    // сколько рыцарь уже стоит в защите рядом — по этому босс выбирает, чем ломать
+    this.turtleT = w.player.guard && dist < d.reach + 30 ? (this.turtleT ?? 0) + dt : 0;
+    this.trail = this.trail ?? [];
+    if (this.state === 'dash' || this.state === 'swapOut') this.trail.push({ x: this.x, z: this.z, a: 1 });
+    for (const t of this.trail) t.a -= dt * 4;
+    this.trail = this.trail.filter(t => t.a > 0);
+    if (this.riposte) {
+      this.riposte = false;
+      if (['idle', 'approach', 'recover'].includes(this.state) && dist < d.reach + 10) {
+        this.attackNow(w, this.rng() < 0.5 ? ['mid'] : ['high', 'low'], d.riposteWindup);
+        return;
+      }
+    }
+    if (this.alive && (this.state === 'approach' || this.state === 'idle') && dist > d.reach + 18 && dist < d.dashRange && this.t > 0.15 && this.rng() < dt * d.dashChance) {
+      // рывок-скольжение: призрак летит к рыцарю, оставляя след, и сразу бьёт
+      this.faceTo(w);
+      this.enter('dash');
+    }
     if (this.alive && !this.phase2 && this.phase === 2) {
       // вторая фаза: маска треснула — отлетает и исчезает
       this.phase2 = true;
@@ -743,8 +786,23 @@ class Boss extends Ghost {
         this.baseUpdate(dt);
         this.eyes = 1;
         this.pose = approachPose(this.pose, POSES.cast, dt, 12);
-        if (this.t >= 1.2) this.rest(0.7);
+        if (w.player.state !== 'held' || this.t >= d.chokeHold + 0.3) this.rest(0.6);
         return;
+
+      case 'dash': {
+        this.baseUpdate(dt);
+        this.faceTo(w);
+        this.ghost = 0.8;
+        this.pose = approachPose(this.pose, POSES.obiwan, dt, 14);
+        if (!this.cued) { this.cued = true; w.cue?.('mid'); }
+        this.x += this.facing * d.dashSpeed * dt;
+        this.z += Math.sign(w.player.z - this.z) * Math.min(Math.abs(w.player.z - this.z), 60 * dt);
+        if (Math.abs(w.player.x - this.x) <= d.reach - 4 || this.t >= 0.5) {
+          this.ghost = 1;
+          this.attackNow(w, this.phase === 2 && this.rng() < 0.5 ? ['mid', 'high'] : ['mid'], d.dashWindup);
+        }
+        return;
+      }
 
       case 'swapOut':
         // растворяется посреди двойки и перелетает за спину рыцаря

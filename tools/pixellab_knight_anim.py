@@ -16,6 +16,8 @@ ACTIONS = {
     'runloop': ('@run_05', 'one looping sprint cycle to the right, the last frame flows back into the first: legs stride far, arms pump, body leans forward', 'running mid-stride, leaning forward'),
     'walkloop': ('@walk_04', 'one looping walk cycle to the right at a calm pace, the last frame flows back into the first, arms swing gently', 'walking mid-step'),
     'turn': ('idle_0', 'turns around in place to face the opposite direction (left), rotating the body smoothly through the front view, feet step around', 'standing upright facing right, arms down'),
+    'held': ('idle_0', 'lifted up off the ground by an invisible telekinetic force and choking: both hands clutch at his throat, head tilts back, body writhes and legs kick and dangle in the air, struggling', 'standing upright, arms down'),
+    'spin': ('pose_idle', 'a fast whirlwind attack: spins around a full 360 degrees in place on one foot with the right arm fully extended as if slashing with a sword in a wide horizontal circle, cape flaring, then returns to a fighting stance', 'standing in a fighting stance, right hand forward holding an invisible sword grip'),
     'run': ('idle_0', 'running forward fast to the right, a full sprint cycle that loops: legs stride far, arms pump, body leans forward', 'standing upright, arms down'),
     'walk': ('idle_0', 'walking forward to the right at a calm steady pace, a looping walk cycle, arms swing gently', 'standing upright, arms down'),
     'roll': ('idle_0', 'a fast combat roll forward to the right: crouches, tucks into a ball, rolls one full somersault along the ground and springs back up to standing', 'standing upright, arms down'),

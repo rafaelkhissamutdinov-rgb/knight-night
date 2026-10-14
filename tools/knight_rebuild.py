@@ -18,6 +18,8 @@ TAKE = {
     'walk': ('walkloop', range(0, 8)),
     'turn': ('turn', range(1, 8)),
     'roll': ('roll', range(2, 12)),
+    'held': ('held', range(5, 13), 'bottom'),   # висит и бьётся — подъём делает игра, кадры ставим стопами на линию
+    'spin': ('spin', range(1, 8), 'mirror'),   # полоборота с мечом и росчерком + то же зеркально = полный оборот
     'sheathe': ('sheathe', range(6, 13)),   # в первых кадрах PixelLab дорисовал свой меч — берём, где рука уходит за спину
 }
 
@@ -37,14 +39,19 @@ meta['frames'] = {n: {**f, 'wrist': [f['wrist'][0] + pad, f['wrist'][1] + pad]} 
 # новые анимации вместо прежних мелких
 ox, oy = 64 - meta['center'], 119 - meta['foot']
 added = []
-for key, (src, idx) in TAKE.items():
+for key, (src, idx, *opt) in TAKE.items():
     files = [os.path.join(ANIM, f'{src}_{i:02d}.png') for i in idx]
     if not all(os.path.exists(f) for f in files): print('нет кадров', key); continue
     for n in [n for n in list(frames) if n.startswith(key + '_')]:
         frames.pop(n); normals.pop(n, None); meta['frames'].pop(n, None)
+    if opt and opt[0] == 'mirror': files = files + ['~' + f for f in files]   # '~' — отражённый кадр
     for j, f in enumerate(files):
         n = f'{key}_{j}'
-        frames[n] = Image.open(f).convert('RGBA').crop((ox, oy, ox + NEW, oy + NEW)); added.append(n)
+        im = Image.open(f.lstrip('~')).convert('RGBA')
+        if f.startswith('~'): im = im.transpose(Image.FLIP_LEFT_RIGHT)   # холст 128, бёдра на x 64 — отражение на месте
+        if opt and opt[0] == 'bottom':
+            bb = im.getbbox(); sh = Image.new('RGBA', im.size); sh.alpha_composite(im, (0, 119 - bb[3] + 1)); im = sh
+        frames[n] = im.crop((ox, oy, ox + NEW, oy + NEW)); added.append(n)
     meta['anims'][key] = len(files)
 
 def est(n):

@@ -97,7 +97,8 @@ export class Player {
   get spinCharge() { return Math.min(1, 1 - (this.spinReadyAt - this.clock) / CONFIG.spinCooldown); }
 
   requestAttack(vert, spin) {
-    if (this.state === 'swallowed' || this.state === 'held' || this.state === 'hurt') return;
+    if (this.state === 'held') { this.struggles = (this.struggles ?? 0) + 1; this.events.push({ type: 'struggle' }); return; }   // вырывается из удушья
+    if (this.state === 'swallowed' || this.state === 'hurt') return;
     if (spin && this.clock < this.spinReadyAt) {
       // вихрь ещё перезаряжается — выйдет обычный удар
       spin = false;
@@ -207,6 +208,8 @@ export class Player {
   heldBy(e) {
     this.atk = null;
     this.holder = e;
+    this.struggles = 0;
+    this.chokeTicked = false;
     this.enter('held');
   }
 
@@ -336,10 +339,20 @@ export class Player {
         if (this.t >= 0.3) this.enter('ready');
         break;
 
-      case 'held':
+      case 'held': {
+        // поднят в воздух, хватается за горло; удары (ЛКМ) — вырваться, иначе середина удушья бьёт ещё раз и в конце — об землю
         target = POSES.hurt;
-        this.airY = Math.min(18, this.t * 45) + (this.t > 0.4 ? Math.sin(this.t * 40) : 0);  // висит и дёргается
-        if (this.t >= 1.0) {
+        const hd = this.holder?.def ?? {};
+        this.airY = Math.min(26, this.t * 50) + (this.t > 0.4 ? Math.sin(this.t * 31) * 0.8 : 0);
+        if (this.struggles >= (hd.chokeBreak ?? 99)) {
+          this.events.push({ type: 'breakFree', by: this.holder });
+          this.holder = null;
+          this.airY = 0;
+          this.enter('ready');
+          break;
+        }
+        if (!this.chokeTicked && this.t >= (hd.chokeHold ?? 1) / 2) { this.chokeTicked = true; this.events.push({ type: 'chokeTick' }); }
+        if (this.t >= (hd.chokeHold ?? 1.0)) {
           this.events.push({ type: 'slam', by: this.holder });
           this.holder = null;
           this.airY = 0;
@@ -347,6 +360,7 @@ export class Player {
           this.enter('hurt');
         }
         break;
+      }
 
       case 'swallowed':
         this.x = this.swallower.x;
