@@ -16,7 +16,7 @@ const DECOR_IMG = {
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'slime', 'slime_squash', 'slime_stretch',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -45,6 +45,31 @@ export function drawBonePileImg(g, x, gy, facing) {
   if (!im) return false;
   if (facing < 0) { g.save(); g.translate(x, 0); g.scale(-1, 1); drawObj(g, im, 0, gy + 1); g.restore(); }
   else drawObj(g, im, x, gy + 1);
+  return true;
+}
+
+// слизень картинкой (v0.67): обычный / сплющенный (готовится к прыжку, приземлился) / вытянутый (в полёте);
+// раздувание — масштаб size, взгляд — отражение. false — картинок нет, рисовать кодом.
+export function drawSlimeImg(g, { x, ground, airY, size, squash, facing, holding, flash }) {
+  const name = squash > 0.25 ? 'slime_squash' : airY > 3 || squash < -0.15 ? 'slime_stretch' : 'slime';
+  const im = objImg(name) ?? objImg('slime');
+  if (!im) return false;
+  const w = im.width / 2 * size * (1 + Math.max(0, squash) * 0.25), h = im.height / 2 * size * (1 - Math.max(0, squash) * 0.2);
+  const base = Math.round(ground - airY);
+  if (airY > 2) rect(g, x - w * 0.3, ground - 1, Math.round(w * 0.6), 1, '#1e1a2b');   // тень на полу
+  g.save();
+  g.imageSmoothingEnabled = false;
+  g.translate(Math.round(x), base);
+  if (facing < 0) g.scale(-1, 1);
+  g.drawImage(im, -w / 2, -h + 1, w, h);
+  if (flash) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5; g.drawImage(im, -w / 2, -h + 1, w, h); }
+  g.restore();
+  if (holding) {   // проглоченный рыцарь просвечивает
+    g.save(); g.globalAlpha = 0.7;
+    rect(g, x - 2, base - h * 0.7, 4, 7, '#5b6b86');
+    rect(g, x - 1, base - h * 0.7 - 2, 2, 2, '#e8454f');
+    g.restore();
+  }
   return true;
 }
 

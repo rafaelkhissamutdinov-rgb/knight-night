@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg, drawSlimeImg } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -2730,7 +2730,8 @@ function renderEnemy(e, cam) {
   }
   if (e.kind === 'slime') {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
-    drawSlimeOutlined(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
+    if (!drawSlimeImg(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, facing: e.facing, holding: e.holding, flash: e.flashT > 0 }))
+      drawSlimeOutlined(g, { x: ex, ground: GROUND, airY: e.airY, size: e.size, squash: e.squash, colors, facing: e.facing, holding: e.holding });
     if (CONFIG.glint && e.glint && Math.floor(e.t * 30) % 2 === 0) rect(g, ex - 1, GROUND - e.airY - 16, 3, 3, PAL.spark);
   } else {
     const colors = e.flashT > 0 ? flashColors(e.def.colors) : e.def.colors;
