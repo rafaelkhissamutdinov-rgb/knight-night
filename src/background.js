@@ -9,15 +9,33 @@ export const DOOR_W = 22, DOOR_H = 36;
 const RUNE = '#5fd3ff', RUNE_HOT = '#c8f4ff';
 
 // floorTop — где стена встречается с полом; ниже — пол с глубиной (дальние ряды плиток уже).
-export function buildRoom(room, height, floorTop) {
+// tiles — куски стены с полом из PixelLab (640×360, бесшовные): тогда фон в полном разрешении экрана (c.k = 2),
+// кладка и пол — из кусков, остальное (двери, убранство) рисуется кодом поверх, как раньше.
+export const TILE_W = 640, TILE_LINE = 246;  // ширина куска и где на нём стена встречается с полом
+export function buildRoom(room, height, floorTop, tiles = null) {
   const length = room.length;
+  const k = tiles ? 2 : 1;
   const c = document.createElement('canvas');
-  c.width = length;
-  c.height = height;
+  c.width = length * k;
+  c.height = height * k;
+  c.k = k;
   const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
   const wallBottom = floorTop;
   let seed = 7 + length;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  if (tiles) {
+    // куски подряд; вариант — по очереди с перемешиванием (первый, основной, — чаще)
+    const dy = floorTop * 2 - TILE_LINE, th = tiles[0].height;
+    for (let x = 0, i = 0; x < length * 2; x += TILE_W, i++) {
+      const t = tiles[i === 0 || rand() < 0.4 ? 0 : 1 + Math.floor(rand() * (tiles.length - 1))] ?? tiles[0];
+      g.drawImage(t, x, dy);
+      if (dy < 0) g.drawImage(t, 0, th + dy - 20, TILE_W, 20 - dy, x, height * 2 - 20 + dy, TILE_W, 20 - dy);
+    }
+    g.scale(2, 2);
+    finishRoom(g, room, length, height, floorTop, rand, true);
+    return c;
+  }
 
   g.fillStyle = PAL.mortar;
   g.fillRect(0, 0, length, wallBottom);
@@ -40,8 +58,8 @@ export function buildRoom(room, height, floorTop) {
     g.fillStyle = PAL.mortar;
     for (let k = 0; k < 8; k++) { g.fillRect(cx, cy, 1, 2); cx += Math.round(rand() * 2 - 1); cy += 2; }
   }
-  const doors = room.doors ?? [];
   // колонны (не там, где двери и решётка)
+  const doors = room.doors ?? [];
   if (room.columns !== false) {
     for (let x = 120; x < length - 30; x += 240) {
       if (doors.some(d => Math.abs(d.x - (x + 10)) < 40)) continue;
@@ -85,6 +103,20 @@ export function buildRoom(room, height, floorTop) {
   g.fillRect(0, wallBottom - 6, length, 6);
   g.fillStyle = PAL.wallDark;
   g.fillRect(0, wallBottom - 3, length, 3);  // плинтус
+  finishRoom(g, room, length, height, floorTop, rand, false);
+  return c;
+}
+
+// двери, лестницы, балкон, убранство — поверх стены (и нарисованной кодом, и из кусков)
+function finishRoom(g, room, length, height, floorTop, rand, tiled) {
+  const doors = room.doors ?? [];
+  if (tiled) {
+    const shade = g.createLinearGradient(0, 0, 0, 30);
+    shade.addColorStop(0, 'rgba(8,6,14,0.45)');
+    shade.addColorStop(1, 'rgba(8,6,14,0)');
+    g.fillStyle = shade;
+    g.fillRect(0, 0, length, 30);
+  }
   for (const d of doors) drawDoor(g, d, floorTop);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
   if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop);
@@ -96,7 +128,6 @@ export function buildRoom(room, height, floorTop) {
     g.fillRect(0, 0, length, height);
     for (let x = 90; x < length - 40; x += 140) drawSigil(g, x, 46);
   }
-  return c;
 }
 
 // Дверь в задней стене: деревянная, решётчатая (камера) или железная.

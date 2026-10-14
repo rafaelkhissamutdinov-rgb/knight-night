@@ -98,10 +98,18 @@ const bgImages = {};
 const imageRooms = {};
 for (const [id, r] of Object.entries(ROOMS)) if (r.image) (bgImages[id] = new Image()).src = r.image;  // загрузить заранее
 // фон-картинка, если есть и загрузилась; иначе — нарисованный кодом
+// куски стены из PixelLab (v0.64): tiles: 'dungeon' у комнаты → assets/backgrounds/dungeon/dungeon_<n>.png
+const tileSets = {};
+for (const r of Object.values(ROOMS)) if (r.tiles && !tileSets[r.tiles]) {
+  tileSets[r.tiles] = Array.from({ length: r.tileCount ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
+}
+const tilesReady = r => r.tiles && tileSets[r.tiles].every(im => im.complete && im.naturalWidth);
 function bgFor(id) {
   const img = bgImages[id];
   if (img?.complete && img.naturalWidth) return (imageRooms[id] ??= buildImageRoom(ROOMS[id], img, H, CONFIG.floorTop));
-  return (backgrounds[id] ??= buildRoom(ROOMS[id], H, CONFIG.floorTop));
+  const r = ROOMS[id];
+  if (tilesReady(r)) return (backgrounds[id + ':tiles'] ??= buildRoom(r, H, CONFIG.floorTop, tileSets[r.tiles]));
+  return (backgrounds[id] ??= buildRoom(r, H, CONFIG.floorTop));
 }
 const room = () => ROOMS[game.room];
 const encKey = (roomId, i) => `${roomId}:${i}`;
@@ -2497,7 +2505,8 @@ function render() {
   }
   const r = room();
   const cam = Math.round(game.camX);
-  g.drawImage(bgFor(game.room), cam, 0, W, H, 0, 0, W, H);
+  const bg = bgFor(game.room), bk = bg.k ?? 1;
+  g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
   drawTorches(g, cam, r.torches ?? [], game.time);
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   for (const d of r.decor ?? []) {

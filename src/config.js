@@ -369,7 +369,7 @@ export const MAP = {
 
 export const ROOMS = {
   cell: {
-    name: 'Камера с порталом', length: 320, dark: true, torches: [], columns: false, cobwebs: true, gate: 'right',
+    name: 'Камера с порталом', length: 320, dark: true, tiles: 'dungeon', tileCount: 3, torches: [], columns: false, cobwebs: true, gate: 'right',
     portal: { x: 112, z: 26 },
     props: [
       { type: 'barrel', x: 30, z: 2 }, { type: 'barrel', x: 44, z: 6 }, { type: 'crate', x: 22, z: 16 },
@@ -379,7 +379,7 @@ export const ROOMS = {
   },
   // нижний ярус замка: обучение, четыре встречи и Илиа; в конце — лестница наверх, в Галерею
   hall: {
-    name: 'Темница', length: 2400, gate: 'left', stairs: 'right',
+    name: 'Темница', length: 2400, gate: 'left', stairs: 'right', tiles: 'dungeon', tileCount: 3,
     torches: [150, 330, 560, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200],
     edges: { left: { to: 'cell', x: 276 }, right: { to: 'gallery', x: 30, name: 'Лестница наверх' } },
     doors: [
@@ -408,7 +408,7 @@ export const ROOMS = {
   },
   // тайник за замурованной стеной Темницы: кто-то спрятался здесь со всем, что успел вынести
   secret: {
-    name: 'Тайник', length: 320, columns: false, torches: [200], cobwebs: true,
+    name: 'Тайник', length: 320, columns: false, tiles: 'dungeon', tileCount: 3, torches: [200], cobwebs: true,
     doors: [{ id: 'out', x: 60, kind: 'hole', to: 'hall', toDoor: 'secret', name: 'Темница' }],
     props: [
       { type: 'chest', id: 's', x: 262, z: 3, coins: 15, item: 'potion' },
