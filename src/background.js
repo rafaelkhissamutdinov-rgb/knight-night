@@ -11,7 +11,7 @@ export const DOOR_W = 22, DOOR_H = 36;
 // убранство стен: тип → [вариантов, как крепится, верх по умолчанию]; вариант — по месту (d.x), у доспеха rust → второй
 const DECOR_IMG = {
   window: [2, 'top', 22, -3], banner: [2, 'top', 10, -3], portrait: [3, 'top', 36, -2], tapestry: [1, 'top', 14, -2],
-  chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'],
+  chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'], rack: [2, 'floor'], bunk: [2, 'floor'],
 };
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2 };
@@ -27,7 +27,9 @@ function decorImage(g, d, floorTop) {
   const spec = DECOR_IMG[d.type];
   if (!spec) return false;
   const [n, anchor, top0, dy] = spec;
-  const i = d.type === 'armor' ? (d.rust ? 1 : 0) : Math.abs(Math.round(d.x / 10)) % n;
+  const i = d.type === 'armor' ? (d.rust ? 1 : 0)
+    : d.type === 'rack' ? ((d.items ?? []).filter(x => !x).length >= 2 ? 1 : 0)   // полупустая стойка
+    : Math.abs(Math.round(d.x / 10)) % n;
   const im = objImg('decor_' + d.type + (i ? '_' + i : ''));
   if (!im) return false;
   const h = im.height / 2;
