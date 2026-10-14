@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.73';
+export const VERSION = 'v0.74';
 
 export const CONFIG = {
   width: 320,
@@ -544,7 +544,7 @@ export const ROOMS = {
   corridor: {
     name: 'Коридор', tiles: 'castle', length: 900, torches: [120, 330, 540, 760],
     edges: { left: { to: 'gallery', x: 1150, name: 'Галерея' }, right: { to: 'dining', x: 30, name: 'Столовая' } },
-    props: [{ type: 'crate', x: 200, z: 2 }, { type: 'sack', x: 214, z: 6 }, { type: 'barrel', x: 640, z: 3 }, { type: 'loot', id: 'mar_boots', x: 470, z: 30, pick: 'mar_boots' }],
+    props: [{ type: 'crate', x: 200, z: 2 }, { type: 'sack', x: 214, z: 6 }, { type: 'barrel', x: 585, z: 3 }, { type: 'loot', id: 'mar_boots', x: 470, z: 30, pick: 'mar_boots' }],
     decor: [
       { type: 'banner', x: 60, y: 10 },
       { type: 'portrait', x: 232, y: 36, who: 'king', look: 'look_king', name: 'портрет' },
@@ -763,7 +763,7 @@ export const ROOMS = {
     name: 'Лестница башни', tiles: 'castle', length: 320, columns: false, torches: [100, 230], stairs: 'up', stairsX: 188, cobwebs: true,
     // перед финалом: знаки на стенах тлеют, из-под двери наверх пробивается лиловый свет
     decor: [
-      { type: 'sigil', x: 150, y: 44 }, { type: 'sigil', x: 52, y: 54 },
+      { type: 'sigil', x: 150, y: 44 },
       { type: 'doorglow', x: 272, y: 75 },   // свет из-под двери на площадке лестницы { type: 'chains', x: 110, y: 44 },
     ],
     // последний отдых перед боссом — сохраниться у двери покоев

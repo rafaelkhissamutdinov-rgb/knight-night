@@ -192,14 +192,23 @@ function chains(g, d) {
   rect(g, d.x - 9, top - 2, 18, 2, IRON);
 }
 
-// зарубки на стене: кто-то считал дни
+// зарубки на стене: кто-то считал дни (v0.74: процарапаны — тёмная борозда и светлый край, пачками по пять, неровно)
 function tally(g, d) {
   const top = d.y ?? 58;
-  for (let i = 0; i < (d.n ?? 22); i++) {
-    const grp = Math.floor(i / 5), k = i % 5;
-    const x = d.x + grp * 8 + k * 1.5 - 20, row = Math.floor(grp / 6), y = top + row * 9;
-    if (k === 4) thick(g, x - 6, y + 5, x, y + 1, 1, '#6a6288');
-    else rect(g, Math.round(x - 6 + (grp % 6) * 0), y, 1, 6, '#6a6288');
+  let seed = d.x * 13;
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  for (let i = 0; i < (d.n ?? 14); i++) {
+    const j = i % 15, grp = Math.floor(j / 5), k = j % 5;   // по три пачки в ряд
+    const x = Math.round(d.x - 16 + grp * 13 + k * 2), y = top + Math.floor(i / 15) * 12 + Math.round(rnd() * 2);
+    if (k === 4) {
+      // пятая — наискось через четыре
+      thick(g, x - 9, y + 7, x - 1, y + 1, 1, '#1c1828');
+      thick(g, x - 8, y + 7, x, y + 1, 1, '#7a72a0');
+    } else {
+      const len = 7 + Math.round(rnd() * 2);
+      rect(g, x, y, 1, len, '#1c1828');
+      rect(g, x + 1, y, 1, len, '#7a72a0');
+    }
   }
 }
 
@@ -463,6 +472,24 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
   } else if (d.type === 'sigil') {
     // знак на стене тлеет лиловым и медленно дышит
     const y = d.y ?? 46, k = 0.4 + 0.3 * Math.sin(time * 1.3 + d.x);
+    const im = decorImages.sigil;
+    if (im) {
+      // картинка (v0.74): высеченный круг с рунами, руны светятся и дышат
+      const w = im.width / 2, h = im.height / 2, x0 = Math.round(sx * 2 - im.width / 2) / 2, y0 = Math.round(y * 2 - im.height / 2) / 2;
+      g.drawImage(im, x0, y0, w, h);
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = k * 0.6;
+      g.drawImage(im, x0, y0, w, h);
+      const gr = g.createRadialGradient(sx, y, 1, sx, y, w * 0.9);
+      gr.addColorStop(0, `rgba(170,110,240,${0.22 * k})`);
+      gr.addColorStop(1, 'rgba(170,110,240,0)');
+      g.globalAlpha = 1;
+      g.fillStyle = gr;
+      g.fillRect(sx - w, y - w, w * 2, w * 2);
+      g.restore();
+      return;
+    }
     g.save();
     g.globalAlpha = k;
     for (let a = 0; a < Math.PI * 2; a += 0.14) rect(g, sx + Math.cos(a) * 10, y + Math.sin(a) * 10, 1, 1, '#a46be0');
@@ -614,8 +641,10 @@ export function drawCracks(g, sx, floorTop, state, time) {
     }
     return;
   }
-  // кладка свежее: светлее, швы ровнее
-  for (let row = 0; row * 7 < h; row++) {
+  // кладка свежее (v0.74 — картинка PixelLab с трещинами), иначе — кодом
+  const cim = decorImages.cracked;
+  if (cim) g.drawImage(cim, Math.round(sx * 2 - cim.width / 2) / 2, floorTop - cim.height / 2, cim.width / 2, cim.height / 2);
+  else for (let row = 0; row * 7 < h; row++) {
     const off = row % 2 ? 4 : 0;
     for (let x = -off; x < w; x += 9) {
       const bw = Math.min(8, w - Math.max(0, x)), bx = Math.max(0, x);
