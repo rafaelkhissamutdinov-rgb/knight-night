@@ -19,7 +19,7 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -54,6 +54,8 @@ const CEIL_N = typeof Image === 'undefined' ? null : Object.assign(new Image(), 
 export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete) && (!CEIL || (CEIL.complete && CEIL_N.complete));   // загрузились или не нашлись — дальше не ждать
 const objImg = n => (obj[n]?.complete && obj[n].naturalWidth ? obj[n] : null);
 if (obj.stainedglass) obj.stainedglass.onload = () => { decorImages.stainedglass = obj.stainedglass; };
+// знак мага и свежая кладка тайника (v0.74) — картинки PixelLab, убранство рисует их живыми (decor.js)
+for (const n of ['decor_sigil', 'decor_cracked']) if (obj[n]) obj[n].onload = () => { decorImages[n.slice(6)] = obj[n]; };
 // люстра (v0.68): фитили — верхушки свечей на картинке (самые высокие столбцы); живое пламя ставится на них (decor.js)
 if (obj.decor_chandelier) obj.decor_chandelier.onload = () => {
   const im = obj.decor_chandelier, w = im.width, h = im.height;
@@ -389,7 +391,7 @@ export function drawDoor(g, d, floorTop, tiled = false) {
 // двумерных играх (Castlevania, Blasphemous) — ступени по диагонали вдоль стены, под ними кладка, балюстрада, камень замка;
 // наверху площадка и дверь (та же, что в залах). Рыцарь поднимается по ступеням наискось, сбоку.
 export const STAIR_DROP = 6;                                        // низ ступеней — на линии шага у стены (z = 0)
-export const STAIR_PATH = [[0.03, 0.95], [0.64, 0.19], [0.88, 0.17]];   // нижняя ступень → верхняя → к двери
+export const STAIR_PATH = [[0.03, 0.95], [0.64, 0.19], [0.84, 0.17]];   // v0.74: дверь — вровень с правым краем площадки   // нижняя ступень → верхняя → к двери
 export function stairsX(room, length) {
   const w = (objImg('stairs')?.width ?? 140) / 2;
   return room.stairsX ?? (room.stairs === 'right' ? length - w - 4 : length / 2 - w / 2);
@@ -406,7 +408,8 @@ function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
     const w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
     // дверь на стене над площадкой — до ступеней (балюстрада впереди)
     const door = objImg('door_wood');
-    if (door && !blocked) drawObj(g, door, x0 + STAIR_PATH[2][0] * w, top + STAIR_PATH[2][1] * h + 1);
+    // правый край двери — по краю площадки (владелец: дверь выходила за края лестницы)
+    if (door && !blocked) drawObj(g, door, x0 + w - door.width / 4, top + STAIR_PATH[2][1] * h + 1);
     drawObj(g, im, x0 + w / 2, floorTop + STAIR_DROP);
     return;
   }
@@ -546,6 +549,8 @@ function drawBalcony(g, length, height, floorTop, rand) {
 
 // Знак мага на стене: круг с лучами, светится лиловым
 function drawSigil(g, x, y) {
+  const im = decorImages.sigil;
+  if (im) { g.drawImage(im, Math.round(x * 2 - im.width / 2) / 2, Math.round(y * 2 - im.height / 2) / 2, im.width / 2, im.height / 2); return; }
   for (let a = 0; a < Math.PI * 2; a += 0.12) rect(g, x + Math.cos(a) * 12, y + Math.sin(a) * 12, 1, 1, '#a46be0');
   for (let i = 0; i < 6; i++) {
     const a = i * Math.PI / 3;
@@ -595,11 +600,13 @@ function drawGateWall(g, x0, floorTop) {
 }
 
 // Открытая дверь решётки — распахнута к зрителю, рисуется поверх бойцов.
-export function drawGatePanel(g, x, floorTop, H, dir) {
+// wall — створка распахнута наружу и прислонена к стене коридора рядом с решёткой (v0.74, владелец: в Темнице
+// дверь камеры «стояла посреди коридора»); иначе — к зрителю, поверх бойцов (так она видна изнутри камеры)
+export function drawGatePanel(g, x, floorTop, H, dir, wall = false) {
   const im = objImg('gate_door');
   if (im) {
     // распахнутая дверь решётки картинкой: петли у стены (x), створка к зрителю
-    const k = 1.3, w = im.width / 2 * k, h = im.height / 2 * k, b = Math.min(H - 3, floorTop + 36);   // выше рыцаря
+    const k = wall ? 1 : 1.3, w = im.width / 2 * k, h = im.height / 2 * k, b = wall ? floorTop + 2 : Math.min(H - 3, floorTop + 36);   // выше рыцаря
     g.save();
     g.imageSmoothingEnabled = false;
     g.translate(Math.round(x), 0);

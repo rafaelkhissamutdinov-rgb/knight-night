@@ -2888,6 +2888,7 @@ function render() {
     else if (d.type === 'stainedglass') drawStainedGlass(g, d.x - cam, CONFIG.floorTop, game.time, d.y);
     else if (DECOR_LIVE.has(d.type)) drawDecorLive(g, d, d.x - cam, CONFIG.floorTop, game.time);
   }
+  if (r.gate === 'left') drawGatePanel(g, 26 - cam, CONFIG.floorTop, H, 1, true);   // дверь камеры — у стены, за бойцами
   const tr = game.transition;
   if (tr?.kind === 'door' && (!r.image || r.tile)) {
     // проём открывается, пока рыцарь входит и выходит
@@ -2943,7 +2944,6 @@ function render() {
 
   // передний план: распахнутая дверь решётки
   if (r.gate === 'right') drawGatePanel(g, r.length - 26 - cam, CONFIG.floorTop, H, -1);
-  if (r.gate === 'left') drawGatePanel(g, 26 - cam, CONFIG.floorTop, H, 1);
 
   if (r.dark && light) {
     // живой свет сам затемняет комнату (applyLight); остаются тёмные пылинки перед камерой
