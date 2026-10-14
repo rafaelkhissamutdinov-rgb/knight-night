@@ -423,7 +423,7 @@ export const ROOMS = {
   // верхняя галерея с окнами на горы; отсюда — все комнаты и башня. Фон кодом: на картинке владельца
   // (assets/backgrounds/gallery.png) двери некуда поставить — под окнами и в простенках нет места, по краям проломы
   gallery: {
-    name: 'Галерея', length: 1180, columns: false,
+    name: 'Галерея', tiles: 'castle', length: 1180, columns: false,
     torches: [125, 222, 325, 425, 520, 615, 710, 805, 905, 1010],
     decor: [
       ...[80, 272, 472, 660, 760, 960].flatMap(x => [
@@ -464,7 +464,7 @@ export const ROOMS = {
   },
   // испытать рапиру на копейщиках; в сундуке монеты для лавки
   armory: {
-    name: 'Оружейная', length: 480, columns: false, torches: [120, 360],
+    name: 'Оружейная', tiles: 'castle', length: 480, columns: false, torches: [120, 360],
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'armory', name: 'Галерея' }],
     props: [{ type: 'chest', id: 'a', x: 446, z: 3, coins: 20 }, { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 420, z: 14 }],
     decor: [
@@ -479,7 +479,7 @@ export const ROOMS = {
   },
   // караульная: стол караула (кости, кружки), табуреты, стойка, доска с ключами — одного не хватает
   guardroom: {
-    name: 'Караульная', length: 320, columns: false, torches: [100, 250],
+    name: 'Караульная', tiles: 'castle', length: 320, columns: false, torches: [100, 250],
     props: [
       { type: 'guardtable', x: 210, z: 14 }, { type: 'stool', x: 186, z: 10 }, { type: 'stool', x: 236, z: 20 },
       { type: 'barrel', x: 296, z: 3 },
@@ -496,7 +496,7 @@ export const ROOMS = {
   },
   // логово мародёров: атаман стережёт сундук с монетами (ключ от башни — на втором или третьем этаже, решение владельца)
   barracks: {
-    name: 'Казарма', length: 480, columns: false, torches: [120, 360],
+    name: 'Казарма', tiles: 'castle', length: 480, columns: false, torches: [120, 360],
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'barracks', name: 'Галерея' }],
     props: [
       { type: 'chest', id: 'key', x: 446, z: 3, coins: 25 },
@@ -515,7 +515,7 @@ export const ROOMS = {
   // лестница башни: наверх — покои принцессы, там призрак главы стражи
   // за Галереей: коридор с мародёрами → столовая (чаша, лестница на второй этаж) → обрушенный балкон (тупик, сотник стражи)
   corridor: {
-    name: 'Коридор', length: 900, torches: [120, 330, 540, 760],
+    name: 'Коридор', tiles: 'castle', length: 900, torches: [120, 330, 540, 760],
     edges: { left: { to: 'gallery', x: 1150, name: 'Галерея' }, right: { to: 'dining', x: 30, name: 'Столовая' } },
     props: [{ type: 'crate', x: 200, z: 2 }, { type: 'sack', x: 214, z: 6 }, { type: 'barrel', x: 640, z: 3 }, { type: 'loot', id: 'mar_boots', x: 470, z: 30, pick: 'mar_boots' }],
     decor: [
@@ -530,7 +530,7 @@ export const ROOMS = {
     ],
   },
   dining: {
-    name: 'Столовая', length: 480, columns: false, torches: [60, 420], stairs: 'up', stairsX: 40,
+    name: 'Столовая', tiles: 'castle', length: 480, columns: false, torches: [60, 420], stairs: 'up', stairsX: 40,
     edges: { left: { to: 'corridor', x: 870, name: 'Коридор' }, right: { to: 'balcony', x: 30, name: 'Балкон' } },
     doors: [
       // у подножия лестницы: наверх можно, когда осмотрел этаж до конца (балкон)
@@ -560,7 +560,7 @@ export const ROOMS = {
   // ---------- второй этаж (черновик Claude: лор и комнаты владелец поправит) ----------
   // площадка у лестницы из Столовой; дальше — Жилое крыло
   landing2: {
-    name: 'Лестничная площадка', floor: 2, length: 400, columns: false, torches: [150, 330], stairs: 'up', stairsX: 0,
+    name: 'Лестничная площадка', tiles: 'castle', floor: 2, length: 400, columns: false, torches: [150, 330], stairs: 'up', stairsX: 0,
     doors: [{ id: 'down', x: 60, kind: 'none', stairs: true, to: 'dining', toDoor: 'up', name: 'Лестница вниз, в Столовую' }],
     edges: { right: { to: 'hall2', x: 30, name: 'Жилое крыло' } },
     decor: [
@@ -573,7 +573,7 @@ export const ROOMS = {
   },
   // длинный коридор покоев: портреты, окна, доспехи; двери в Библиотеку, Часовню и запертые покои
   hall2: {
-    name: 'Жилое крыло', floor: 2, length: 1500, torches: [150, 450, 640, 850, 1030, 1250, 1430],
+    name: 'Жилое крыло', tiles: 'castle', floor: 2, length: 1500, torches: [150, 450, 640, 850, 1030, 1250, 1430],
     edges: { left: { to: 'landing2', x: 370, name: 'Лестничная площадка' }, right: { to: 'stairs3', x: 30, name: 'Лестница наверх' } },
     doors: [
       { id: 'camp', x: 300, kind: 'wood', to: 'camp', toDoor: 'out', name: 'Привал' },
@@ -600,7 +600,7 @@ export const ROOMS = {
   // Привал (решение владельца): уютная комната с костром, где после поражения отдыхает Илиа. Первый вход — разговор
   // (он хватается за оружие: «Стой, я живой — не скелет и не мародёр»). Костёр — место отдыха. Название — черновик.
   camp: {
-    name: 'Привал', floor: 2, length: 400, columns: false, torches: [], dark: true, warm: true,
+    name: 'Привал', tiles: 'castle', floor: 2, length: 400, columns: false, torches: [], dark: true, warm: true,
     enterTalk: { id: 'ilia_camp', needs: 'done_ilia' },
     doors: [{ id: 'out', x: 60, kind: 'wood', to: 'hall2', toDoor: 'camp', name: 'Жилое крыло' }],
     decor: [
@@ -641,7 +641,7 @@ export const ROOMS = {
   // часовня: витраж (цветной свет на полу), скамьи, алтарь с пустой подставкой — для Серебряной чаши.
   // Чаша на алтаре — за алтарём отъезжает плита, проход в Ризницу
   chapel: {
-    name: 'Часовня', floor: 2, length: 480, columns: false, torches: [90, 430],
+    name: 'Часовня', tiles: 'castle', floor: 2, length: 480, columns: false, torches: [90, 430],
     doors: [
       { id: 'out', x: 50, kind: 'wood', to: 'hall2', toDoor: 'chapel', name: 'Жилое крыло' },
       { id: 'vestry', x: 400, kind: 'none', needs: 'cup_placed', to: 'vestry', toDoor: 'out', name: 'Ризница' },
@@ -671,7 +671,7 @@ export const ROOMS = {
     ],
   },
   vestry: {
-    name: 'Ризница', floor: 2, length: 320, columns: false, torches: [200], cobwebs: true,
+    name: 'Ризница', tiles: 'castle', floor: 2, length: 320, columns: false, torches: [200], cobwebs: true,
     doors: [{ id: 'out', x: 60, kind: 'hole', to: 'chapel', toDoor: 'vestry', name: 'Часовня' }],
     props: [
       { type: 'chest', id: 'v', x: 250, z: 3, coins: 20, item: 'rosary' },
@@ -681,7 +681,7 @@ export const ROOMS = {
   },
   // ---------- третий этаж (по плану владельца: ключ от башни, выше — завал, пролом в полу — вниз к башне) ----------
   landing3: {
-    name: 'Верхний этаж', floor: 3, length: 360, columns: false, torches: [150, 300], stairs: 'up', stairsX: 0, cobwebs: true,
+    name: 'Верхний этаж', tiles: 'castle', floor: 3, length: 360, columns: false, torches: [150, 300], stairs: 'up', stairsX: 0, cobwebs: true,
     doors: [{ id: 'down', x: 60, kind: 'none', stairs: true, to: 'stairs3', toDoor: 'up3', name: 'Лестница вниз' }],
     edges: { right: { to: 'hall3', x: 30, name: 'Северное крыло' } },
     decor: [{ type: 'window', x: 230, w: 24, h: 40, y: 22 }],
@@ -689,7 +689,7 @@ export const ROOMS = {
   },
   // выбитые окна, дырявый потолок; пролом в полу — спрыгнуть к двери башни; в конце лестница наверх завалена
   hall3: {
-    name: 'Северное крыло', floor: 3, length: 1300, torches: [150, 360, 560, 980, 1160],
+    name: 'Северное крыло', tiles: 'castle', floor: 3, length: 1300, torches: [150, 360, 560, 980, 1160],
     stairs: 'up', stairsX: 1190,
     edges: { left: { to: 'landing3', x: 330, name: 'Верхний этаж' } },
     doors: [
@@ -711,7 +711,7 @@ export const ROOMS = {
   },
   // зал стражи: тяжёлый бой, за ним — сундук с ключом от башни (решение владельца: ключ — на третьем этаже)
   guardhall: {
-    name: 'Зал стражи', floor: 3, length: 480, columns: false, torches: [120, 360],
+    name: 'Зал стражи', tiles: 'castle', floor: 3, length: 480, columns: false, torches: [120, 360],
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall3', toDoor: 'guardhall', name: 'Северное крыло' }],
     decor: [
       { type: 'shield', x: 180, y: 40 }, { type: 'shield', x: 300, y: 40 },
@@ -725,7 +725,7 @@ export const ROOMS = {
   },
   // лестница на третий этаж — со второго этажа
   stairs3: {
-    name: 'Лестница на третий этаж', floor: 2, length: 320, columns: false, torches: [90], stairs: 'up', stairsX: 200, cobwebs: true,
+    name: 'Лестница на третий этаж', tiles: 'castle', floor: 2, length: 320, columns: false, torches: [90], stairs: 'up', stairsX: 200, cobwebs: true,
     edges: { left: { to: 'hall2', x: 1470, name: 'Жилое крыло' } },
     doors: [
       { id: 'up3', x: 220, kind: 'none', stairs: true, to: 'landing3', toDoor: 'down', name: 'Лестница на третий этаж' },
