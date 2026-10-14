@@ -1951,7 +1951,7 @@ function renderMap() {
   rect(g, 12, 16, 296, 148, '#e0d2ac');
   for (let i = 0; i < 40; i++) rect(g, 14 + (i * 73) % 290, 18 + (i * 37) % 140, 2, 1, '#cbb98e');  // пятна
   g.fillStyle = '#5a4632';
-  g.font = '7px monospace';
+  g.font = '8px "Tiny5", monospace';
   g.textBaseline = 'top';
   g.fillText(`Этаж ${f}${(room().floor ?? 1) === f ? ' · ' + room().name : ''}`, 18, 18);
   g.fillText('M — закрыть · A / D — этаж', 186, 156);

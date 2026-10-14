@@ -6,13 +6,13 @@
   --muted: #9f97b0;
   --gold: #f2c14e;
   --red: #e8454f;
-  --pixel: "Pixelify Sans", ui-monospace, monospace;
-  --body: "Golos Text", system-ui, sans-serif;
+  --pixel: "Tiny5", ui-monospace, monospace;   /* v0.67: кириллица читается, пиксельный под графику (бесплатный, OFL) */
+  --body: "Tiny5", system-ui, sans-serif;     /* запасной для диалогов — "Handjet" (тоньше, длиннее строки) */
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-synthesis: none; }  /* у Tiny5 одно начертание — без поддельного жирного */
 .page {
   max-width: 1280px;
   margin: 0 auto;
