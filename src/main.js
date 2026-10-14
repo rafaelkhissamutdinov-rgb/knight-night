@@ -15,7 +15,7 @@ import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, update
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
 loadWeapons();
@@ -2969,8 +2969,12 @@ function renderPlayer(cam) {
   const GROUND = groundY(p.z) + Math.round(game.fallY ?? 0);  // падение сквозь пролом
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   const sprite = knightReady();
+  // оружие за спиной (v0.69): любое, и рапира; sheath.k — сколько прошло от руки до ножен
+  const sheathKind = p.weapon === 'rapier' ? 'rapier' : 'sword', sheathLen = (p.arms.length ?? 17) * 2;
   if (p.state === 'roll' && sprite) {
-    drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_tuck', rotate: p.facing * Math.min(1, p.t / WEAPON.roll.time) * Math.PI * 2 });
+    const k = Math.min(1, p.t / WEAPON.roll.time);
+    if (spriteAnim('knight', 'roll')) drawKnight(g, { x: px, ground: GROUND, facing: p.facing, anim: { key: 'roll', k }, sheath: p.sheathed ? { kind: sheathKind, len: sheathLen } : null });
+    else drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_tuck', rotate: p.facing * k * Math.PI * 2 });
     return;
   }
   if (p.state === 'roll') {
@@ -3052,9 +3056,15 @@ function renderPlayer(cam) {
   mv.dx = mv.dx * 0.8 + (p.x - mv.x) * 0.2; mv.dz = mv.dz * 0.8 + (p.z - mv.z) * 0.2; mv.x = p.x; mv.z = p.z;
   game.lastMove = mv;
   const depth = p.walking && Math.abs(mv.dz) > Math.abs(mv.dx) * 1.3 && Math.abs(mv.dz) > 0.05 ? (mv.dz > 0 ? 'south' : 'north') : null;
+  // убирает в ножны: стоя — кадры «рука за спину», на бегу — оружие просто уплывает за спину; достаёт — обратно
+  const SHEATHE_T = 0.5;
+  const sk = p.sheathed ? (p.sheatheAt != null ? Math.min(1, (p.clock - p.sheatheAt) / SHEATHE_T) : 1)
+    : drawing ? Math.max(0, 1 - p.t / Math.max(0.05, p.atk.windup)) : null;
+  const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && spriteAnim('knight', 'sheathe');
   const tip = sprite ? drawKnight(g, {
     x: px, ground: GROUND, facing, pose: p.pose, state: p.state, walking: p.walking, step: p.step, time: game.time, airY: p.airY,
     turn, run: (p.gaitRun ?? 0) > 0.5, depth,
+    sheath: sk != null ? { kind: sheathKind, len: sheathLen, k: sk } : null, anim: sheathing ? { key: 'sheathe', k: sk } : null,
     weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing,
     alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
   }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {

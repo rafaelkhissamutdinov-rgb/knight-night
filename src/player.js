@@ -31,7 +31,7 @@ export class Player {
     this.clock = 0;
     this.pose = { ...POSES.sheathed };
     this.guard = null;
-    this.sheathed = weapon === 'sword';
+    this.sheathed = true;
     this.idleT = 0;
     this.walking = false;
     this.step = 0;
@@ -258,12 +258,13 @@ export class Player {
         if (v) forward(v * slow * dt);
         this.gaitRun = run;
         this.speedNow = Math.hypot(v * slow, (c.dz ?? 0) * (c.engaged ? CONFIG.depthSpeed : CONFIG.exploreDepthSpeed) * slow);
-        if (run > 0.5 && this.weapon === 'sword' && !g) this.sheathed = true;  // на бегу меч в ножнах, руки свободны
+        // на бегу оружие (любое) за спиной, руки свободны; sheatheAt — когда убрал (для анимации)
+        if (run > 0.5 && !g && !this.sheathed) { this.sheathed = true; this.sheatheAt = this.clock; this.sheatheRun = true; }
         if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * (c.engaged ? CONFIG.depthSpeed : CONFIG.exploreDepthSpeed) * slow * dt));
         this.walking = !!(v || c.dz);
-        if (this.weapon === 'sword' && !c.engaged && !g && this.idleT > CONFIG.autoSheathe) this.sheathed = true;
+        if (!c.engaged && !g && !this.sheathed && this.idleT > CONFIG.autoSheathe) { this.sheathed = true; this.sheatheAt = this.clock; this.sheatheRun = false; }
         const rest = this.weapon === 'rapier' ? POSES.fence : POSES.idle;
-        target = this.broken ? POSES.broken : this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : run > 0.5 && this.weapon === 'rapier' ? POSES.run_rapier : rest;
+        target = this.broken ? POSES.broken : this.sheathed ? POSES.sheathed : g ? POSES['guard_' + g] : rest;
         break;
       }
 
