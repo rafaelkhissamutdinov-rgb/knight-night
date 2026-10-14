@@ -9,7 +9,7 @@ import { thick } from './draw.js';
 
 const ROOT = 'assets/sprites/';
 // враги, у которых уже есть набор кадров (имя набора = тип врага в ENEMY_TYPES); остальные — старые фигурки
-export const ENEMY_SPRITES = ['skelShort', 'merc'];
+export const ENEMY_SPRITES = ['skelShort', 'merc', 'skelShield', 'skelArcher', 'skelLong', 'duelist'];
 const sets = {};
 let normalCtx = null;  // куда рисовать нормали (холст живого света); null — не рисовать
 export const setNormalTarget = ctx => { normalCtx = ctx; };
@@ -86,17 +86,26 @@ function drawWeapon(g, kind, wx, wy, angleDeg, facing, len, draw = 0) {
   const line = (x0, y0, x1, y1, w, c) => thick(g, R(x0), R(y0), R(x1), R(y1), w, c);
   if (kind === 'bow') {
     // лук поперёк направления выстрела; тетива оттянута на draw (0…1)
-    const h = 13, pull = 2 + draw * 7;
+    const h = 22, bend = 7, pull = 2 + draw * 12;
     const tx = wx + px * h, ty = wy + py * h, bx = wx - px * h, by = wy - py * h;
-    line(tx, ty, wx + dx * 4, wy + dy * 4, 2, '#5a3a22'); line(wx + dx * 4, wy + dy * 4, bx, by, 2, '#5a3a22');
+    const mx = wx + dx * bend, my = wy + dy * bend;
+    for (const [w, c] of [[4, '#1a1410'], [2, '#9a6a40']]) {   // плечи лука с контуром
+      line(tx, ty, wx + dx * bend * 0.7 + px * h * 0.5, wy + dy * bend * 0.7 + py * h * 0.5, w, c);
+      line(wx + dx * bend * 0.7 + px * h * 0.5, wy + dy * bend * 0.7 + py * h * 0.5, mx, my, w, c);
+      line(mx, my, wx + dx * bend * 0.7 - px * h * 0.5, wy + dy * bend * 0.7 - py * h * 0.5, w, c);
+      line(wx + dx * bend * 0.7 - px * h * 0.5, wy + dy * bend * 0.7 - py * h * 0.5, bx, by, w, c);
+    }
     const sx = wx - dx * pull, sy = wy - dy * pull;
-    line(tx, ty, sx, sy, 1, '#d8d0c0'); line(sx, sy, bx, by, 1, '#d8d0c0');
-    return { tipX: wx + dx * 6, tipY: wy + dy * 6 };
+    line(tx, ty, sx, sy, 1, '#e8e0d0'); line(sx, sy, bx, by, 1, '#e8e0d0');
+    if (draw > 0.1) line(sx, sy, sx + dx * 30, sy + dy * 30, 1, '#c9b48a');   // стрела на тетиве
+    return { tipX: mx, tipY: my };
   }
   if (kind === 'crossbow') {
-    line(wx - dx * 6, wy - dy * 6, wx + dx * 14, wy + dy * 14, 3, '#4a3020');         // ложе
-    line(wx + dx * 12 + px * 9, wy + dy * 12 + py * 9, wx + dx * 12 - px * 9, wy + dy * 12 - py * 9, 2, '#6b6a74');  // плечи
-    return { tipX: wx + dx * 14, tipY: wy + dy * 14 };
+    line(wx - dx * 10, wy - dy * 10, wx + dx * 22, wy + dy * 22, 5, '#1a1410');      // контур ложа
+    line(wx - dx * 9, wy - dy * 9, wx + dx * 21, wy + dy * 21, 3, '#6b4a30');         // ложе
+    line(wx + dx * 19 + px * 14, wy + dy * 19 + py * 14, wx + dx * 19 - px * 14, wy + dy * 19 - py * 14, 4, '#1a1410');
+    line(wx + dx * 19 + px * 13, wy + dy * 19 + py * 13, wx + dx * 19 - px * 13, wy + dy * 19 - py * 13, 2, '#8a8a96');  // плечи
+    return { tipX: wx + dx * 22, tipY: wy + dy * 22 };
   }
   if (kind === 'spear' || kind === 'halberd') {
     // древко назад и вперёд от кисти, наконечник; у алебарды — топорик
