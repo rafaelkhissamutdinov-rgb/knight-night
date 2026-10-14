@@ -436,24 +436,39 @@ function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
 // балкон в разрешении экрана: каменные перила картинкой, с проломом; справа пол обрывается в пропасть
 function drawBalconyTiled(g, length, height, floorTop) {
   const im = objImg('balustrade');
+  const edge = length - 44;
   if (im) {
+    // перила кончаются до обрыва (v0.74, владелец: «колонны над обрывом») — последний кусок не дальше края пола
     const w = im.width / 2;
-    for (let x = 0, i = 0; x < length - 50; x += w, i++) {
+    for (let x = 0, i = 0; x + w <= edge - 6; x += w, i++) {
       if (i % 4 === 2) continue;   // пролом
       g.drawImage(im, x, floorTop - im.height / 2 + 2, w, im.height / 2);
     }
   }
-  const edge = length - 44;
-  const abyss = g.createLinearGradient(0, floorTop, 0, height);
-  abyss.addColorStop(0, '#8a8aa8');
-  abyss.addColorStop(0.4, '#3f5a50');
-  abyss.addColorStop(1, '#16201e');
-  g.clearRect(edge, floorTop, 44, height - floorTop);
+  // обрыв (v0.74): за рваным краем пола — пусто, сквозь него видна долина далеко внизу (дальний план, far),
+  // поверх — дымка глубины; край — отколотый камень плиты с тёмной кромкой
+  const H2 = height - floorTop;
+  const edgeX = y => edge + Math.round(((y - floorTop) / H2) * 10 + Math.sin(y * 0.9) * 2 + Math.sin(y * 0.31) * 3);
+  for (let y = floorTop; y < height; y++) g.clearRect(edgeX(y), y, length - edgeX(y) + 2, 1);
+  const haze = g.createLinearGradient(0, floorTop, 0, height);
+  haze.addColorStop(0, 'rgba(214,200,220,0.35)');
+  haze.addColorStop(0.5, 'rgba(150,150,190,0.15)');
+  haze.addColorStop(1, 'rgba(60,60,100,0.05)');
   for (let y = floorTop; y < height; y++) {
-    const w = 44 - Math.round(((y - floorTop) / (height - floorTop)) * 18 + Math.sin(y * 0.7) * 3);
-    g.fillStyle = abyss;
-    g.fillRect(edge + (44 - w), y, w, 1);
-    rect(g, edge + (44 - w) - 1, y, 2, 1, '#2a2538');
+    const x = edgeX(y);
+    g.fillStyle = haze;
+    g.fillRect(x, y, length - x, 1);
+    rect(g, x - 3, y, 3, 1, '#3a3448');     // скол плиты
+    rect(g, x - 3, y, 1, 1, '#5e5878');     // светлая кромка
+    rect(g, x, y, 1, 1, '#1c1828');         // тень по краю
+  }
+  // осколки у края
+  for (const [dx, dy, s] of [[-8, 6, 3], [-12, 20, 2], [-6, 33, 3], [-10, 48, 2], [-7, 60, 2]]) {
+    const y = floorTop + dy;
+    if (y >= height) continue;
+    const x = edgeX(y) + dx;
+    rect(g, x, y, s, s - 1, '#4a4462');
+    rect(g, x, y, s, 1, '#6a6288');
   }
 }
 

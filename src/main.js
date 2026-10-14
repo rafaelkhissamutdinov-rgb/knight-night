@@ -2131,13 +2131,16 @@ function bagStacks() {
   return out;
 }
 
+// иконка предмета (v0.74, assets/items/<id>.png из tools/pixellab_icons.py); нет картинки — просто текст
+const itemIcon = id => (id ? `<img class="item-icon" src="assets/items/${id}.png" alt="" onerror="this.remove()">` : '');
+
 function renderEquip() {
   ui.equipSlots.innerHTML = '';
   for (const [slot, label] of SLOTS) {
     const id = game.equip[slot];
     const b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = `<span class="equip-slot">${label}</span><span>${id ? ITEMS[id].name : '—'}</span>`;
+    b.innerHTML = `<span class="equip-slot">${label}</span><span class="item-name">${itemIcon(id)}${id ? ITEMS[id].name : '—'}</span>`;
     b.addEventListener('pointerenter', () => showEquipDesc(id));
     b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); unequip(slot); renderEquip(); });
     ui.equipSlots.appendChild(b);
@@ -2150,7 +2153,7 @@ function renderEquip() {
     const b = document.createElement('button');
     b.type = 'button';
     const what = item.slot ? 'надеть' : item.use ? 'использовать' : item.learn ? 'прочитать' : item.journal ? 'открыть' : '';
-    b.innerHTML = `<span>${i + 1}. ${item.name}${s.n > 1 ? ' ×' + s.n : ''}</span><span class="equip-act">${what}</span>`;
+    b.innerHTML = `<span class="item-name">${itemIcon(s.id)}${i + 1}. ${item.name}${s.n > 1 ? ' ×' + s.n : ''}</span><span class="equip-act">${what}</span>`;
     b.addEventListener('pointerenter', () => showEquipDesc(s.id));
     b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); bagAction(s.id); });
     ui.equipBag.appendChild(b);
@@ -2655,7 +2658,7 @@ function shopOptions() {
     ...d.items.map(it => {
       const item = ITEMS[it.id];
       const have = onceOwned(it.id);
-      return { label: item.name, right: have ? 'есть' : `${item.price} мон.`, muted: have || it.soon || item.price > game.coins, hover: it.text, mood: d.moods?.item, go: () => buyItem(it) };
+      return { label: item.name, icon: it.id, right: have ? 'есть' : `${item.price} мон.`, muted: have || it.soon || item.price > game.coins, hover: it.text, mood: d.moods?.item, go: () => buyItem(it) };
     }),
     back,
   ];
@@ -2701,7 +2704,7 @@ function renderShop() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = o.muted ? 'muted' : '';
-    b.innerHTML = `<span>${i + 1}. ${o.label}</span>${o.right ? `<span>${o.right}</span>` : ''}`;
+    b.innerHTML = `<span class="item-name">${itemIcon(o.icon)}${i + 1}. ${o.label}</span>${o.right ? `<span>${o.right}</span>` : ''}`;
     b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); o.go(); });
     if (o.hover) b.addEventListener('pointerenter', () => shopSay(o.hover, o.mood));
     ui.shopMenu.appendChild(b);
@@ -2871,7 +2874,17 @@ function render() {
   const cam = Math.round(game.camX);
   // даль под открытым небом (балкон): неподвижный дальний план за полом и перилами
   const farImg = r.far && (farImgs[r.far] ??= Object.assign(new Image(), { src: r.far }));
-  if (farImg?.complete && farImg.naturalWidth && (bgFor(game.room).k ?? 1) === 2) g.drawImage(farImg, 0, 0, farImg.width / 2, farImg.height / 2);
+  if (farImg?.complete && farImg.naturalWidth && (bgFor(game.room).k ?? 1) === 2) {
+    g.drawImage(farImg, 0, 0, farImg.width / 2, farImg.height / 2);
+    // под обрывом (v0.74): долина далеко внизу — нижняя полоса дальнего плана продолжается вниз, темнее к краю экрана
+    const ft = CONFIG.floorTop, band = 40;
+    g.drawImage(farImg, 0, (ft - band) * 2, farImg.width, band * 2, 0, ft, farImg.width / 2, H - ft);
+    const dk = g.createLinearGradient(0, ft, 0, H);
+    dk.addColorStop(0, 'rgba(20,16,36,0.15)');
+    dk.addColorStop(1, 'rgba(20,16,36,0.55)');
+    g.fillStyle = dk;
+    g.fillRect(0, ft, W, H - ft);
+  }
   const bg = bgFor(game.room), bk = bg.k ?? 1;
   g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
   // карта объёма фона (рельеф стен, нормали предметов) — под живой свет; предметы на полу допишут свои по ходу кадра
