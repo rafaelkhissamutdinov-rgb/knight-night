@@ -35,18 +35,27 @@ export function loadKnightSprites() {
 
 export const knightReady = () => !!meta && pending === 0 && !!imgs.pose_idle;
 
-const POSE_FRAMES = () => Object.keys(meta.frames).filter(n => n.startsWith('pose_')).map(n => n.slice(5)).filter(n => POSES[n]);
+// кадры-позы: основные (pose_<имя из POSES>) и промежуточные (tw_…, параметры позы — в knight.json)
+let poseList = null;
+function poseFrames() {
+  if (poseList) return poseList;
+  poseList = [];
+  for (const [n, f] of Object.entries(meta.frames)) {
+    const q = f.pose ?? (n.startsWith('pose_') ? POSES[n.slice(5)] : null);
+    if (q && imgs[n]) poseList.push([n, q]);
+  }
+  return poseList;
+}
 
-// ближайшая поза из нарисованных (по кисти, углу клинка, наклону и приседу)
+// ближайшая поза из нарисованных (по кисти, углу клинка, наклону и приседу) — чем гуще кадры, тем плавнее
 function nearestPose(p) {
-  let best = 'idle', bd = Infinity;
-  for (const n of POSE_FRAMES()) {
-    const q = POSES[n];
+  let best = 'pose_idle', bd = Infinity;
+  for (const [n, q] of poseFrames()) {
     let da = Math.abs(((p.angle - q.angle) % 360 + 540) % 360 - 180);
     const d = (p.hx - q.hx) ** 2 + (p.hy - q.hy) ** 2 + (da / 12) ** 2 + (p.crouch - q.crouch) ** 2 + 0.5 * (p.lean - q.lean) ** 2;
     if (d < bd) { bd = d; best = n; }
   }
-  return 'pose_' + best;
+  return best;
 }
 
 // меч или рапира: рукоять, гарда, клинок с тёмным контуром (в пикселях экрана)
@@ -86,13 +95,27 @@ export function drawKnight(g, o) {
     g.restore();
     return null;
   }
+  const A = meta.anims ?? { walk: 6, idle: 4 };
+  const cyc = (u, n) => Math.floor(((u % 1) + 1) % 1 * n) % n;
   let name = o.frame;
+  let right = o.facing >= 0;
+  if (!name && o.turn && A.turn) {
+    // разворот: кадры из ролика «повернулся через вид спереди»; справа налево — по порядку, слева направо — обратно
+    const i = Math.min(A.turn - 1, Math.floor(o.turn.k * A.turn));
+    name = 'turn_' + (o.turn.toLeft ? i : A.turn - 1 - i);
+    right = true;
+  }
+  if (!name && o.depth && o.walking && o.state === 'ready') {
+    // идёт вглубь: шаги спереди (к камере) или со спины, клинок не виден
+    const k = o.depth === 'south' ? 'walkS' : 'walkN';
+    name = k + '_' + cyc(o.step, A[k]);
+    right = true;
+  }
   if (!name) {
-    if (o.walking && o.state === 'ready') name = 'walk_' + (Math.floor(((o.step % 1) + 1) % 1 * 6) % 6);
-    else if (o.sheathed && o.state === 'ready') name = 'idle_' + (Math.floor(o.time * 4) % 4);
+    if (o.walking && o.state === 'ready') name = (o.run && A.run ? 'run_' + cyc(o.step, A.run) : 'walk_' + cyc(o.step, A.walk));
+    else if (o.sheathed && o.state === 'ready') name = 'idle_' + (Math.floor(o.time * 4) % A.idle);
     else name = nearestPose(o.pose);
   }
-  const right = o.facing >= 0;
   const img = right ? imgs[name] : flipped[name];
   if (!img) { g.restore(); return null; }  // кадр не загрузился — не рисуем, но и не падаем
   const left = right ? X - cx : X - (size - cx);
@@ -106,7 +129,7 @@ export function drawKnight(g, o) {
   }
   g.drawImage(img, left, top);
   const fr = meta.frames[name];
-  if (fr && o.pose && !o.bladeHidden && !o.sheathed) {
+  if (fr?.wrist && o.pose && !o.bladeHidden && !o.sheathed) {
     const wx = left + (right ? fr.wrist[0] : size - fr.wrist[0]);
     const wy = top + fr.wrist[1];
     const len = (o.weaponLen ?? 17) * S;

@@ -2852,8 +2852,19 @@ function renderPlayer(cam) {
     const k = Math.min(1, (game.time - game.charge.t) / WEAPONS.rapier.chargeTime);
     rect(g, px - 6, GROUND + 3, Math.round(12 * k), 1, PAL.gold);
   }
+  // разворот: взгляд сменился — 0,2 с проигрывается поворот через вид спереди (только картинка, логика уже развернулась)
+  if (game.lastFacing !== undefined && game.lastFacing !== facing && !spinning && p.state !== 'attack') game.turnFx = { t: game.time, toLeft: facing < 0 };
+  game.lastFacing = facing;
+  const TURN = 0.2;
+  const turn = game.turnFx && game.time - game.turnFx.t < TURN ? { k: (game.time - game.turnFx.t) / TURN, toLeft: game.turnFx.toLeft } : null;
+  // идёт больше вглубь, чем вбок — шаги спереди или со спины (сглажено, чтобы не мигало)
+  const mv = game.lastMove ?? { x: p.x, z: p.z, dx: 0, dz: 0 };
+  mv.dx = mv.dx * 0.8 + (p.x - mv.x) * 0.2; mv.dz = mv.dz * 0.8 + (p.z - mv.z) * 0.2; mv.x = p.x; mv.z = p.z;
+  game.lastMove = mv;
+  const depth = p.walking && Math.abs(mv.dz) > Math.abs(mv.dx) * 1.3 && Math.abs(mv.dz) > 0.05 ? (mv.dz > 0 ? 'south' : 'north') : null;
   const tip = sprite ? drawKnight(g, {
     x: px, ground: GROUND, facing, pose: p.pose, state: p.state, walking: p.walking, step: p.step, time: game.time, airY: p.airY,
+    turn, run: (p.gaitRun ?? 0) > 0.5, depth,
     weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing,
     alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
   }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {
