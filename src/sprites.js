@@ -363,7 +363,8 @@ export function drawSprite(name, g, o) {
     const span = Math.max(1, foot - cut + 6), tt = o.time ?? 0;
     for (let y = cut; y < size; y++) {
       const f = Math.min(1, (y - cut) / span), w = f * Math.sqrt(f);
-      const dx = (Math.sin(tt * (c.speed ?? 3) - y * 0.22) * (c.amp ?? 1.5) + Math.sin(tt * 1.7 - y * 0.09) * 0.8) * w + (c.lag ?? 0) * 4 * w;
+      const dx = c.offs ? c.offs[Math.min(c.offs.length - 1, Math.round((y - cut) / span * (c.offs.length - 1)))]   // физика ткани (main.js)
+        : (Math.sin(tt * (c.speed ?? 3) - y * 0.22) * (c.amp ?? 1.5) + Math.sin(tt * 1.7 - y * 0.09) * 0.8) * w + (c.lag ?? 0) * 4 * w;
       g.drawImage(img, 0, y, size, 1, left + Math.round(dx), top + y, size, 1);
     }
   } else g.drawImage(img, left, top);

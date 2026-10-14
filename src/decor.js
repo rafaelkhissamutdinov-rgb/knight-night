@@ -473,8 +473,9 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
     rect(g, sx - 1, y - 1, 3, 3, '#d9b8ff');
     g.restore();
   } else if (d.type === 'doorglow') {
-    // лиловый свет из-под двери наверх — там маг
+    // лиловый свет из-под двери наверх — там маг; y — низ двери (дверь на площадке лестницы)
     const pulse = 0.5 + 0.5 * Math.sin(time * 1.8);
+    floorTop = d.y ?? floorTop;
     g.save();
     g.globalCompositeOperation = 'lighter';
     const gr = g.createRadialGradient(sx, floorTop - 4, 1, sx, floorTop - 4, 34);

@@ -37,7 +37,7 @@ if (typeof fetch !== 'undefined') fetch('assets/objects/n/index.json').then(r =>
   }
 }).catch(() => {});
 // под потолком всё, что висит на стене (окна, знамёна, портреты, люстра…), опускается под карниз — один раз на комнату
-export const CEIL_DY = 26;
+export const CEIL_DY = 18;   // карниз — 24 px мира; висящее — чуть ниже
 const HANGING = new Set(['window', 'banner', 'portrait', 'tapestry', 'chains', 'shield', 'shelf', 'sign', 'chandelier', 'stainedglass', 'sigil', 'ivy']);
 function ceilingShift(room) {
   if (room._ceil) return;
@@ -230,17 +230,9 @@ export function buildRoom(room, height, floorTop, tiles = null) {
         }
       }
       // тень под карнизом на стене
-      const gr = g.createLinearGradient(0, CEIL.height, 0, CEIL.height + 14);
+      const gr = g.createLinearGradient(0, CEIL.height, 0, CEIL.height + 10);
       gr.addColorStop(0, 'rgba(8,6,12,0.55)'); gr.addColorStop(1, 'rgba(8,6,12,0)');
-      g.fillStyle = gr; g.fillRect(0, CEIL.height, length * 2, 14);
-      // лестница уходит сквозь потолок на следующий этаж — поверх сводов (и завал на ней)
-      if (room.stairs) {
-        g.setTransform(2, 0, 0, 2, 0, 0);
-        pairNormals(g, ng); ng?.setTransform(2, 0, 0, 2, 0, 0);
-        drawStairs(g, stairsX(room, length), floorTop, true);
-        for (const d of room.decor ?? []) if (d.type === 'rubble') decorImage(g, d, floorTop, room);
-        pairNormals(g, null);
-      }
+      g.fillStyle = gr; g.fillRect(0, CEIL.height, length * 2, 10);
     }
     return c;
   }
@@ -393,9 +385,15 @@ export function drawDoor(g, d, floorTop, tiled = false) {
 // Лестница вверх вдоль стены: ступени поднимаются вправо к тёмному проёму наверху.
 // Лестница (v0.70): объёмная, ступени уходят вглубь к двери наверху; нижние ступени — на полу (STAIR_DROP ниже линии стены).
 // Путь рыцаря по ступеням — доли картинки (низ ступеней → площадка → дверь); по нему он реально поднимается (main.js).
-export const STAIR_DROP = 8;
-export const STAIR_PATH = [[0.16, 0.88], [0.6, 0.34], [0.8, 0.31]];
-export function stairsX(room, length) { return room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40); }
+// v0.70 (замечание владельца: «чужеродная, разворот неестественный, уходит в потолок»): лестница в профиль, как в
+// двумерных играх (Castlevania, Blasphemous) — ступени по диагонали вдоль стены, под ними кладка, балюстрада, камень замка;
+// наверху площадка и дверь (та же, что в залах). Рыцарь поднимается по ступеням наискось, сбоку.
+export const STAIR_DROP = 6;                                        // низ ступеней — на линии шага у стены (z = 0)
+export const STAIR_PATH = [[0.03, 0.95], [0.64, 0.19], [0.88, 0.17]];   // нижняя ступень → верхняя → к двери
+export function stairsX(room, length) {
+  const w = (objImg('stairs')?.width ?? 140) / 2;
+  return room.stairsX ?? (room.stairs === 'right' ? length - w - 4 : length / 2 - w / 2);
+}
 export function stairsGeom(room, floorTop) {
   const im = objImg('stairs');
   if (!im || !room.stairs || !room.tiles) return null;
@@ -405,7 +403,11 @@ export function stairsGeom(room, floorTop) {
 function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
   const im = tiled && objImg('stairs');
   if (im) {
-    drawObj(g, im, x0 + im.width / 4, floorTop + STAIR_DROP);
+    const w = im.width / 2, h = im.height / 2, top = floorTop + STAIR_DROP - h;
+    // дверь на стене над площадкой — до ступеней (балюстрада впереди)
+    const door = objImg('door_wood');
+    if (door && !blocked) drawObj(g, door, x0 + STAIR_PATH[2][0] * w, top + STAIR_PATH[2][1] * h + 1);
+    drawObj(g, im, x0 + w / 2, floorTop + STAIR_DROP);
     return;
   }
   const steps = 9, sw = 8, sh = 9;
@@ -635,7 +637,7 @@ export function drawDoorOpen(g, d, floorTop, cam, k) {
   rect(g, x0, top, w, DOOR_H, '#050409');
 }
 
-export function drawTorches(g, camX, xs, time, blue = false) {
+export function drawTorches(g, camX, xs, time, blue = false, flare = 0) {
   for (const x of xs) {
     const sx = Math.round(x - camX);
     if (sx < -50 || sx > 370) continue;
@@ -658,6 +660,15 @@ export function drawTorches(g, camX, xs, time, blue = false) {
     g.restore();
     // пламя — живой огонь (src/fire.js) в пикселях экрана, размером с прежний (факелы мелкие — просьба владельца)
     drawFire(g, getFire('torch:' + x + (blue ? ':b' : ''), { w: 7, h: 14, base: 0.9, tall: 0.8, px: 1, blue }), sx, 71, time);
+    if (flare > 0.02) {
+      // вспышка: огонь раздувается, как от плеснутого масла, и опадает
+      const fl = getFire('flare:' + x + (blue ? ':b' : ''), { w: 16, h: 36, base: 0.95, tall: 0.95, px: 1, blue });
+      g.save(); g.globalAlpha = flare; drawFire(g, fl, sx, 71 + 1, time); g.restore();
+      g.save(); g.globalCompositeOperation = 'lighter';
+      const gr = g.createRadialGradient(sx, 64, 1, sx, 64, 30 * flare + 6);
+      gr.addColorStop(0, blue ? `rgba(170,220,255,${0.6 * flare})` : `rgba(255,220,150,${0.6 * flare})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(sx - 40, 24, 80, 80); g.restore();
+    }
   }
 }
 

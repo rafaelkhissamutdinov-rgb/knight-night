@@ -147,6 +147,7 @@ function respawnable(enc) {
 const FLOOR_NAMES = { 2: 'Второй этаж', 3: 'Третий этаж' };
 function loadRoom(id, at) {
   game.climb = null;
+  game.blueFireAt = null;
   game.coinFx = [];
   game.flags['map_' + id] = true;  // для карты: где побывал
   const floor = ROOMS[id].floor ?? 1;
@@ -1361,8 +1362,8 @@ function updateDoors(dt) {
     // лестница: шаг к ступеням, затемнение — и уже на другом этаже, без проёма в стене
     const up = (ROOMS[d.to].floor ?? 1) > (room().floor ?? 1);
     // наверх по нарисованной лестнице — подойти к нижней ступени и подняться по ней (v0.70); иначе — шаг и затемнение
-    const geom = up && stairsGeom(room(), CONFIG.floorTop);
-    game.transition = { kind: 'stairs', door: d, dir: up ? 1 : -1, phase: geom ? 'toStairs' : 'out', t: 0, geom };
+    const geom = (up || d.climb) && stairsGeom(room(), CONFIG.floorTop);
+    game.transition = { kind: 'stairs', door: d, dir: up || d.climb ? 1 : -1, phase: geom ? 'toStairs' : 'out', t: 0, geom };
     p.sheathed = true;
     return;
   }
@@ -1383,8 +1384,15 @@ function updateEdges() {
 const DOOR_PHASES = { turn: 0.35, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.3 };   // створка видна, пока поворачивается
 const EDGE_PHASES = { out: 0.3, in: 0.3 };
 const STAIR_PHASES = { out: 0.4, in: 0.35 };
-// синий огонь: в комнате живой босс вышел на бой; гаснет обратно в тёплый после победы
-const bossFire = () => game.enemies.some(e => e.kind === 'boss' && e.alive && e.state !== 'dormant');
+// синий огонь (v0.70, владелец): пока идёт разговор — обычные факелы; когда бой начался — вспышка (огонь раздувается,
+// рёв пламени) и пламя становится призрачно-синим. blueFireAt — когда вспыхнули (в этой комнате)
+function bossFireTick() {
+  if (game.blueFireAt != null || game.mode !== 'play' || game.talk) return;
+  if (game.enemies.some(e => e.kind === 'boss' && e.alive && e.state !== 'dormant')) { game.blueFireAt = game.time; sfx.flame(); shake(2); }
+}
+const bossFireAge = () => (game.blueFireAt == null ? -1 : game.time - game.blueFireAt);
+const bossFire = () => bossFireAge() > 0.22;                                   // цвет меняется на пике вспышки
+const fireFlare = () => { const a = bossFireAge(); return a >= 0 && a < 0.7 ? Math.sin(Math.PI * a / 0.7) : 0; };
 function torchUnderStairs(r, x) {
   const st = stairsGeom(r, CONFIG.floorTop);
   return !!st && x > st.x0 - 4 && x < st.x0 + st.w + 4;
@@ -1444,12 +1452,12 @@ function updateTransition(dt) {
       return;
     }
     if (tr.phase === 'climb' || tr.phase === 'descend') {
-      // по ступеням: вверх — со спины, вниз (пришёл сверху) — лицом к нам; к концу подъёма растворяется в двери
+      // по ступеням наискось: вверх к двери на площадке (к концу растворяется в ней), вниз — от двери к полу
       const T = tr.phase === 'climb' ? CLIMB_T : CLIMB_T * 0.85;
       const k = Math.min(1, tr.t / T);
       const pts = tr.phase === 'climb' ? tr.geom.pts : [...tr.geom.pts].reverse();
       const [x, y] = alongPath(pts, k);
-      game.climb = { x, y, step: tr.t * 1.6, view: tr.phase === 'climb' ? 'north' : 'south',
+      game.climb = { x, y, step: tr.t * 1.7, facing: tr.phase === 'climb' ? 1 : -1,
         alpha: tr.phase === 'climb' ? (k > 0.8 ? (1 - k) / 0.2 : 1) : Math.min(1, k / 0.2) };
       if (tr.t >= T) {
         game.climb = null;
@@ -2663,7 +2671,8 @@ function render() {
   if (light && bg.normal) light.normalCtx.drawImage(bg.normal, cam * bk, 0, W * bk, H * bk, 0, 0, W * S, H * S);
   if (light) pairNormals(g, light.normalCtx);
   // бой с боссом — факелы вспыхивают призрачным синим (v0.70); факел, который закрыла бы лестница, не рисуется
-  drawTorches(g, cam, (r.torches ?? []).filter(x => !torchUnderStairs(r, x)), game.time, bossFire());
+  bossFireTick();
+  drawTorches(g, cam, (r.torches ?? []).filter(x => !torchUnderStairs(r, x)), game.time, bossFire(), fireFlare());
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   for (const d of r.decor ?? []) {
     if (d.type === 'cracks') drawCracks(g, d.x - cam, CONFIG.floorTop, { open: !!game.flags[d.secret], hits: game.wallHits }, game.time);
@@ -3099,14 +3108,32 @@ function enemyAnim(e) {
   return null;
 }
 
-// сюрко и призрачный хвост босса колышутся (v0.70, просьба владельца); в движении и рывке подол отстаёт
+// сюрко и призрачный хвост босса — ткань на пружинах (v0.70): строки ниже пояса — цепочка, каждая тянется за верхней,
+// по инерции отстаёт при разгоне и торможении, сопротивляется воздуху на ходу, низ колышет призрачный ветерок; всё затухает
+const CLOTH_ROWS = 36;
 function bossCloth(e) {
-  const vx = (e.x - (e._clothX ?? e.x)) / Math.max(1 / 120, game.time - (e._clothT ?? game.time - 1 / 60));
-  e._clothX = e.x; e._clothT = game.time;
-  e._clothV = (e._clothV ?? 0) * 0.85 + vx * 0.15;
-  const lag = Math.max(-1, Math.min(1, -e._clothV / 160));   // против хода (сдвиг строк — уже в координатах экрана)
+  const now = game.time;
+  const dt = Math.min(1 / 30, Math.max(1 / 240, now - (e._clothT ?? now - 1 / 60)));
+  const v = (e.x - (e._clothX ?? e.x)) / dt;
+  e._clothX = e.x; e._clothT = now;
+  const c = e._cloth ?? (e._cloth = { off: new Float32Array(CLOTH_ROWS), vel: new Float32Array(CLOTH_ROWS), v: 0 });
+  const acc = (v - c.v) / dt;   // ускорение корпуса
+  c.v = v;
   const busy = e.state === 'stance' || e.state === 'cast' || e.state === 'choking';
-  return { cut: 40, amp: busy ? 2.4 : 1.4, speed: busy ? 6 : 3, lag };
+  const steps = Math.ceil(dt / (1 / 120)), h = dt / steps;
+  for (let s = 0; s < steps; s++) {
+    for (let i = 1; i < CLOTH_ROWS; i++) {
+      const f = i / CLOTH_ROWS;
+      const spring = 260 * (c.off[i - 1] - c.off[i]) - 18 * c.off[i];            // за верхней строкой и к телу
+      const inertia = -acc * 0.035 * f;                                           // отстаёт при разгоне
+      const drag = -v * 0.9 * f * f;                                              // сопротивление воздуха на ходу
+      const wind = Math.sin(now * (busy ? 7 : 2.6) - i * 0.35) * (busy ? 90 : 38) * f;   // призрачный ветерок
+      c.vel[i] += (spring + inertia + drag + wind - 7 * c.vel[i]) * h;
+      c.off[i] += c.vel[i] * h;
+      c.off[i] = Math.max(-9, Math.min(9, c.off[i]));
+    }
+  }
+  return { cut: 40, offs: c.off };
 }
 
 function enemyWeapon(e) {
@@ -3220,10 +3247,10 @@ function renderPlayer(cam) {
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   const sprite = knightReady();
   if (game.climb && sprite) {
-    // по ступеням: шаги со спины (вверх) или спереди (вниз), оружие за спиной
+    // по ступеням: шаги сбоку, наискось вверх или вниз; оружие в ножнах
     const c = game.climb;
-    drawKnight(g, { x: c.x - cam, ground: c.y, facing: 1, pose: POSES.sheathed, state: 'ready', walking: true, step: c.step, time: game.time,
-      depth: c.view, alpha: c.alpha, sheathed: true });
+    drawKnight(g, { x: c.x - cam, ground: c.y, facing: c.facing, pose: POSES.sheathed, state: 'ready', walking: true, step: c.step, time: game.time,
+      alpha: c.alpha, sheathed: true, sheath: { kind: p.weapon === 'rapier' ? 'rapier' : 'sword', len: (p.arms.length ?? 17) * 2 } });
     return;
   }
   // оружие за спиной (v0.69): любое, и рапира; sheath.k — сколько прошло от руки до ножен
@@ -3489,7 +3516,8 @@ function sceneLights() {
   const L = [];
   const add = (x, y, rad, color, power, z = 30) => { const sx = (x - cam) * S; if (sx > -rad * S && sx < (W + rad) * S) L.push({ x: sx, y: y * S, z, r: rad * S, color, power }); };
   const blueFire = bossFire();
-  for (const x of r.torches ?? []) if (!torchUnderStairs(r, x)) add(x, 69, 150, blueFire ? [0.45, 0.7, 1] : WARM, (blueFire ? 1.05 : 0.85) + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3));
+  const flare = fireFlare();
+  for (const x of r.torches ?? []) if (!torchUnderStairs(r, x)) add(x, 69, 150 * (1 + flare * 0.35), blueFire ? [0.45, 0.7, 1] : WARM, ((blueFire ? 1.05 : 0.85) + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3)) * (1 + flare * 0.9));
   for (const pr of r.props ?? []) {
     if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
     if (pr.type === 'candles') add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);

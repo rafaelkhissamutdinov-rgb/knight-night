@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.69';
+export const VERSION = 'v0.70';
 
 export const CONFIG = {
   width: 320,
@@ -570,7 +570,7 @@ export const ROOMS = {
     ],
     decor: [
       { type: 'fireplace', x: 200, look: 'look_fire', name: 'камин', rest: { seat: 0, name: 'у камина', z: 10, dx: 36, face: -1 } },
-      { type: 'tapestry', x: 200, y: 10, w: 56, h: 34, look: 'look_tapestry', name: 'гобелен' },
+      { type: 'tapestry', x: 200, y: 2, w: 56, h: 34, look: 'look_tapestry', name: 'гобелен' },   // большой — над камином, не касаясь трубы
       { type: 'chandelier', x: 300, y: 28 },
       { type: 'banner', x: 395, y: 10 },
     ],
@@ -586,8 +586,8 @@ export const ROOMS = {
   // ---------- второй этаж (черновик Claude: лор и комнаты владелец поправит) ----------
   // площадка у лестницы из Столовой; дальше — Жилое крыло
   landing2: {
-    name: 'Лестничная площадка', tiles: 'castle', floor: 2, length: 400, columns: false, torches: [150, 330], stairs: 'up', stairsX: 0,
-    doors: [{ id: 'down', x: 60, kind: 'none', stairs: true, to: 'dining', toDoor: 'up', name: 'Лестница вниз, в Столовую' }],
+    name: 'Лестничная площадка', tiles: 'castle', floor: 2, length: 400, columns: false, torches: [150, 330],   // пришёл снизу: дверь к лестнице вниз (v0.70)
+    doors: [{ id: 'down', x: 60, kind: 'wood', stairs: true, to: 'dining', toDoor: 'up', name: 'Лестница вниз, в Столовую' }],
     edges: { right: { to: 'hall2', x: 30, name: 'Жилое крыло' } },
     decor: [
       { type: 'window', x: 240, w: 24, h: 40, y: 22, moon: true },
@@ -707,8 +707,8 @@ export const ROOMS = {
   },
   // ---------- третий этаж (по плану владельца: ключ от башни, выше — завал, пролом в полу — вниз к башне) ----------
   landing3: {
-    name: 'Верхний этаж', tiles: 'castle', floor: 3, length: 360, columns: false, torches: [150, 300], stairs: 'up', stairsX: 0, cobwebs: true,
-    doors: [{ id: 'down', x: 60, kind: 'none', stairs: true, to: 'stairs3', toDoor: 'up3', name: 'Лестница вниз' }],
+    name: 'Верхний этаж', tiles: 'castle', floor: 3, length: 360, columns: false, torches: [150, 300], cobwebs: true,
+    doors: [{ id: 'down', x: 60, kind: 'wood', stairs: true, to: 'stairs3', toDoor: 'up3', name: 'Лестница вниз' }],
     edges: { right: { to: 'hall3', x: 30, name: 'Северное крыло' } },
     decor: [{ type: 'window', x: 230, w: 24, h: 40, y: 22 }],
     encounters: [{ x: 230, enemies: [{ type: 'halberd', dx: 60, z: 18 }, { type: 'skelArcher', dx: 110, z: 34 }] }],
@@ -759,18 +759,18 @@ export const ROOMS = {
     props: [{ type: 'bones', x: 120, z: 20 }, { type: 'crate', x: 60, z: 3 }],
   },
   tower: {
-    name: 'Лестница башни', tiles: 'castle', length: 320, columns: false, torches: [100, 230], stairs: 'up', cobwebs: true,
+    name: 'Лестница башни', tiles: 'castle', length: 320, columns: false, torches: [100, 230], stairs: 'up', stairsX: 188, cobwebs: true,
     // перед финалом: знаки на стенах тлеют, из-под двери наверх пробивается лиловый свет
     decor: [
       { type: 'sigil', x: 150, y: 44 }, { type: 'sigil', x: 52, y: 54 },
-      { type: 'doorglow', x: 272 }, { type: 'chains', x: 110, y: 44 },
+      { type: 'doorglow', x: 272, y: 75 },   // свет из-под двери на площадке лестницы { type: 'chains', x: 110, y: 44 },
     ],
     // последний отдых перед боссом — сохраниться у двери покоев
-    props: [{ type: 'bench', x: 210, z: 2, rest: { seat: 4, name: 'на каменной скамье', face: 1 } }, { type: 'bouquet', x: 252, z: 4, look: 'look_bouquet', name: 'засохший букет' }],
+    props: [{ type: 'bench', x: 118, z: 2, rest: { seat: 4, name: 'на каменной скамье', face: 1 } }, { type: 'bouquet', x: 160, z: 4, look: 'look_bouquet', name: 'засохший букет' }],   // не на ступенях
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },
       // за дверью — покои принцессы и призрак главы королевской стражи (финальный босс главы 1, решение владельца v0.57; маг — позже)
-      { id: 'up', x: 272, kind: 'wood', to: 'mage', toDoor: 'in', name: 'Покои принцессы' },
+      { id: 'up', x: 194, kind: 'none', stairs: true, climb: true, to: 'mage', toDoor: 'in', name: 'Покои принцессы' },   // по ступеням к двери наверху
     ],
   },
   // покои принцессы — арена босса главы 1 (призрак главы стражи, v0.65); победа — конец главы
