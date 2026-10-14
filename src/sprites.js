@@ -72,6 +72,7 @@ function loadSheet(s, m, path) {
   nm.src = path + '_n.png';
 }
 
+export const spriteAnim = (name, key) => sets[name]?.meta?.anims?.[key] ?? 0;
 export const spriteReady = name => { const s = sets[name]; return !!s?.meta && s.pending === 0 && !!s.imgs.pose_idle; };
 export const loadKnightSprites = () => loadSpriteSet('knight');
 export const knightReady = () => spriteReady('knight');
@@ -150,7 +151,7 @@ function weaponImage(kind, len) {
   return wpn[kind];
 }
 
-function drawWeaponImage(g, im, wx, wy, angleDeg, facing, len) {
+function drawWeaponImage(g, im, wx, wy, angleDeg, facing, len, scab = false) {
   const a = angleDeg * Math.PI / 180;
   // длина подгоняется под weaponLen, но близкие масштабы не трогаем — пиксели остаются целыми
   let k = im.fixed ? 1 : (len * im.reach) / im.front;
@@ -160,7 +161,16 @@ function drawWeaponImage(g, im, wx, wy, angleDeg, facing, len) {
   g.scale(facing, 1);
   g.rotate(a);
   g.scale(k, k);
-  g.drawImage(im.c, -im.gx, -Math.round(im.gy));
+  if (scab) {
+    // в ножнах: видна рукоять с гардой, клинок закрыт кожаными ножнами с обоймой и наконечником
+    const hilt = im.gx + 4, gy = Math.round(im.gy), L = im.front - 4;
+    g.drawImage(im.c, 0, 0, hilt, im.c.height, -im.gx, -gy, hilt, im.c.height);
+    g.fillStyle = '#0d0b14'; g.fillRect(3, -2, L + 2, 5);
+    g.fillStyle = '#4a2f1d'; g.fillRect(4, -1, L, 3);
+    g.fillStyle = '#6e4a2e'; g.fillRect(4, -1, L, 1);
+    g.fillStyle = '#a89878'; g.fillRect(4, -1, 2, 3); g.fillRect(4 + Math.round(L * 0.45), -1, 1, 3);   // обоймы
+    g.fillStyle = '#8a8a96'; g.fillRect(L, -1, 3, 3);                                                   // наконечник
+  } else g.drawImage(im.c, -im.gx, -Math.round(im.gy));
   g.restore();
   const f = im.front * k;
   return { tipX: wx + Math.cos(a) * facing * f, tipY: wy + Math.sin(a) * f };
@@ -189,9 +199,9 @@ export function drawLyingWeapon(g, kind, x, ground, t) {
 
 // Оружие (в пикселях экрана): kind — sword | rapier | ghostsword | axe | spear | halberd | bow | crossbow.
 // Есть картинка — рисуется она; нет (не загрузилась) и у лука (тетива тянется) — кодом. Возвращает кончик (для шлейфа удара).
-function drawWeapon(g, kind, wx, wy, angleDeg, facing, len, draw = 0) {
+function drawWeapon(g, kind, wx, wy, angleDeg, facing, len, draw = 0, scab = false) {
   const im = kind !== 'bow' && weaponImage(kind, len);
-  if (im) return drawWeaponImage(g, im, wx, wy, angleDeg, facing, len);
+  if (im) return drawWeaponImage(g, im, wx, wy, angleDeg, facing, len, scab);
   if (kind === 'ghostsword') kind = 'sword';
   const a = angleDeg * Math.PI / 180;
   const dx = Math.cos(a) * facing, dy = Math.sin(a);
@@ -288,6 +298,7 @@ export function drawSprite(name, g, o) {
   const cyc = (u, n) => Math.floor(((u % 1) + 1) % 1 * n) % n;
   let fname = o.frame;
   let right = o.facing >= 0;
+  if (!fname && o.anim && A[o.anim.key]) fname = o.anim.key + '_' + Math.min(A[o.anim.key] - 1, Math.floor(Math.max(0, o.anim.k) * A[o.anim.key]));
   if (!fname && o.turn && A.turn) {
     // разворот: кадры ролика «повернулся через вид со спины»; справа налево — по порядку, слева направо — обратно
     const i = Math.min(A.turn - 1, Math.floor(o.turn.k * A.turn));
@@ -322,7 +333,27 @@ export function drawSprite(name, g, o) {
     g.restore();
     return null;
   }
+  // оружие в ножнах за спиной (v0.69): рисуется до тела — клинок за корпусом, рукоять над плечом.
+  // o.sheath = { kind, len, k } — k от 0 (ещё в руке) до 1 (за спиной): по пути оружие плывёт от кисти к плечу
+  const fr0 = meta.frames[fname];
+  let sheathFront = null;
+  if (o.sheath && fr0?.back) {
+    const by = top + fr0.back[1];
+    const BACK = 104;   // почти вдоль спины: клинок вниз и чуть назад, его закрывает корпус; рукоять — над плечом
+    const k = Math.max(0, Math.min(1, o.sheath.k ?? 1));
+    const sx = X - o.facing * 3, sy = by - 9;   // хват — у шеи, над плечом (X — середина корпуса)
+    let wx = sx, wy = sy, ang = BACK;
+    if (k < 1 && fr0.wrist) {
+      const hx = left + (right ? fr0.wrist[0] : size - fr0.wrist[0]), hy = top + fr0.wrist[1];
+      const e = k * k * (3 - 2 * k);
+      wx = hx + (sx - hx) * e; wy = hy + (sy - hy) * e;
+      const a0 = o.pose?.angle ?? 0; ang = a0 + (BACK - a0) * e;
+    }
+    if (k >= 0.7) drawWeapon(g, o.sheath.kind, wx, wy, ang, o.facing, o.sheath.len, 0, k >= 1);
+    else sheathFront = [wx, wy, ang];
+  }
   g.drawImage(img, left, top);
+  if (sheathFront) drawWeapon(g, o.sheath.kind, sheathFront[0], sheathFront[1], sheathFront[2], o.facing, o.sheath.len);
   if (o.flash) {
     // вспышка попадания: тот же кадр поверх, светлее
     const a = g.globalAlpha, op = g.globalCompositeOperation;

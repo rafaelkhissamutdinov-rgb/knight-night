@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.68';
+export const VERSION = 'v0.69';
 
 export const CONFIG = {
   width: 320,
@@ -191,18 +191,21 @@ export const ENEMY_TYPES = {
   // stance — «Оби-Ван» перед серией; step — шаг вперёд с каждым ударом; windup/gap — свои темпы.
   // Вторая фаза — с половины жизни: темп ×phase2Speed, телепорт чаще.
   boss: {
-    kind: 'boss', name: 'Призрак главы стражи', shortName: 'Глава стражи', hp: 36, damage: 1, aggro: 220, reach: 32, speed: 46, lunge: 5, weapon: 21,
-    windup: 0.55, comboWindup: 0.36, gap: 0.1, recover: 0.75, wait: [0.4, 0.9],
-    guardChance: 0.6, reaction: 0.1, blinkChance: 0, blink: 0.35, phase2Speed: 0.82, phase2Blink: 0.6,
-    chokeChance: 0.18, chokeCast: 1.1, chokeRange: 140,
+    // v0.69 (владелец: «слабый, тупой, еле двигается»): быстрее, рывок-скольжение с ударом, контратака после блока,
+    // за щитом не отсидеться (пробивные приёмы и удушье чаще), удушье дольше — вырваться ударами (ЛКМ)
+    kind: 'boss', name: 'Призрак главы стражи', shortName: 'Глава стражи', hp: 42, damage: 1, aggro: 240, reach: 34, speed: 82, lunge: 7, weapon: 21,
+    windup: 0.5, comboWindup: 0.34, gap: 0.08, recover: 0.55, wait: [0.2, 0.5],
+    guardChance: 0.7, reaction: 0.08, blinkChance: 0, blink: 0.35, phase2Speed: 0.8, phase2Blink: 0.6,
+    chokeChance: 0.2, chokeCast: 1.0, chokeRange: 150, chokeHold: 1.8, chokeBreak: 7,
+    dashSpeed: 320, dashRange: 190, dashChance: 1.6, dashWindup: 0.28, riposteWindup: 0.24,
     patterns: [
       { id: 'twoSides', weight: 3, combo: ['mid', 'mid'], swap: [0] },
       { id: 'sideHigh', weight: 2, combo: ['mid', 'high'] },
       { id: 'sideLow', weight: 2, combo: ['mid', 'low'] },
       { id: 'steps', weight: 2, combo: ['high', 'low', 'high'], step: 14 },
       { id: 'turnPower', weight: 2, combo: ['high', 'mid', 'mid', 'high', 'spin'], phase: 2 },
-      { id: 'obiwan', weight: 2, combo: ['heavyHigh', 'heavyMid'], stance: 0.9 },
-      { id: 'flurry', weight: 1, combo: ['whirl', 'whirl', 'whirl'], windup: [0.45, 0.2], gap: 0.04 },
+      { id: 'obiwan', weight: 2, combo: ['heavyHigh', 'heavyMid'], stance: 0.9, breaker: true },
+      { id: 'flurry', weight: 1, combo: ['whirl', 'whirl', 'whirl'], windup: [0.45, 0.2], gap: 0.04, breaker: true },
     ],
     colors: { armor: '#e8e4d8', armorDark: '#a8b4c8', tabard: '#f2eee4', helm: '#c9d2de', visor: '#f4f4f4', boots: '#7fb0c8', blade: '#d9f4ff', hilt: '#c9a24a' },
   },
@@ -743,7 +746,7 @@ export const ROOMS = {
     ],
     props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }, { type: 'logbook', x: 170, z: 4, look: 'look_logbook', name: 'журнал дежурств' }],
     encounters: [
-      { x: 260, story: 'keyguard', before: 'keyguard_meet', noRise: true, enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'crossbow', dx: 170, z: 8 }] },
+      { x: 260, story: 'keyguard', before: 'keyguard_meet', noRise: true, enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'commander', dx: 170, z: 8 }] },   // одна стража, без мародёров (владелец)
     ],
   },
   // лестница на третий этаж — со второго этажа
@@ -775,7 +778,7 @@ export const ROOMS = {
     name: 'Покои принцессы', tiles: 'castle', length: 480, columns: false, torches: [100, 240, 380], magic: true,
     decor: [
       { type: 'window', x: 200, y: 18, moon: true }, { type: 'window', x: 330, y: 18 },
-      { type: 'portrait', x: 265, y: 30, look: 'look_princess', name: 'портрет принцессы' }, { type: 'tapestry', x: 410, y: 16 },
+      { type: 'portrait', x: 265, y: 30, who: 'princess', look: 'look_princess', name: 'портрет принцессы' }, { type: 'tapestry', x: 410, y: 16 },
     ],
     doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни' }],
     encounters: [

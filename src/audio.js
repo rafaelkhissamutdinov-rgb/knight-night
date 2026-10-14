@@ -58,6 +58,19 @@ export const sfx = {
   heavy() { burst(0.3, 'lowpass', 400, 0.8); tone(90, 0.3, 'sine', 0.4, 45); },
   whip() { tone(2400, 0.18, 'sine', 0.12, 700); burst(0.12, 'highpass', 4000, 0.25); },
   swish() { burst(0.1, 'bandpass', 900, 0.18, 0.8); },
+  // «шу» — свист клинка по кругу (вихрь): шум, полоса частот плывёт вверх и вниз, мягкое нарастание
+  whoosh() {
+    if (!ctx) return;
+    const t0 = ctx.currentTime, dur = 0.26, len = Math.ceil(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate), data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.6;
+    f.frequency.setValueAtTime(380, t0); f.frequency.exponentialRampToValueAtTime(1500, t0 + dur * 0.55); f.frequency.exponentialRampToValueAtTime(600, t0 + dur);
+    const gn = ctx.createGain();
+    gn.gain.setValueAtTime(0.0001, t0); gn.gain.exponentialRampToValueAtTime(0.32, t0 + dur * 0.45); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f).connect(gn).connect(master); src.start(t0); src.stop(t0 + dur);
+  },
   dash() { burst(0.09, 'lowpass', 600, 0.25); },
   ward() { tone(880, 0.25, 'sine', 0.15, 1320); burst(0.06, 'highpass', 2500, 0.2); },
   gulp() { tone(220, 0.35, 'square', 0.12, 70); burst(0.3, 'lowpass', 300, 0.5); },

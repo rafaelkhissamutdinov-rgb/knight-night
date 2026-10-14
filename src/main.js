@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -15,7 +15,7 @@ import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, update
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
 loadWeapons();
@@ -105,8 +105,10 @@ const tileSets = {};
 const farImgs = {};
 for (const r of Object.values(ROOMS)) if (r.tiles && !tileSets[r.tiles]) {
   tileSets[r.tiles] = Array.from({ length: r.tileCount ?? TILE_COUNT[r.tiles] ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
+  // нормали кусков (tools/wall_normals.py): рельеф кладки под живым светом
+  tileSets[r.tiles].normals = tileSets[r.tiles].map((_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/n/${r.tiles}_${n}.png`; return im; });
 }
-const tilesReady = r => r.tiles && objectsReady() && tileSets[r.tiles].every(im => im.complete && im.naturalWidth);
+const tilesReady = r => r.tiles && objectsReady() && tileSets[r.tiles].every(im => im.complete && im.naturalWidth) && tileSets[r.tiles].normals.every(im => im.complete);
 function bgFor(id) {
   const img = bgImages[id];
   if (img?.complete && img.naturalWidth) return (imageRooms[id] ??= buildImageRoom(ROOMS[id], img, H, CONFIG.floorTop));
@@ -410,7 +412,7 @@ const world = {
     renderHearts();
     shake(2);
     flash('#b07cff', 0.3);
-    callout('Душит! −1', 'hit');
+    callout('Душит! Бей — вырвись!', 'hit');
     game.lastHitBy = e.def.name;
     game.stats.hit++;
     return true;
@@ -601,6 +603,21 @@ function handlePlayerEvents() {
       callout(p.weapon === 'rapier' ? 'Восьмёрка не готова' : 'Вихрь не готов', 'muted');
     } else if (ev.type === 'feint') {
       callout('Отмена', 'muted');
+    } else if (ev.type === 'struggle') {
+      shake(1);
+      if (p.struggles === 1) callout('Бей — вырвись!', 'counter');
+    } else if (ev.type === 'chokeTick') {
+      p.hp = Math.max(0, p.hp - 1);
+      renderHearts();
+      flash('#7cf0ff', 0.2);
+      callout('Душит! −1', 'hit');
+    } else if (ev.type === 'breakFree') {
+      // вырвался: призрак отшатывается
+      callout('Вырвался!', 'perfect');
+      sfx.perfect();
+      shake(3);
+      const b = ev.by;
+      if (b?.alive) { b.enter('stagger'); world.staggered(b); }
     } else if (ev.type === 'slam') {
       // босс швырнул об землю
       p.hp = Math.max(0, p.hp - 2);
@@ -2588,6 +2605,9 @@ function render() {
   if (farImg?.complete && farImg.naturalWidth && (bgFor(game.room).k ?? 1) === 2) g.drawImage(farImg, 0, 0, farImg.width / 2, farImg.height / 2);
   const bg = bgFor(game.room), bk = bg.k ?? 1;
   g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
+  // карта объёма фона (рельеф стен, нормали предметов) — под живой свет; предметы на полу допишут свои по ходу кадра
+  if (light && bg.normal) light.normalCtx.drawImage(bg.normal, cam * bk, 0, W * bk, H * bk, 0, 0, W * S, H * S);
+  if (light) pairNormals(g, light.normalCtx);
   drawTorches(g, cam, r.torches ?? [], game.time);
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   for (const d of r.decor ?? []) {
@@ -2641,6 +2661,8 @@ function render() {
     const c = game.current;
     rect(g, c.x - cam - 1, groundY(c.z) + 2, 3, 1, PAL.gold);
   }
+  if (light) pairNormals(g, null);
+  renderChokeHold(cam);
   for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck, a.bolt);
   for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
@@ -2749,6 +2771,52 @@ function renderChokeAura(cam) {
   for (let a = 0; a < 40; a++) {
     const t = a / 40 * Math.PI * 2 + game.time * 2;
     rect(g, Math.round(x + Math.cos(t) * r), Math.round(y + Math.sin(t) * r * 0.3), 1, 1, a % 4 ? '#b07cff' : '#e6d4ff');
+  }
+  g.restore();
+}
+
+// удушение (v0.69): на шее рыцаря — светящийся обод с рунами, от руки призрака к нему тянется дрожащая нить,
+// по ней бегут искры; рыцарь висит в воздухе и хватается за горло (кадры held). Рисуется поверх бойцов.
+function renderChokeHold(cam) {
+  const p = game.player;
+  const b = game.enemies.find(e => e.kind === 'boss' && (e.state === 'cast' || e.state === 'choking'));
+  if (!b || (b.state === 'cast' && b.t < 0.3)) return;
+  const k = b.state === 'cast' ? Math.min(1, b.t / (b.def.chokeCast * (b.phase === 2 ? b.def.phase2Speed : 1))) : 1;
+  const nx = p.x - cam + p.facing * 1, ny = groundY(p.z) - (p.airY ?? 0) - 24;      // шея рыцаря
+  const hx = b.x - cam + b.facing * 15, hy = groundY(b.z) - (b.airY ?? 0) - 26;      // вытянутая рука призрака
+  const t = game.time;
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  // нить: от руки к шее, волной; во время заклинания — тянется (k), когда держит — натянута и дрожит
+  const N = 30, reach = b.state === 'cast' ? k : 1;
+  for (let i = 0; i <= N * reach; i++) {
+    const f = i / N;
+    const x = hx + (nx - hx) * f, y = hy + (ny - hy) * f + Math.sin(f * 12 - t * 18) * (b.state === 'choking' ? 1.2 : 2.2) * Math.sin(Math.PI * f);
+    g.globalAlpha = 0.35 + 0.35 * Math.sin(f * 20 - t * 25) ** 2;
+    g.fillStyle = (i + Math.floor(t * 30)) % 6 === 0 ? '#ffffff' : '#7cf0ff';
+    g.fillRect(Math.round(x * 2) / 2, Math.round(y * 2) / 2, 1, 1);
+  }
+  // обод на шее: сжимается к концу заклинания, пульсирует, по нему бегут руны
+  const r = 7 - 2.5 * k + (b.state === 'choking' ? Math.sin(t * 14) * 0.4 : 0);
+  for (let i = 0; i < 28; i++) {
+    const a = i / 28 * Math.PI * 2 + t * 3;
+    const front = Math.sin(a) > 0;
+    g.globalAlpha = (front ? 0.95 : 0.4) * Math.min(1, k * 1.5);
+    g.fillStyle = i % 7 === 0 ? '#ffffff' : i % 2 ? '#7cf0ff' : '#b07cff';
+    g.fillRect(Math.round((nx + Math.cos(a) * r) * 2) / 2, Math.round((ny + Math.sin(a) * r * 0.32) * 2) / 2, i % 7 === 0 ? 1 : 0.5, 0.5);
+  }
+  if (b.state === 'choking') {
+    // мягкое свечение вокруг горла и искры, слетающие с обода
+    const gr = g.createRadialGradient(nx, ny, 0, nx, ny, 12);
+    gr.addColorStop(0, 'rgba(124,240,255,0.35)'); gr.addColorStop(1, 'rgba(124,240,255,0)');
+    g.globalAlpha = 0.8 + 0.2 * Math.sin(t * 9);
+    g.fillStyle = gr; g.fillRect(nx - 12, ny - 12, 24, 24);
+    for (let i = 0; i < 4; i++) {
+      const u = (t * 1.3 + i * 0.25) % 1;
+      g.globalAlpha = 1 - u;
+      g.fillStyle = '#d8faff';
+      g.fillRect(Math.round(nx + Math.sin(i * 2.1 + t) * r), Math.round(ny - u * 10), 0.5, 0.5);
+    }
   }
   g.restore();
 }
@@ -2969,8 +3037,12 @@ function renderPlayer(cam) {
   const GROUND = groundY(p.z) + Math.round(game.fallY ?? 0);  // падение сквозь пролом
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   const sprite = knightReady();
+  // оружие за спиной (v0.69): любое, и рапира; sheath.k — сколько прошло от руки до ножен
+  const sheathKind = p.weapon === 'rapier' ? 'rapier' : 'sword', sheathLen = (p.arms.length ?? 17) * 2;
   if (p.state === 'roll' && sprite) {
-    drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_tuck', rotate: p.facing * Math.min(1, p.t / WEAPON.roll.time) * Math.PI * 2 });
+    const k = Math.min(1, p.t / WEAPON.roll.time);
+    if (spriteAnim('knight', 'roll')) drawKnight(g, { x: px, ground: GROUND, facing: p.facing, anim: { key: 'roll', k }, sheath: p.sheathed ? { kind: sheathKind, len: sheathLen } : null });
+    else drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_tuck', rotate: p.facing * k * Math.PI * 2 });
     return;
   }
   if (p.state === 'roll') {
@@ -3031,11 +3103,18 @@ function renderPlayer(cam) {
   const spinning = p.state === 'attack' && p.atk.key === 'spin' && p.phase === 'active';
   const weaving = p.state === 'attack' && p.atk.weave && p.phase === 'active';
   const k = spinning ? (p.t - p.atk.windup) / p.atk.active : 0;
-  const facing = spinning && k > 0.5 ? -p.facing : p.facing;
+  const spinFrames = spinning && spriteAnim('knight', 'spin');   // есть кадры вращения — разворот рисуют они
+  const facing = spinning && k > 0.5 && !spinFrames ? -p.facing : p.facing;
   const active = p.phase === 'active';
   const drawing = p.state === 'attack' && p.atk.draw && p.phase === 'windup';
 
-  if (spinning) disc(px, GROUND - 27, 19);
+  const spinK = spinning ? Math.min(1, (p.t - p.atk.windup) / p.atk.active) : 0;
+  if (spinning) {
+    spinTrail(px, GROUND - 24, spinK, p.facing, true);
+    // «шу» на каждый оборот
+    const turn = spinK < 0.5 ? 0 : 1;
+    if (game.spinTurn !== turn + p.clock - p.t) { game.spinTurn = turn + p.clock - p.t; sfx.whoosh(); }
+  }
   const rapier = p.weapon === 'rapier';
   if (game.charge) {
     // копит прыжок: под рыцарем растёт полоска
@@ -3052,10 +3131,18 @@ function renderPlayer(cam) {
   mv.dx = mv.dx * 0.8 + (p.x - mv.x) * 0.2; mv.dz = mv.dz * 0.8 + (p.z - mv.z) * 0.2; mv.x = p.x; mv.z = p.z;
   game.lastMove = mv;
   const depth = p.walking && Math.abs(mv.dz) > Math.abs(mv.dx) * 1.3 && Math.abs(mv.dz) > 0.05 ? (mv.dz > 0 ? 'south' : 'north') : null;
+  // убирает в ножны: стоя — кадры «рука за спину», на бегу — оружие просто уплывает за спину; достаёт — обратно
+  const SHEATHE_T = 0.5;
+  const sk = p.sheathed ? (p.sheatheAt != null ? Math.min(1, (p.clock - p.sheatheAt) / SHEATHE_T) : 1)
+    : drawing ? Math.max(0, 1 - p.t / Math.max(0.05, p.atk.windup)) : null;
+  const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && spriteAnim('knight', 'sheathe');
   const tip = sprite ? drawKnight(g, {
     x: px, ground: GROUND, facing, pose: p.pose, state: p.state, walking: p.walking, step: p.step, time: game.time, airY: p.airY,
     turn, run: (p.gaitRun ?? 0) > 0.5, depth,
-    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing,
+    sheath: sk != null ? { kind: sheathKind, len: sheathLen, k: sk } : null,
+    anim: sheathing ? { key: 'sheathe', k: sk } : spinFrames ? { key: 'spin', k: (spinK * 2) % 1 }   // два оборота
+      : p.state === 'held' && spriteAnim('knight', 'held') ? { key: 'held', k: (p.t * 0.9) % 1 } : null,   // висит, хватается за горло
+    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
     alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
   }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
@@ -3064,7 +3151,8 @@ function renderPlayer(cam) {
     bladeHidden: p.sheathed || drawing,
     trail: active ? p.trail : null,
   });
-  if (active) {
+  if (spinning) spinTrail(px, GROUND - 24, spinK, p.facing, false);   // передняя половина диска — поверх рыцаря
+  if (active && !spinning) {   // у вихря свой шлейф-диск
     p.trail.push({ tipX: tip.tipX, tipY: tip.tipY });
     if (p.trail.length > (spinning || weaving ? 6 : 3)) p.trail.shift();
   } else p.trail = [];
@@ -3151,10 +3239,28 @@ function heightIcon(h, x, y, c, s = 1) {
 }
 
 // бледный диск от кругового удара
-function disc(x, cy, r) {
-  g.globalAlpha = 0.22;
-  for (let a = 0; a < Math.PI * 2; a += 0.1) rect(g, x + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8, 1, 1, '#ffffff');
-  g.globalAlpha = 1;
+// вихрь (v0.69): два оборота — два «диска»-шлейфа за клинком. Клинок идёт по эллипсу (вид сбоку, круг в глубину),
+// за ним — полумесяц света: яркий у острия, гаснет к хвосту, ступенями (пиксель-арт). back — задняя половина (за рыцарем).
+function spinTrail(x, cy, k, facing, back) {
+  const turns = 2, R = 23, RY = 7;
+  const head = k * turns * Math.PI * 2;                 // где сейчас клинок
+  const tail = Math.max(0, head - Math.PI * 1.15);      // длина шлейфа — чуть больше полукруга
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const N = 26;
+  for (let i = 0; i < N; i++) {
+    const a = tail + (head - tail) * (i / (N - 1));
+    const behind = Math.sin(a) < 0;                       // дальняя сторона круга — за рыцарем
+    if (behind !== back) continue;
+    const f = i / (N - 1);                                // 0 — хвост, 1 — у клинка
+    const step = f > 0.85 ? 1 : f > 0.6 ? 0.7 : f > 0.35 ? 0.45 : 0.22;
+    const px = x + facing * Math.cos(a) * R, py = cy + Math.sin(a) * RY;
+    const w = f > 0.6 ? 3 : 2;
+    g.globalAlpha = step * (back ? 0.55 : 0.9);
+    g.fillStyle = f > 0.85 ? '#ffffff' : f > 0.5 ? '#d8ecff' : '#8fb8e8';
+    g.fillRect(Math.round(px * 2) / 2 - w / 4, Math.round(py * 2) / 2 - 0.5, w / 2, f > 0.6 ? 1.5 : 1);
+  }
+  g.restore();
 }
 
 // тяжёлый взмах двуручника: дуга в воздухе и волна пыли по полу

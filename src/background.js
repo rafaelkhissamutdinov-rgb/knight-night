@@ -19,11 +19,23 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
-for (const n of OBJECTS) { if (typeof Image === 'undefined') break; const im = new Image(); im.src = `assets/objects/${n}.png`; obj[n] = im; }
+// карты нормалей предметов (v0.69, tools/pixellab_normals.py): живой свет освещает их объёмно
+const NORMAL_OF = typeof WeakMap === 'undefined' ? null : new WeakMap();
+for (const n of OBJECTS) {
+  if (typeof Image === 'undefined') break;
+  const im = new Image(); im.src = `assets/objects/${n}.png`; obj[n] = im;
+}
+// какие нормали готовы — список assets/objects/n/index.json (его пишет tools/pixellab_normals.py)
+if (typeof fetch !== 'undefined') fetch('assets/objects/n/index.json').then(r => (r.ok ? r.json() : [])).then(list => {
+  for (const n of list) {
+    if (!obj[n]) continue;
+    const nm = new Image(); nm.onload = () => NORMAL_OF.set(obj[n], nm); nm.src = `assets/objects/n/${n}.png`;
+  }
+}).catch(() => {});
 export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete);   // загрузились или не нашлись — дальше не ждать
 const objImg = n => (obj[n]?.complete && obj[n].naturalWidth ? obj[n] : null);
 if (obj.stainedglass) obj.stainedglass.onload = () => { decorImages.stainedglass = obj.stainedglass; };
@@ -43,10 +55,12 @@ function decorImage(g, d, floorTop, room) {
   const spec = DECOR_IMG[d.type];
   if (!spec) return false;
   const [n, anchor, top0, dy] = spec;
+  // портрет — по тому, кто на нём (король, маг с выцарапанным лицом, принцесса); без who — дамы по месту
+  const who = d.type === 'portrait' && { king: 'decor_portrait_king', mage: 'decor_portrait_mage', princess: 'decor_portrait' }[d.who];
   const i = d.type === 'armor' ? (d.rust ? 1 : 0)
     : d.type === 'rack' ? ((d.items ?? []).filter(x => !x).length >= 2 ? 1 : 0)   // полупустая стойка
     : Math.abs(Math.round(d.x / 10)) % n;
-  const im = objImg('decor_' + d.type + (i ? '_' + i : ''));
+  const im = (who && objImg(who)) || objImg('decor_' + d.type + (i ? '_' + i : '') + (d.type === 'portrait' && !i && !who ? '_1' : ''));
   if (!im) return false;
   const h = im.height / 2;
   if (anchor === 'hang') {
@@ -113,7 +127,34 @@ export function drawObjNamed(g, name, x, bottom, flip = false) {
 }
 
 // картинка в мировых координатах при масштабе холста 2: низ по центру в (x, bottom)
-function drawObj(g, im, x, bottom) { g.drawImage(im, x - im.width / 4, bottom - im.height / 2, im.width / 2, im.height / 2); }
+// холст цвета → парный холст нормалей: всё, что рисует drawObj, ложится и туда (нормаль картинки или плоская по силуэту)
+const normalPair = new Map();
+export function pairNormals(g, ng) { if (ng) normalPair.set(g, ng); else normalPair.delete(g); }
+const flatCache = typeof WeakMap === 'undefined' ? null : new WeakMap();
+function flatOf(im) {
+  let c = flatCache.get(im);
+  if (c) return c;
+  c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgb(128,128,255)'; x.fillRect(0, 0, c.width, c.height);
+  x.globalCompositeOperation = 'destination-in'; x.drawImage(im, 0, 0);
+  flatCache.set(im, c);
+  return c;
+}
+function drawNormal(g, im, ...args) {
+  const ng = normalPair.get(g);
+  if (!ng || !im.width) return;
+  const nm = NORMAL_OF.get(im);
+  ng.setTransform(g.getTransform());
+  ng.globalAlpha = g.globalAlpha;
+  ng.drawImage(nm ?? flatOf(im), ...args);
+  ng.setTransform(1, 0, 0, 1, 0, 0);
+  ng.globalAlpha = 1;
+}
+function drawObj(g, im, x, bottom) {
+  g.drawImage(im, x - im.width / 4, bottom - im.height / 2, im.width / 2, im.height / 2);
+  drawNormal(g, im, x - im.width / 4, bottom - im.height / 2, im.width / 2, im.height / 2);
+}
 const RUNE = '#5fd3ff', RUNE_HOT = '#c8f4ff';
 
 // floorTop — где стена встречается с полом; ниже — пол с глубиной (дальние ряды плиток уже).
@@ -135,14 +176,29 @@ export function buildRoom(room, height, floorTop, tiles = null) {
   if (tiles) {
     // куски подряд; вариант — по очереди с перемешиванием (первый, основной, — чаще)
     const dy = floorTop * 2 - TILE_LINE, th = tiles[0].height;
+    // парный холст нормалей (рельеф кладки + нормали предметов) — для живого света
+    const nrm = tiles.normals?.every(n => n.complete && n.naturalWidth) ? tiles.normals : null;
+    let ng = null;
+    if (nrm) {
+      c.normal = document.createElement('canvas'); c.normal.width = c.width; c.normal.height = c.height;
+      ng = c.normal.getContext('2d'); ng.imageSmoothingEnabled = false;
+    }
     for (let x = 0, i = 0; x < length * 2; x += TILE_W, i++) {
-      const t = tiles[i === 0 || rand() < 0.4 ? 0 : 1 + Math.floor(rand() * (tiles.length - 1))] ?? tiles[0];
+      const j = i === 0 || rand() < 0.4 ? 0 : 1 + Math.floor(rand() * (tiles.length - 1));
+      const t = tiles[j] ?? tiles[0];
       g.drawImage(t, x, dy);
       if (dy < 0) g.drawImage(t, 0, th + dy - 20, TILE_W, 20 - dy, x, height * 2 - 20 + dy, TILE_W, 20 - dy);
+      if (ng) {
+        const n = nrm[j] ?? nrm[0];
+        ng.drawImage(n, x, dy);
+        if (dy < 0) ng.drawImage(n, 0, th + dy - 20, TILE_W, 20 - dy, x, height * 2 - 20 + dy, TILE_W, 20 - dy);
+      }
     }
-    if (room.far) g.clearRect(0, 0, length * 2, floorTop * 2);   // под открытым небом: стены нет, за полом — дальний план (рисуется отдельно)
+    if (room.far) { g.clearRect(0, 0, length * 2, floorTop * 2); ng?.clearRect(0, 0, length * 2, floorTop * 2); }   // под открытым небом: стены нет, за полом — дальний план (рисуется отдельно)
     g.scale(2, 2);
+    pairNormals(g, ng);
     finishRoom(g, room, length, height, floorTop, rand, true);
+    pairNormals(g, null);
     return c;
   }
 
