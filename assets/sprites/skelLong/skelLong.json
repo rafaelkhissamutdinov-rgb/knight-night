@@ -1,0 +1,268 @@
+{
+"size": 64,
+"foot": 59,
+"center": 32,
+"anims": {
+"walk": 6
+},
+"frames": {
+"pose_backdash": {
+"wrist": [
+37.9,
+30.8
+]
+},
+"pose_broken": {
+"wrist": [
+28.4,
+27.3
+]
+},
+"pose_dash": {
+"wrist": [
+46.1,
+34.2
+]
+},
+"pose_dead": {
+"wrist": [
+28.5,
+57.0
+]
+},
+"pose_draw": {
+"wrist": [
+30.9,
+41.6
+]
+},
+"pose_fence": {
+"wrist": [
+46.7,
+32.8
+]
+},
+"pose_guard_high": {
+"wrist": [
+37.9,
+10.8
+]
+},
+"pose_guard_low": {
+"wrist": [
+42.6,
+42.0
+]
+},
+"pose_guard_mid": {
+"wrist": [
+41.9,
+31.7
+]
+},
+"pose_hurt": {
+"wrist": [
+29.6,
+38.1
+]
+},
+"pose_idle": {
+"wrist": [
+35.3,
+34.9
+]
+},
+"pose_kneel": {
+"wrist": [
+37.3,
+56.9
+]
+},
+"pose_lean_sword": {
+"wrist": [
+40.6,
+44.3
+]
+},
+"pose_run_rapier": {
+"wrist": [
+30.3,
+39.0
+]
+},
+"pose_sheathed": {
+"wrist": [
+29.1,
+39.1
+]
+},
+"pose_stagger": {
+"wrist": [
+23.3,
+18.4
+]
+},
+"pose_strike_diagDown": {
+"wrist": [
+49.7,
+38.3
+]
+},
+"pose_strike_diagUp": {
+"wrist": [
+52.9,
+16.6
+]
+},
+"pose_strike_draw": {
+"wrist": [
+53.8,
+34.5
+]
+},
+"pose_strike_flick": {
+"wrist": [
+49.7,
+15.9
+]
+},
+"pose_strike_high": {
+"wrist": [
+49.5,
+24.3
+]
+},
+"pose_strike_low": {
+"wrist": [
+44.8,
+46.4
+]
+},
+"pose_strike_mid": {
+"wrist": [
+50.8,
+33.4
+]
+},
+"pose_strike_sweep": {
+"wrist": [
+48.1,
+52.5
+]
+},
+"pose_strike_thrust": {
+"wrist": [
+50.8,
+35.2
+]
+},
+"pose_strike_whirl": {
+"wrist": [
+46.9,
+31.1
+]
+},
+"pose_tuck": {
+"wrist": [
+39.7,
+43.3
+]
+},
+"pose_vault": {
+"wrist": [
+38.3,
+19.2
+]
+},
+"pose_windup_diagDown": {
+"wrist": [
+33.3,
+26.1
+]
+},
+"pose_windup_diagUp": {
+"wrist": [
+31.1,
+43.6
+]
+},
+"pose_windup_flick": {
+"wrist": [
+22.1,
+9.9
+]
+},
+"pose_windup_high": {
+"wrist": [
+18.5,
+5.0
+]
+},
+"pose_windup_low": {
+"wrist": [
+24.4,
+46.9
+]
+},
+"pose_windup_mid": {
+"wrist": [
+17.4,
+35.9
+]
+},
+"pose_windup_sweep": {
+"wrist": [
+30.7,
+53.9
+]
+},
+"pose_windup_thrust": {
+"wrist": [
+32.1,
+31.7
+]
+},
+"pose_windup_whirl": {
+"wrist": [
+21.4,
+50.6
+]
+},
+"walk_0": {
+"wrist": [
+32.6,
+42.0
+]
+},
+"walk_1": {
+"wrist": [
+38.5,
+41.9
+]
+},
+"walk_2": {
+"wrist": [
+34.7,
+41.8
+]
+},
+"walk_3": {
+"wrist": [
+29.7,
+43.2
+]
+},
+"walk_4": {
+"wrist": [
+23.2,
+43.3
+]
+},
+"walk_5": {
+"wrist": [
+24.5,
+44.6
+]
+}
+}
+}
