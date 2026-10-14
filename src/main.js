@@ -99,10 +99,11 @@ const imageRooms = {};
 for (const [id, r] of Object.entries(ROOMS)) if (r.image) (bgImages[id] = new Image()).src = r.image;  // загрузить заранее
 // фон-картинка, если есть и загрузилась; иначе — нарисованный кодом
 // куски стены из PixelLab (v0.64): tiles: 'dungeon' у комнаты → assets/backgrounds/dungeon/dungeon_<n>.png
+const TILE_COUNT = { dungeon: 3, castle: 4 };   // вариантов куска стены: _0 — основной, остальные — с деталью
 const tileSets = {};
 const farImgs = {};
 for (const r of Object.values(ROOMS)) if (r.tiles && !tileSets[r.tiles]) {
-  tileSets[r.tiles] = Array.from({ length: r.tileCount ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
+  tileSets[r.tiles] = Array.from({ length: r.tileCount ?? TILE_COUNT[r.tiles] ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
 }
 const tilesReady = r => r.tiles && objectsReady() && tileSets[r.tiles].every(im => im.complete && im.naturalWidth);
 function bgFor(id) {
