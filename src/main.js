@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawLikaPortrait, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, drawBonePileImg } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -15,9 +15,11 @@ import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, update
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
+// враги в пиксель-арте (v0.64): набор по типу врага; набора нет — рисуется старая фигурка
+for (const t of ENEMY_SPRITES) loadSpriteSet(t);
 import { BESTIARY } from './story/bestiary.js';
 import { ENEMY_TYPES } from './config.js';
 
@@ -96,10 +98,18 @@ const bgImages = {};
 const imageRooms = {};
 for (const [id, r] of Object.entries(ROOMS)) if (r.image) (bgImages[id] = new Image()).src = r.image;  // загрузить заранее
 // фон-картинка, если есть и загрузилась; иначе — нарисованный кодом
+// куски стены из PixelLab (v0.64): tiles: 'dungeon' у комнаты → assets/backgrounds/dungeon/dungeon_<n>.png
+const tileSets = {};
+for (const r of Object.values(ROOMS)) if (r.tiles && !tileSets[r.tiles]) {
+  tileSets[r.tiles] = Array.from({ length: r.tileCount ?? 1 }, (_, n) => { const im = new Image(); im.src = `assets/backgrounds/${r.tiles}/${r.tiles}_${n}.png`; return im; });
+}
+const tilesReady = r => r.tiles && objectsReady() && tileSets[r.tiles].every(im => im.complete && im.naturalWidth);
 function bgFor(id) {
   const img = bgImages[id];
   if (img?.complete && img.naturalWidth) return (imageRooms[id] ??= buildImageRoom(ROOMS[id], img, H, CONFIG.floorTop));
-  return (backgrounds[id] ??= buildRoom(ROOMS[id], H, CONFIG.floorTop));
+  const r = ROOMS[id];
+  if (tilesReady(r)) return (backgrounds[id + ':tiles'] ??= buildRoom(r, H, CONFIG.floorTop, tileSets[r.tiles]));
+  return (backgrounds[id] ??= buildRoom(r, H, CONFIG.floorTop));
 }
 const room = () => ROOMS[game.room];
 const encKey = (roomId, i) => `${roomId}:${i}`;
@@ -2495,7 +2505,8 @@ function render() {
   }
   const r = room();
   const cam = Math.round(game.camX);
-  g.drawImage(bgFor(game.room), cam, 0, W, H, 0, 0, W, H);
+  const bg = bgFor(game.room), bk = bg.k ?? 1;
+  g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
   drawTorches(g, cam, r.torches ?? [], game.time);
   if (r.flames) drawFlames(g, cam, r.flames, game.time);
   for (const d of r.decor ?? []) {
@@ -2538,7 +2549,7 @@ function render() {
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => a.z - b.z);
   for (const a of things) {
-    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time);
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) renderPlayer(cam);
     else if (a.npc) renderNpc(a, cam);
     else renderEnemy(a, cam);
@@ -2652,7 +2663,7 @@ function renderEnemy(e, cam) {
   const GROUND = groundY(e.z);
   if (CONFIG.enemyBars && e.alive && !e.def.practice && e.hp < e.def.hp) {
     const w = 14, fill = Math.max(1, Math.round(w * e.hp / e.def.hp));
-    const top = GROUND - (e.kind === 'slime' ? Math.round(14 * e.size) + 5 : 40) - e.airY;
+    const top = GROUND - (e.kind === 'slime' ? Math.round(14 * e.size) + 5 : spriteReady(e.type) ? 34 : 40) - e.airY;
     rect(g, ex - w / 2, top, w, 2, '#2d2838');
     rect(g, ex - w / 2, top, fill, 2, '#e8454f');
   }
@@ -2665,13 +2676,20 @@ function renderEnemy(e, cam) {
     const whirl = e.state === 'strike' && e.strike?.pose === 'whirl';
     if (whirl) disc(ex, GROUND - 27 - e.airY, 20);
     if (e.kind === 'ghost') g.globalCompositeOperation = 'lighter';  // призрак светится, а не темнеет
-    if (riseK < 1) {
+    if (riseK < 1 && !spriteReady(e.type)) {
       g.save();
       g.translate(ex, GROUND);
       g.scale(1, 0.25 + 0.75 * ease(riseK));
       g.translate(-ex, -GROUND);
     }
-    const tip = drawFigureOutlined(g, {
+    const sprite = spriteReady(e.type);
+    const walking = e.step !== e.lastDrawStep;
+    e.lastDrawStep = e.step;
+    const tip = sprite ? drawSprite(e.type, g, {
+      x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: e.step / 6.3,
+      time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
+      bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined,
+    }) ?? { tipX: ex, tipY: GROUND - 20 } : drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
       breathe: (e.state === 'idle' || e.state === 'dormant') && !e.def.skull && Math.sin(game.time * 2.2 + e.x * 0.37) > 0.3 ? 1 : 0,  // живые дышат, скелеты — нет
       weaponLen: e.def.weapon ?? 17, skull: e.def.skull, shield: e.def.shield && e.alive,
@@ -2680,7 +2698,7 @@ function renderEnemy(e, cam) {
       wrap: e.def.wrap, veil: e.def.veil, bun: e.def.bun, ornate: e.def.ornate, curved: e.def.curved, slim: e.def.slim, spear: e.def.spear,
       bandit: e.def.bandit, axe: e.def.axe, plate: e.def.plate, halberd: e.def.halberd,
     });
-    if (riseK < 1) g.restore();
+    if (riseK < 1 && !sprite) g.restore();
     g.globalCompositeOperation = 'source-over';
     if (CONFIG.windupHints && e.state === 'windup' && e.alive) windupHint(e, ex, GROUND - 50 - e.airY);
     if (e.def.crossbow && e.state === 'windup' && e.alive && e.t > e.windupTime * 0.35) {
@@ -2712,9 +2730,19 @@ function renderEnemy(e, cam) {
   g.globalAlpha = 1;
 }
 
+// чем бьёт враг со спрайтом: оружие рисуется кодом от кисти
+function enemyWeapon(e) {
+  const d = e.def;
+  if (e.kind === 'archer') return 'bow';
+  if (d.crossbow) return 'crossbow';
+  if (e.kind === 'duelist') return 'rapier';
+  return d.axe ? 'axe' : d.halberd ? 'halberd' : d.spear ? 'spear' : 'sword';
+}
+
 // смерть врага: скелет рассыпается в груду костей (лежит, пока рыцарь в комнате), живой — падает навзничь и тает
 function renderDeath(e, ex) {
   const GROUND = groundY(e.z), t = e.t, f = e.facing;
+  if (spriteReady(e.type)) { renderSpriteDeath(e, ex, GROUND, t, f); return; }
   const opts = {
     x: ex, ground: GROUND, facing: f, pose: e.pose, colors: e.def.colors, weaponLen: e.def.weapon ?? 17,
     skull: e.def.skull, shield: e.def.shield, bow: e.kind === 'archer', crossbow: e.def.crossbow, bladeHidden: true,
@@ -2760,8 +2788,36 @@ function renderDeath(e, ex) {
   g.globalAlpha = 1;
 }
 
+// то же для врага в пиксель-арте: скелет оседает и рассыпается, призрак тает вверх, живой падает навзничь
+function renderSpriteDeath(e, ex, GROUND, t, f) {
+  const o = { x: ex, ground: GROUND, facing: f, pose: e.pose, bladeHidden: true };
+  if (e.kind === 'ghost') {
+    const a = Math.max(0, 0.6 * (1 - t / 0.7));
+    if (a <= 0) return;
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    drawSprite(e.type, g, { ...o, ground: GROUND - Math.round(t * 30), frame: 'pose_hurt', alpha: a });
+    g.restore();
+    return;
+  }
+  if (e.def.skull) {
+    if (t < 0.3) drawSprite(e.type, g, { ...o, frame: t < 0.12 ? 'pose_kneel' : 'pose_dead' });
+    if (t > 0.15) drawBonePile(ex, GROUND, f, e.def);
+    return;
+  }
+  const k = ease(Math.min(1, t / 0.35));
+  const alpha = Math.max(0, 1 - Math.max(0, t - 2.2) / 0.8);
+  if (alpha <= 0) return;
+  drawSprite(e.type, g, { ...o, frame: 'pose_hurt', rotate: -f * k * Math.PI / 2, ground: GROUND + Math.round(k * 10), alpha });
+}
+
 function drawBonePile(x, gy, f, def) {
   x = Math.round(x);
+  if (drawBonePileImg(g, x, gy, f)) {
+    const w = Math.min(22, def.weapon ?? 17);   // оружие на полу
+    if (def.kind !== 'archer') rect(g, x - f * 4 - (f > 0 ? w : 0), gy, w, 1, def.colors.blade ?? '#c3ccd6');
+    return;
+  }
   const B = '#e6e1d0', S = '#a39d8a', D = '#14101e';
   rect(g, x - 8, gy - 2, 16, 2, S);                          // россыпь
   rect(g, x - 6, gy - 3, 5, 1, B); rect(g, x + 2, gy - 3, 6, 1, B);   // кости
@@ -2914,6 +2970,11 @@ function renderNpc(n, cam) {
   const x = n.x - cam;
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
+  if (n.def.sprite && spriteReady(n.def.sprite)) {
+    // NPC в пиксель-арте (v0.64): сидит у костра — на колене, иначе стоит без оружия
+    drawSprite(n.def.sprite, g, { x, ground: groundY(n.z), facing: n.facing, pose: POSES.idle, weapon: 'none', frame: n.def.sit ? 'pose_kneel' : 'pose_idle' });
+    return;
+  }
   drawFigureOutlined(g, {
     x, ground: groundY(n.z), facing: n.facing, pose: n.def.sit ? { ...POSES.sheathed, hy: 7 + breathe, lean: 0, crouch: 0 } : { ...POSES.idle, hy: 8, angle: 80, crouch: breathe },
     colors: n.def.colors, robe: n.def.robe, hood: n.def.hood, pack: n.def.pack, bladeHidden: true,

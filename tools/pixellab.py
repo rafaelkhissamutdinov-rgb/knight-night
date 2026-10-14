@@ -8,12 +8,19 @@ KEY = os.environ.get('PIXELLAB_API_KEY') or open(os.environ.get('PIXELLAB_KEY_FI
 BASE = 'https://api.pixellab.ai/v2'
 
 def req(method, path, body=None):
-    r = urllib.request.Request(BASE + path, method=method, data=json.dumps(body).encode() if body else None,
-                               headers={'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json'})
-    try:
-        with urllib.request.urlopen(r, timeout=120) as f: return json.load(f)
-    except urllib.error.HTTPError as e:
-        sys.exit(f'HTTP {e.code}: {e.read().decode()[:800]}')
+    # обрыв сети — повторить (до 6 раз); ошибка API — выйти с текстом
+    for attempt in range(30):
+        r = urllib.request.Request(BASE + path, method=method, data=json.dumps(body).encode() if body else None,
+                                   headers={'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(r, timeout=120) as f: return json.load(f)
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 29: time.sleep(15); continue   # занято (лимит одновременных заданий) — подождать
+            if e.code >= 500 and attempt < 5: time.sleep(2 ** attempt); continue
+            sys.exit(f'HTTP {e.code}: {e.read().decode()[:800]}')
+        except (urllib.error.URLError, ConnectionError, TimeoutError, OSError):
+            if attempt >= 5: raise
+            time.sleep(2 ** attempt)
 
 def b64img(path, size=None):
     im = Image.open(path).convert('RGBA')
@@ -24,6 +31,9 @@ def b64img(path, size=None):
 def run(path, body, out_prefix):
     r = req('POST', path, body)
     job = r.get('background_job_id') or r.get('job_id')
+    if job:  # номер задания — сразу в журнал: при обрыве результат можно забрать позже
+        log = os.path.join(os.path.dirname(HERE), '.pixellab_work'); os.makedirs(log, exist_ok=True)
+        with open(os.path.join(log, 'jobs_log.jsonl'), 'a') as f: f.write(json.dumps({'job': job, 'path': path, 'out': out_prefix, 't': time.time()}) + '\n')
     if not job:
         imgs = find_images(r)
     else:

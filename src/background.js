@@ -6,18 +6,79 @@ import { drawDecor } from './decor.js';
 // бочки и ящики, решётка камеры, паутина и темнота. Фон комнаты рисуется один раз во всю её длину.
 
 export const DOOR_W = 22, DOOR_H = 36;
+
+// детали комнат из PixelLab (assets/objects/<имя>.png, разрешение экрана): рисуются в комнатах со стенами-кусками
+// убранство стен: тип → [вариантов, как крепится, верх по умолчанию]; вариант — по месту (d.x), у доспеха rust → второй
+const DECOR_IMG = {
+  window: [2, 'top', 22, -3], banner: [2, 'top', 10, -3], portrait: [3, 'top', 36, -2], tapestry: [1, 'top', 14, -2],
+  chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'], rack: [2, 'floor'], bunk: [2, 'floor'], bookshelf: [2, 'floor'],
+};
+// предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
+const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2 };
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile',
+  ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
+  ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
+const obj = {};
+for (const n of OBJECTS) { if (typeof Image === 'undefined') break; const im = new Image(); im.src = `assets/objects/${n}.png`; obj[n] = im; }
+export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete);   // загрузились или не нашлись — дальше не ждать
+const objImg = n => (obj[n]?.complete && obj[n].naturalWidth ? obj[n] : null);
+// убранство картинкой (если есть); false — рисовать кодом
+function decorImage(g, d, floorTop) {
+  const spec = DECOR_IMG[d.type];
+  if (!spec) return false;
+  const [n, anchor, top0, dy] = spec;
+  const i = d.type === 'armor' ? (d.rust ? 1 : 0)
+    : d.type === 'rack' ? ((d.items ?? []).filter(x => !x).length >= 2 ? 1 : 0)   // полупустая стойка
+    : Math.abs(Math.round(d.x / 10)) % n;
+  const im = objImg('decor_' + d.type + (i ? '_' + i : ''));
+  if (!im) return false;
+  const h = im.height / 2;
+  const bottom = anchor === 'floor' ? floorTop : anchor === 'center' ? (d.y ?? top0) + h / 2 : (d.y ?? top0) + dy + h;
+  drawObj(g, im, d.x, bottom);
+  return true;
+}
+
+// груда костей упавшего скелета (картинкой); false — нет картинки
+export function drawBonePileImg(g, x, gy, facing) {
+  const im = objImg('bonepile');
+  if (!im) return false;
+  if (facing < 0) { g.save(); g.translate(x, 0); g.scale(-1, 1); drawObj(g, im, 0, gy + 1); g.restore(); }
+  else drawObj(g, im, x, gy + 1);
+  return true;
+}
+
+// картинка в мировых координатах при масштабе холста 2: низ по центру в (x, bottom)
+function drawObj(g, im, x, bottom) { g.drawImage(im, x - im.width / 4, bottom - im.height / 2, im.width / 2, im.height / 2); }
 const RUNE = '#5fd3ff', RUNE_HOT = '#c8f4ff';
 
 // floorTop — где стена встречается с полом; ниже — пол с глубиной (дальние ряды плиток уже).
-export function buildRoom(room, height, floorTop) {
+// tiles — куски стены с полом из PixelLab (640×360, бесшовные): тогда фон в полном разрешении экрана (c.k = 2),
+// кладка и пол — из кусков, остальное (двери, убранство) рисуется кодом поверх, как раньше.
+export const TILE_W = 640, TILE_LINE = 246;  // ширина куска и где на нём стена встречается с полом
+export function buildRoom(room, height, floorTop, tiles = null) {
   const length = room.length;
+  const k = tiles ? 2 : 1;
   const c = document.createElement('canvas');
-  c.width = length;
-  c.height = height;
+  c.width = length * k;
+  c.height = height * k;
+  c.k = k;
   const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
   const wallBottom = floorTop;
   let seed = 7 + length;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  if (tiles) {
+    // куски подряд; вариант — по очереди с перемешиванием (первый, основной, — чаще)
+    const dy = floorTop * 2 - TILE_LINE, th = tiles[0].height;
+    for (let x = 0, i = 0; x < length * 2; x += TILE_W, i++) {
+      const t = tiles[i === 0 || rand() < 0.4 ? 0 : 1 + Math.floor(rand() * (tiles.length - 1))] ?? tiles[0];
+      g.drawImage(t, x, dy);
+      if (dy < 0) g.drawImage(t, 0, th + dy - 20, TILE_W, 20 - dy, x, height * 2 - 20 + dy, TILE_W, 20 - dy);
+    }
+    g.scale(2, 2);
+    finishRoom(g, room, length, height, floorTop, rand, true);
+    return c;
+  }
 
   g.fillStyle = PAL.mortar;
   g.fillRect(0, 0, length, wallBottom);
@@ -40,8 +101,8 @@ export function buildRoom(room, height, floorTop) {
     g.fillStyle = PAL.mortar;
     for (let k = 0; k < 8; k++) { g.fillRect(cx, cy, 1, 2); cx += Math.round(rand() * 2 - 1); cy += 2; }
   }
-  const doors = room.doors ?? [];
   // колонны (не там, где двери и решётка)
+  const doors = room.doors ?? [];
   if (room.columns !== false) {
     for (let x = 120; x < length - 30; x += 240) {
       if (doors.some(d => Math.abs(d.x - (x + 10)) < 40)) continue;
@@ -85,23 +146,38 @@ export function buildRoom(room, height, floorTop) {
   g.fillRect(0, wallBottom - 6, length, 6);
   g.fillStyle = PAL.wallDark;
   g.fillRect(0, wallBottom - 3, length, 3);  // плинтус
-  for (const d of doors) drawDoor(g, d, floorTop);
+  finishRoom(g, room, length, height, floorTop, rand, false);
+  return c;
+}
+
+// двери, лестницы, балкон, убранство — поверх стены (и нарисованной кодом, и из кусков)
+function finishRoom(g, room, length, height, floorTop, rand, tiled) {
+  const doors = room.doors ?? [];
+  if (tiled) {
+    const shade = g.createLinearGradient(0, 0, 0, 30);
+    shade.addColorStop(0, 'rgba(8,6,14,0.45)');
+    shade.addColorStop(1, 'rgba(8,6,14,0)');
+    g.fillStyle = shade;
+    g.fillRect(0, 0, length, 30);
+  }
+  for (const d of doors) drawDoor(g, d, floorTop, tiled);
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
   if (room.stairs) drawStairs(g, room.stairsX ?? (room.stairs === 'right' ? length - 70 : length / 2 - 40), floorTop);
   if (room.balcony) drawBalcony(g, length, height, floorTop, rand);
-  for (const d of room.decor ?? []) drawDecor(g, d, floorTop);  // поверх лестниц и дверей (завал на лестнице)
+  for (const d of room.decor ?? []) if (!(tiled && decorImage(g, d, floorTop))) drawDecor(g, d, floorTop);  // поверх лестниц и дверей (завал на лестнице)
   if (room.magic) {
     // вершина башни: стены в лиловом отсвете, на стене знаки
     g.fillStyle = 'rgba(120,60,170,0.18)';
     g.fillRect(0, 0, length, height);
     for (let x = 90; x < length - 40; x += 140) drawSigil(g, x, 46);
   }
-  return c;
 }
 
 // Дверь в задней стене: деревянная, решётчатая (камера) или железная.
-export function drawDoor(g, d, floorTop) {
+export function drawDoor(g, d, floorTop, tiled = false) {
   if (d.kind === 'none') return;  // проход без двери (например, у подножия лестницы)
+  const im = tiled && objImg('door_' + (['bars', 'iron', 'hole'].includes(d.kind) ? d.kind : 'wood'));
+  if (im) { drawObj(g, im, d.x, floorTop + 1); return; }
   if (d.kind === 'hole') {
     // пролом в стене: рваный край, за ним темнота
     const x0 = Math.round(d.x - 13), top = floorTop - 38;
@@ -424,8 +500,13 @@ export function drawPortal(g, cx, cy, time, lit = 1, glow = 0.5) {
 }
 
 // Бочки, ящики, мешки и кости — стоят на полу и сортируются по глубине вместе с бойцами.
-export function drawProp(g, type, x, gy, opened = false, time = 0) {
+export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
   x = Math.round(x);
+  if (PROP_IMG[type]) {
+    const i = Math.abs(Math.round(seed / 10)) % PROP_IMG[type];
+    const im = objImg(type === 'chest' && opened ? 'prop_chest_open' : 'prop_' + type + (i ? '_' + i : ''));
+    if (im) { drawObj(g, im, x, gy + 1); return; }
+  }
   if (type === 'barrel') {
     rect(g, x - 5, gy - 13, 10, 13, '#6b4532');
     rect(g, x - 6, gy - 10, 12, 7, '#6b4532');
