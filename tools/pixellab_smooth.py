@@ -84,7 +84,7 @@ def turn():
     if os.path.exists(os.path.join(OUT, 'turn_0.png')): return
     r = req('POST', '/animate-character', {'character_id': cid, 'mode': 'pixminimax', 'directions': ['east'], 'frame_count': 8, 'keep_first_frame': False,
         'action_description': 'turns around in place smoothly to face the opposite direction, rotating the body through the front view',
-        'subject_description': a.desc, 'initial_pose': 'standing upright facing right', 'end_frame': b64img(west)[0]})
+        'subject_description': a.desc[:300], 'initial_pose': 'standing upright facing right', 'end_frame': b64img(west)[0]})
     fr = frames_of(wait(r['background_job_ids'][0]))[:8]
     for i, im in enumerate(fr): fit(im, True).save(os.path.join(OUT, f'turn_{i}.png'))
 def depth(d, key):
