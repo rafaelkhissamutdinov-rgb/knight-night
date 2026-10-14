@@ -1,6 +1,7 @@
 import { PAL } from './palette.js';
 import { rect, thick } from './draw.js';
 import { drawDecor, decorImages } from './decor.js';
+import { getFire, drawFire } from './fire.js';
 
 // Декорации комнат: стена с колоннами и дверями, пол с глубиной, факелы, портал на полу,
 // бочки и ящики, решётка камеры, паутина и темнота. Фон комнаты рисуется один раз во всю её длину.
@@ -12,13 +13,13 @@ export const DOOR_W = 22, DOOR_H = 36;
 const DECOR_IMG = {
   window: [2, 'top', 22, -3], banner: [2, 'top', 10, -3], portrait: [3, 'top', 36, -2], tapestry: [1, 'top', 14, -2],
   chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'], rack: [2, 'floor'], bunk: [2, 'floor'], bookshelf: [2, 'floor'], shelf: [2, 'top', 40, 0], fireplace: [1, 'floor'],
-  pit: [1, 'hole'], rubble: [1, 'stairs'], sign: [1, 'top', 12, 0],
+  pit: [1, 'hole'], rubble: [1, 'stairs'], sign: [1, 'top', 12, 0], chandelier: [1, 'hang', 30],
 };
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -26,6 +27,17 @@ for (const n of OBJECTS) { if (typeof Image === 'undefined') break; const im = n
 export const objectsReady = () => OBJECTS.every(n => obj[n]?.complete);   // загрузились или не нашлись — дальше не ждать
 const objImg = n => (obj[n]?.complete && obj[n].naturalWidth ? obj[n] : null);
 if (obj.stainedglass) obj.stainedglass.onload = () => { decorImages.stainedglass = obj.stainedglass; };
+// люстра (v0.68): фитили — верхушки свечей на картинке (самые высокие столбцы); живое пламя ставится на них (decor.js)
+if (obj.decor_chandelier) obj.decor_chandelier.onload = () => {
+  const im = obj.decor_chandelier, w = im.width, h = im.height;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const a = x.getImageData(0, 0, w, h).data;
+  const top = Array.from({ length: w }, (_, i) => { for (let y = 0; y < h; y++) if (a[(y * w + i) * 4 + 3] > 100) return y; return h; });
+  const m = Math.min(...top), wicks = [];
+  for (let i = 0; i < w; i++) if (top[i] <= m && (i === 0 || top[i - 1] > m)) wicks.push((i - w / 2) / 2);   // мир: от центра
+  decorImages.chandelier = { wicks, h: h / 2 };
+};
 // убранство картинкой (если есть); false — рисовать кодом
 function decorImage(g, d, floorTop, room) {
   const spec = DECOR_IMG[d.type];
@@ -37,6 +49,13 @@ function decorImage(g, d, floorTop, room) {
   const im = objImg('decor_' + d.type + (i ? '_' + i : ''));
   if (!im) return false;
   const h = im.height / 2;
+  if (anchor === 'hang') {
+    // люстра: цепь от потолка кодом, верх картинки — фитили на (d.y - 7), как у прежней люстры кодом
+    const cx = Math.round(d.x), top = (d.y ?? top0) - 7;
+    for (let yy = 0; yy < top + 4; yy += 3) { rect(g, cx, yy, 1, 2, '#4a4654'); rect(g, cx, yy + 2, 1, 1, '#1a1720'); }
+    drawObj(g, im, cx, top + h);
+    return true;
+  }
   if (anchor === 'stairs') {
     // завал наверху лестницы (картинкой): закрывает её проём
     const st = objImg('stairs');
@@ -459,6 +478,12 @@ export function buildImageRoom(room, img, height, floorTop) {
 // Решётка камеры в торце: за ней темнота, прутья во всю высоту стены.
 function drawGateWall(g, x0, floorTop) {
   rect(g, x0, 0, 26, floorTop, '#0f0c18');
+  const im = objImg('gate_bars');
+  if (im) {
+    // решётка картинкой (v0.68): прутья от пола до потолка, за ними темнота коридора
+    for (let b = floorTop; b > 0; b -= im.height / 2) drawObj(g, im, x0 + 13, b);
+    return;
+  }
   rect(g, x0 + (x0 ? 0 : 23), 0, 3, floorTop, PAL.wallDark);
   for (let x = x0 + 3; x < x0 + 26; x += 4) rect(g, x, 0, 1, floorTop, '#5b6b86');
   for (const yy of [18, 60, 100]) rect(g, x0, yy, 26, 2, '#45424f');
@@ -466,6 +491,19 @@ function drawGateWall(g, x0, floorTop) {
 
 // Открытая дверь решётки — распахнута к зрителю, рисуется поверх бойцов.
 export function drawGatePanel(g, x, floorTop, H, dir) {
+  const im = objImg('gate_door');
+  if (im) {
+    // распахнутая дверь решётки картинкой: петли у стены (x), створка к зрителю
+    const k = 1.3, w = im.width / 2 * k, h = im.height / 2 * k, b = Math.min(H - 3, floorTop + 36);   // выше рыцаря
+    g.save();
+    g.imageSmoothingEnabled = false;
+    g.translate(Math.round(x), 0);
+    if (dir < 0) g.scale(-1, 1);
+    g.globalAlpha = 0.95;
+    g.drawImage(im, 0, b - h, w, h);
+    g.restore();
+    return;
+  }
   const top = floorTop + 4, bottom = H - 3;
   g.globalAlpha = 0.9;
   for (let i = 0; i < 6; i++) {
@@ -505,15 +543,9 @@ export function drawTorches(g, camX, xs, time) {
     g.fillRect(-2, 0, 4, 5);
     g.fillStyle = PAL.gold;
     g.fillRect(-3, -1, 6, 1);
-    const flick = Math.floor(time * 10 + x) % 3;
-    const h = 7 + flick;
-    for (let i = 0; i < h; i++) {
-      const w = i < 2 ? 4 : i < h - 2 ? 3 : 1;
-      const sway = i > h - 3 ? (flick - 1) : 0;
-      g.fillStyle = i < 3 ? PAL.flame0 : i < h - 2 ? PAL.flame1 : PAL.flame2;
-      g.fillRect(-Math.floor(w / 2) + sway, -2 - i, w, 1);
-    }
     g.restore();
+    // пламя — живой огонь (src/fire.js) в пикселях экрана, размером с прежний (факелы мелкие — просьба владельца)
+    drawFire(g, getFire('torch:' + x, { w: 7, h: 14, base: 0.9, tall: 0.8, px: 1 }), sx, 71, time);
   }
 }
 
@@ -585,16 +617,10 @@ export function drawPortal(g, cx, cy, time, lit = 1, glow = 0.5) {
 // Бочки, ящики, мешки и кости — стоят на полу и сортируются по глубине вместе с бойцами.
 // живой огонь костра: язычки пляшут, искры летят вверх
 function campfireFlames(g, x, gy, time) {
-  const f = Math.floor(time * 10);
-  const h = 9 + (f % 3);
-  for (let i = 0; i < h; i++) {
-    const w = Math.max(1, Math.round(6 * (1 - i / h)) + ((f + i) % 2));
-    const sway = Math.round(Math.sin(time * 8 + i * 0.7) * (i / h) * 2);
-    rect(g, x - Math.floor(w / 2) + sway, gy - 4 - i, w, 1, i < 3 ? '#ffe9a8' : i < h * 0.6 ? '#f2a03d' : '#d0532a');
-  }
+  drawFire(g, getFire('campfire:' + Math.round(gy), { w: 22, h: 38, base: 0.8, tall: 0.85 }), x, gy - 3, time);
   for (let k = 0; k < 3; k++) {
     const t = (time * 0.9 + k * 0.37) % 1;
-    rect(g, x + Math.round(Math.sin((time + k) * 3) * 4), gy - 12 - Math.round(t * 22), 1, 1, t < 0.6 ? '#ffd27a' : '#a0442a');
+    rect(g, x + Math.round(Math.sin((time + k) * 3) * 4), gy - 18 - Math.round(t * 22), 1, 1, t < 0.6 ? '#ffd27a' : '#a0442a');
   }
 }
 

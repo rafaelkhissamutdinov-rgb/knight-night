@@ -25,6 +25,8 @@ npm start    # python3 -m http.server 8080 → http://localhost:8080
 - `src/player.js` — рыцарь: ready / attack (windup → active → recover) / dash / backdash / roll / hurt / swallowed. `chooseAttack` выбирает удар по вводу, ножны, отмена замаха, буфер ввода.
 - `src/poses.js` — позы (кисть, угол клинка, наклон, присед). Замах должен читаться по силуэту.
 - `src/draw.js` — пиксельные примитивы и фигура бойца-заглушки.
+- `src/fire.js` — живой огонь (v0.68): клеточная симуляция пламени, `getFire(key, opts)` + `drawFire`; камин, костёр, факелы.
+- Оружие в руках — картинки `assets/objects/wpn_*.png` из `tools/draw_weapons.py` (рисуются попиксельно, не PixelLab); `WEAPON_IMG` в `src/sprites.js`. Лук — кодом.
 - `src/sprites.js` — спрайты персонажей (v0.60 Найт, v0.64 враги): набор `assets/sprites/<имя>/` (+ `<имя>.json`: точка кисти каждого кадра, анимации), ближайшая поза из `src/poses.js`, оружие рисуется кодом от кисти (`drawWeapon`). Враг рисуется спрайтом, если его тип есть в `ENEMY_SPRITES`, иначе — старой фигуркой. Новый набор: `tools/pixellab_character.py <тип> "<описание>"` (≈120–150 генераций). Холст 640×360, мир — 320×180, масштаб `S = 2` в `src/main.js`.
 - Плавность персонажей (v0.67): `tools/pixellab_smooth.py <набор> "<описание>"` добавляет набору разворот (turn_0…7), шаги вглубь (walkS/walkN), промежуточные позы (tw_…) и нормали; в игре враг разворачивается кадрами поворота (`turnFx`) и шагает вглубь видом спереди/со спины.
 - Лавка (v0.67): экран торговли — `#shop-scene` (сцена `assets/shop/scene.png` + Лика по пояс `assets/shop/lika_<настроение>.png`, рисует `drawShopScene` в `src/main.js`), картинки — `tools/pixellab_shop.py`. Лика в комнате сидит на бочке (`sitImgs` в `NPC_TYPES`).

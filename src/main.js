@@ -15,9 +15,10 @@ import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, update
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
+loadWeapons();
 // враги в пиксель-арте (v0.64): набор по типу врага; набора нет — рисуется старая фигурка
 for (const t of ENEMY_SPRITES) loadSpriteSet(t);
 import { BESTIARY } from './story/bestiary.js';
@@ -1943,18 +1944,28 @@ function mapPress(code) {
   if (code === 'KeyA' || code === 'ArrowLeft') game.mapFloor = Math.max(1, game.mapFloor - 1);
   if (code === 'KeyD' || code === 'ArrowRight') game.mapFloor = Math.min(3, game.mapFloor + 1);
 }
+const PARCHMENT = new Image();
+PARCHMENT.src = 'assets/ui/parchment.png';
+
 function renderMap() {
-  const f = game.mapFloor, U = 6, X0 = 14, Y0 = 26;
-  // пергамент
-  rect(g, 8, 12, 304, 156, '#5a4632');
-  rect(g, 10, 14, 300, 152, '#d8c8a0');
-  rect(g, 12, 16, 296, 148, '#e0d2ac');
-  for (let i = 0; i < 40; i++) rect(g, 14 + (i * 73) % 290, 18 + (i * 37) % 140, 2, 1, '#cbb98e');  // пятна
+  const f = game.mapFloor, U = 6, X0 = 11, Y0 = 28;
+  // пергамент: картинка PixelLab (v0.68) в разрешении экрана; нет — кодом
+  if (PARCHMENT.complete && PARCHMENT.naturalWidth) {
+    g.save();
+    g.imageSmoothingEnabled = false;
+    g.drawImage(PARCHMENT, 8, 12, 304, 156);
+    g.restore();
+  } else {
+    rect(g, 8, 12, 304, 156, '#5a4632');
+    rect(g, 10, 14, 300, 152, '#d8c8a0');
+    rect(g, 12, 16, 296, 148, '#e0d2ac');
+    for (let i = 0; i < 40; i++) rect(g, 14 + (i * 73) % 290, 18 + (i * 37) % 140, 2, 1, '#cbb98e');  // пятна
+  }
   g.fillStyle = '#5a4632';
   g.font = '8px "Tiny5", monospace';
   g.textBaseline = 'top';
-  g.fillText(`Этаж ${f}${(room().floor ?? 1) === f ? ' · ' + room().name : ''}`, 18, 18);
-  g.fillText('M — закрыть · A / D — этаж', 186, 156);
+  g.fillText(`Этаж ${f}${(room().floor ?? 1) === f ? ' · ' + room().name : ''}`, 26, 21);
+  g.fillText('M — закрыть · A / D — этаж', 180, 150);
   const seen = id => game.flags['map_' + id];
   const box = id => { const [ff, x, y, w] = MAP[id]; return ff === f ? { x: X0 + x * U, y: Y0 + y * U, w: w * U } : null; };
   // переходы: края — рядом, двери — линия вверх к комнате
@@ -2332,16 +2343,17 @@ function nextShopLine() {
   const line = sh.queue.shift();
   if (!line) return;
   const text = typeof line === 'string' ? line : line.text;
-  if (line.knight) shopSay(`Найт: ${text}`, line.mood);  // Лика слушает с обычным лицом
-  else shopSay(text, line.mood);
+  shopSay(text, line.mood, !!line.knight);  // говорит Найт — Лика слушает, над репликой его имя
   renderShop();
 }
 
-// реплика продавца; mood — выражение лица на портрете (без него — обычное)
-function shopSay(text, mood = null) {
+// реплика продавца; mood — выражение лица на портрете (без него — обычное); knight — реплика Найта
+function shopSay(text, mood = null, knight = false) {
   game.shop.text = text;
   game.shop.shown = 0;
   game.shop.mood = mood;   // лицо Лики на сцене меняется в drawShopScene
+  ui.shopName.textContent = knight ? SPEAKERS.knight.name : game.shop.npc.def.name;
+  ui.shopName.classList.toggle('knight', knight);
 }
 
 function shopView(view) {
@@ -2614,7 +2626,7 @@ function render() {
     rect(g, a.x - cam - 5, gy - 2, 10, 1, '#0d0b14');
     g.globalAlpha = 1;
   }
-  for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) drawPickup(g, it.x - cam, groundY(it.z), it.t);
+  for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) { if (!drawLyingWeapon(g, it.kind, it.x - cam, groundY(it.z), it.t)) drawPickup(g, it.x - cam, groundY(it.z), it.t); }
   renderChokeAura(cam);
   const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => (a.prop?.flat ? -999 : a.z) - (b.prop?.flat ? -999 : b.z));   // ковёр (flat) — под всеми
@@ -2849,9 +2861,10 @@ function renderEnemy(e, cam) {
 // чем бьёт враг со спрайтом: оружие рисуется кодом от кисти
 function enemyWeapon(e) {
   const d = e.def;
+  if (d.crossbow) return 'crossbow';   // арбалетчик тоже стрелок — проверять раньше лука
   if (e.kind === 'archer') return 'bow';
-  if (d.crossbow) return 'crossbow';
   if (e.kind === 'duelist') return 'rapier';
+  if (e.kind === 'ghost' || e.kind === 'boss') return 'ghostsword';
   return d.axe ? 'axe' : d.halberd ? 'halberd' : d.spear ? 'spear' : 'sword';
 }
 

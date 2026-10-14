@@ -1,5 +1,6 @@
 import { PAL } from './palette.js';
 import { rect, thick } from './draw.js';
+import { getFire, drawFire } from './fire.js';
 
 // Убранство стен в комнатах, нарисованных кодом: знамёна, окна, портреты, гобелен, стойки с оружием,
 // нары, кандалы, доспех на подставке, камин и люстра. Статичное рисуется один раз в фон комнаты
@@ -457,11 +458,8 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
     g.fillStyle = gr;
     g.fillRect(sx - 40, floorTop - 50, 80, 60);
     g.restore();
-    for (let i = 0; i < w; i += 2) {
-      const h = 6 + Math.round(6 * Math.abs(Math.sin(time * 6 + i * 1.7)) + 3 * Math.sin(i * 0.9));
-      const x = Math.round(sx - w / 2 + i);
-      for (let k = 0; k < h; k++) rect(g, x, floorTop - 5 - k, 2, 1, k < 3 ? PAL.flame0 : k < h - 3 ? PAL.flame1 : PAL.flame2);
-    }
+    // живой огонь (src/fire.js): ширина топки, языки до верха проёма
+    drawFire(g, getFire('fireplace:' + d.x, { w: w * 2 - 4, h: 40, base: 0.78, tall: 0.75 }), sx, floorTop - 3, time);
   } else if (d.type === 'sigil') {
     // знак на стене тлеет лиловым и медленно дышит
     const y = d.y ?? 46, k = 0.4 + 0.3 * Math.sin(time * 1.3 + d.x);
@@ -488,7 +486,14 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
     rect(g, sx - 10, floorTop - 1, 20, 1, pulse > 0.5 ? '#d9b8ff' : '#a46be0');  // щель под дверью
   } else if (d.type === 'chandelier') {
     const y = d.y ?? 30;
-    for (const dx of CANDLES) {
+    const im = decorImages.chandelier;   // люстра картинкой — пламя на её фитилях
+    if (im) for (const dx of im.wicks) {
+      const flick = Math.floor(time * 9 + dx) % 2;
+      const fx = Math.round((sx + dx) * 2) / 2;   // пиксели экрана (полпикселя мира)
+      g.fillStyle = PAL.flame1; g.fillRect(fx - 0.5, y - 9 - flick * 0.5, 1.5, 2);
+      g.fillStyle = PAL.flame0; g.fillRect(fx - 0.5, y - 8, 1, 1);
+    }
+    else for (const dx of CANDLES) {
       const flick = Math.floor(time * 9 + dx) % 2;
       rect(g, sx + dx, y - 7 - flick, 2, 2, PAL.flame1);
       rect(g, sx + dx, y - 7, 1, 1, PAL.flame0);

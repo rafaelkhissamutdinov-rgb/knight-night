@@ -199,6 +199,7 @@ kbd {
 .shop-portrait[hidden] { display: none; }
 img.shop-portrait { image-rendering: auto; object-fit: contain; background: none; border: none; width: 17cqw; height: 17cqw; }
 .shop-name { font-family: var(--pixel); font-size: 2.4cqw; color: var(--gold); }
+.shop-name.knight { color: #c9d2de; }
 .shop-coins { font-family: var(--pixel); font-size: 1.8cqw; color: var(--muted); }
 .shop-text { margin: 0; font-size: 2.4cqw; line-height: 1.5; color: var(--fg); }
 .shop-menu { display: grid; gap: 0.7cqw; align-content: start; }
