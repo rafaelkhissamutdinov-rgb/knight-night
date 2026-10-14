@@ -2740,10 +2740,17 @@ function renderEnemy(e, cam) {
       g.translate(-ex, -GROUND);
     }
     const sprite = spriteReady(e.type);
-    const walking = e.step !== e.lastDrawStep;
+    // как у Найта: разворот — кадрами поворота (не мгновенным отражением), шаг вглубь — шаги спереди/со спины
+    const mv = e.mv ??= { x: e.x, z: e.z, dx: 0, dz: 0 };
+    mv.dx = mv.dx * 0.8 + (e.x - mv.x) * 0.2; mv.dz = mv.dz * 0.8 + (e.z - mv.z) * 0.2; mv.x = e.x; mv.z = e.z;
+    const walking = e.step !== e.lastDrawStep || Math.abs(mv.dz) > 0.04;
     e.lastDrawStep = e.step;
+    const depth = walking && Math.abs(mv.dz) > Math.abs(mv.dx) * 1.3 && Math.abs(mv.dz) > 0.04 ? (mv.dz > 0 ? 'south' : 'north') : null;
+    if (e.drawFacing !== undefined && e.drawFacing !== e.facing && e.state !== 'windup' && e.state !== 'strike' && e.state !== 'reel') e.turnFx = { t: game.time, toLeft: e.facing < 0 };
+    e.drawFacing = e.facing;
+    const turn = e.turnFx && game.time - e.turnFx.t < 0.22 ? { k: (game.time - e.turnFx.t) / 0.22, toLeft: e.turnFx.toLeft } : null;
     const tip = sprite ? drawSprite(e.type, g, {
-      x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: e.step / 6.3,
+      x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: depth ? game.time * 1.5 : e.step / 6.3, turn, depth,
       time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
       bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined,
     }) ?? { tipX: ex, tipY: GROUND - 20 } : drawFigureOutlined(g, {
