@@ -1,6 +1,7 @@
 import { PAL } from './palette.js';
 import { rect, thick } from './draw.js';
 import { drawDecor, decorImages } from './decor.js';
+import { getFire, drawFire } from './fire.js';
 
 // Декорации комнат: стена с колоннами и дверями, пол с глубиной, факелы, портал на полу,
 // бочки и ящики, решётка камеры, паутина и темнота. Фон комнаты рисуется один раз во всю её длину.
@@ -542,15 +543,9 @@ export function drawTorches(g, camX, xs, time) {
     g.fillRect(-2, 0, 4, 5);
     g.fillStyle = PAL.gold;
     g.fillRect(-3, -1, 6, 1);
-    const flick = Math.floor(time * 10 + x) % 3;
-    const h = 7 + flick;
-    for (let i = 0; i < h; i++) {
-      const w = i < 2 ? 4 : i < h - 2 ? 3 : 1;
-      const sway = i > h - 3 ? (flick - 1) : 0;
-      g.fillStyle = i < 3 ? PAL.flame0 : i < h - 2 ? PAL.flame1 : PAL.flame2;
-      g.fillRect(-Math.floor(w / 2) + sway, -2 - i, w, 1);
-    }
     g.restore();
+    // пламя — живой огонь (src/fire.js) в пикселях экрана, размером с прежний (факелы мелкие — просьба владельца)
+    drawFire(g, getFire('torch:' + x, { w: 7, h: 14, base: 0.9, tall: 0.8, px: 1 }), sx, 71, time);
   }
 }
 
@@ -622,16 +617,10 @@ export function drawPortal(g, cx, cy, time, lit = 1, glow = 0.5) {
 // Бочки, ящики, мешки и кости — стоят на полу и сортируются по глубине вместе с бойцами.
 // живой огонь костра: язычки пляшут, искры летят вверх
 function campfireFlames(g, x, gy, time) {
-  const f = Math.floor(time * 10);
-  const h = 9 + (f % 3);
-  for (let i = 0; i < h; i++) {
-    const w = Math.max(1, Math.round(6 * (1 - i / h)) + ((f + i) % 2));
-    const sway = Math.round(Math.sin(time * 8 + i * 0.7) * (i / h) * 2);
-    rect(g, x - Math.floor(w / 2) + sway, gy - 4 - i, w, 1, i < 3 ? '#ffe9a8' : i < h * 0.6 ? '#f2a03d' : '#d0532a');
-  }
+  drawFire(g, getFire('campfire:' + Math.round(gy), { w: 22, h: 38, base: 0.8, tall: 0.85 }), x, gy - 3, time);
   for (let k = 0; k < 3; k++) {
     const t = (time * 0.9 + k * 0.37) % 1;
-    rect(g, x + Math.round(Math.sin((time + k) * 3) * 4), gy - 12 - Math.round(t * 22), 1, 1, t < 0.6 ? '#ffd27a' : '#a0442a');
+    rect(g, x + Math.round(Math.sin((time + k) * 3) * 4), gy - 18 - Math.round(t * 22), 1, 1, t < 0.6 ? '#ffd27a' : '#a0442a');
   }
 }
 

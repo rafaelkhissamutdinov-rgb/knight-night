@@ -1,5 +1,6 @@
 import { PAL } from './palette.js';
 import { rect, thick } from './draw.js';
+import { getFire, drawFire } from './fire.js';
 
 // Убранство стен в комнатах, нарисованных кодом: знамёна, окна, портреты, гобелен, стойки с оружием,
 // нары, кандалы, доспех на подставке, камин и люстра. Статичное рисуется один раз в фон комнаты
@@ -457,11 +458,8 @@ export function drawDecorLive(g, d, sx, floorTop, time) {
     g.fillStyle = gr;
     g.fillRect(sx - 40, floorTop - 50, 80, 60);
     g.restore();
-    for (let i = 0; i < w; i += 2) {
-      const h = 6 + Math.round(6 * Math.abs(Math.sin(time * 6 + i * 1.7)) + 3 * Math.sin(i * 0.9));
-      const x = Math.round(sx - w / 2 + i);
-      for (let k = 0; k < h; k++) rect(g, x, floorTop - 5 - k, 2, 1, k < 3 ? PAL.flame0 : k < h - 3 ? PAL.flame1 : PAL.flame2);
-    }
+    // живой огонь (src/fire.js): ширина топки, языки до верха проёма
+    drawFire(g, getFire('fireplace:' + d.x, { w: w * 2 - 4, h: 40, base: 0.78, tall: 0.75 }), sx, floorTop - 3, time);
   } else if (d.type === 'sigil') {
     // знак на стене тлеет лиловым и медленно дышит
     const y = d.y ?? 46, k = 0.4 + 0.3 * Math.sin(time * 1.3 + d.x);
