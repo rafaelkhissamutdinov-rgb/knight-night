@@ -3147,6 +3147,11 @@ function sceneLights() {
   }
   for (const d of r.decor ?? []) if (d.type === 'fireplace') add(d.x, CONFIG.floorTop - 14, 150, WARM, 1 + 0.12 * Math.sin(t * 8 + d.x), 26);
   if (r.portal) add(r.portal.x, groundY(r.portal.z) - 8, 120, [0.55, 0.85, 1], 0.9, 20);
+  // призраки светятся холодным; босс — сильнее, при удушении — ярче
+  for (const e of game.enemies) if ((e.kind === 'ghost' || e.kind === 'boss') && e.alive && e.state !== 'dormant') {
+    const k = (e.ghost ?? 1) * (e.kind === 'boss' ? 0.7 + 0.5 * e.eyes : 0.45);
+    add(e.x, groundY(e.z) - 20 - e.airY, e.kind === 'boss' ? 90 : 60, [0.6, 0.85, 1], k * (0.9 + 0.1 * Math.sin(t * 5 + e.x)), 18);
+  }
   // ближние к центру экрана — вперёд
   return L.sort((a, b) => Math.abs(a.x - W) - Math.abs(b.x - W));
 }
