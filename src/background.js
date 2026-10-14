@@ -11,10 +11,11 @@ export const DOOR_W = 22, DOOR_H = 36;
 // убранство стен: тип → [вариантов, как крепится, верх по умолчанию]; вариант — по месту (d.x), у доспеха rust → второй
 const DECOR_IMG = {
   window: [2, 'top', 22, -3], banner: [2, 'top', 10, -3], portrait: [3, 'top', 36, -2], tapestry: [1, 'top', 14, -2],
-  chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'], rack: [2, 'floor'], bunk: [2, 'floor'], bookshelf: [2, 'floor'],
+  chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'], rack: [2, 'floor'], bunk: [2, 'floor'], bookshelf: [2, 'floor'], shelf: [2, 'top', 40, 0], fireplace: [1, 'floor'],
 };
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
-const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2 };
+const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
+  sofa: 1, table: 1, chair: 1 };
 export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
@@ -505,6 +506,7 @@ export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
   if (PROP_IMG[type]) {
     const i = Math.abs(Math.round(seed / 10)) % PROP_IMG[type];
     const im = objImg(type === 'chest' && opened ? 'prop_chest_open' : 'prop_' + type + (i ? '_' + i : ''));
+    if (im && type === 'chair' && opened) { g.save(); g.translate(x, 0); g.scale(-1, 1); drawObj(g, im, 0, gy + 1); g.restore(); return; }  // стул развёрнут
     if (im) { drawObj(g, im, x, gy + 1); return; }
   }
   if (type === 'barrel') {
