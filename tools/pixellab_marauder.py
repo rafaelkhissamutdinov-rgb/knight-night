@@ -40,7 +40,7 @@ elif cmd == 'all':
         try:
             out = run('/transfer-outfit-v2', {'reference_image': {'image': ref, 'size': {'width': rsz[0], 'height': rsz[1]}}, 'frames': fr,
                                               'image_size': {'width': S, 'height': S}, 'no_background': True, 'seed': 3,
-                                              'additional_instructions': 'side view game sprite frames of the same knight; keep each pose and the helmet with the red plume exactly'},
+                                              'additional_instructions': 'side view game sprite frames of the same character; keep each pose exactly; the head wears the black tricorn hat and the dark red scarf over the nose and mouth exactly as on the reference, with the narrow strip of skin and the olive eye between them: no steel helmet, no plume'},
                       os.path.join(W, 'tmp_' + names[0]))
         except SystemExit as e:
             return names[0] + ' ' + str(e)[:200]
@@ -48,16 +48,18 @@ elif cmd == 'all':
         return names[0] + ' ok'
     with ThreadPoolExecutor(4) as ex:
         for r in ex.map(job, pairs): print(r, flush=True)
-elif cmd == 'sheet':
+elif cmd == 'sheet':   # sheet [папка кадров] [имя набора] — по умолчанию кадры f_* → knight_marauder
+    FD = os.path.join(W, sys.argv[2]) if len(sys.argv) > 2 else W
+    NAME = sys.argv[3] if len(sys.argv) > 3 else 'knight_marauder'
     out = Image.new('RGBA', sheet_img.size)
     for i, n in enumerate(ORDER):
-        p = os.path.join(W, f'f_{n}.png')
+        p = os.path.join(FD, f'f_{n}.png')
         im = Image.open(p).convert('RGBA') if os.path.exists(p) else frame(n)
         out.paste(im, ((i % COLS) * S, (i // COLS) * S))
-    D = os.path.join(ROOT, 'assets', 'sprites', 'knight_marauder'); os.makedirs(D, exist_ok=True)
-    out.save(os.path.join(D, 'knight_marauder.png'))
-    Image.open(os.path.join(SRC, 'knight_n.png')).save(os.path.join(D, 'knight_marauder_n.png'))
-    json.dump(meta, open(os.path.join(D, 'knight_marauder.json'), 'w'), ensure_ascii=False)
+    D = os.path.join(ROOT, 'assets', 'sprites', NAME); os.makedirs(D, exist_ok=True)
+    out.save(os.path.join(D, NAME + '.png'))
+    Image.open(os.path.join(SRC, 'knight_n.png')).save(os.path.join(D, NAME + '_n.png'))
+    json.dump(meta, open(os.path.join(D, NAME + '.json'), 'w'), ensure_ascii=False)
     print('ok')
 if cmd == 'head':   # владелец 15.10: в сете мародёра вместо шлема — треуголка и платок на лице (лица не видно)
     img, sz = b64img(sys.argv[2])
@@ -108,3 +110,38 @@ if cmd == 'fixport':   # замечания владельца 15.10 к порт
         return run('/edit-image-pixen', {'image': img, 'description': D, 'width': 64, 'height': 64, 'no_background': True, 'seed': 61 + k}, os.path.join(W, f'fix{k}'))
     with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(6)) for q in ps]
     sheet(paths, os.path.join(W, 'fix_sheet.png'), scale=3, cols=6); print(len(paths))
+if cmd == 'ownerface':   # владелец 15.10: Найт списан с него — в прорези его глаза и брови, из-под треуголки — тёмные кудри.
+    # Фото владельца — только локально (.pixellab_work/marauder/owner_face_s.png), в репозиторий не класть.
+    cur = os.path.join(W, 'portrait_cur64.png')
+    Image.open(os.path.join(ROOT, 'assets', 'portraits', 'knight-marauder.png')).convert('RGBA').resize((64, 64), Image.NEAREST).save(cur)
+    st, ssz = b64img(cur); ph, psz = b64img(os.path.join(W, 'owner_face_s.png'))
+    D = ('pixel art head-and-shoulders portrait of a young man in marauder gear: a black tricorn hat a bit wider than his face, '
+         'dark curly hair spilling out from under the hat over the forehead and temples, a dark red scarf over the nose and mouth whose top edge rises to a soft rounded point at the nose bridge, '
+         'only the eyes and eyebrows visible: wide-set almond-shaped grey-olive eyes, straight dark eyebrows, calm serious look; worn brown leather jacket with buckled straps')
+    def job(k):
+        return run('/generate-image-v2', {'description': D, 'image_size': {'width': 64, 'height': 64}, 'no_background': True, 'seed': 71 + k,
+            'reference_images': [{'image': ph, 'size': {'width': psz[0], 'height': psz[1]}, 'usage_description': 'his eyes, eyebrows, eye spacing and his dark curly hair'},
+                                 {'image': st, 'size': {'width': ssz[0], 'height': ssz[1]}, 'usage_description': 'exactly this outfit: tricorn hat, red scarf, leather jacket, framing'}],
+            'style_image': {'image': st, 'size': {'width': ssz[0], 'height': ssz[1]}}}, os.path.join(W, f'own{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(2)) for q in ps]
+    sheet(paths, os.path.join(W, 'own_sheet.png'), scale=3, cols=8); print(len(paths))
+if cmd == 'reffix':   # владелец 15.10: у спрайта, как на портрете, — полоска лица с оливковыми глазами и кудри из-под треуголки
+    img, sz = b64img(os.path.join(W, 'ref_hat.png')); por, psz = b64img(os.path.join(W, 'own0_05.png'))
+    D = ('keep the same character, pose, size, outfit and pixel style; only the head: under the black tricorn hat show a narrow strip of the face with two olive green eyes '
+         'between the hat brim and the dark red scarf, and a few dark curls of hair at the temples, like on the portrait')
+    def job(k):
+        return run('/edit-image-pixen', {'image': img, 'description': D, 'width': sz[0], 'height': sz[1], 'no_background': True, 'seed': 81 + k}, os.path.join(W, f'reffix{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
+    sheet(paths, os.path.join(W, 'reffix_sheet.png'), scale=3, cols=8); print(len(paths))
+if cmd == 'refport':   # эталон спрайта по портрету владельца (вариант 3): тот же облик в полный рост, вид сбоку
+    body, bsz = b64img(os.path.join(W, 'ref_hat.png')); por, psz = b64img(os.path.join(W, 'own0_05.png'))
+    D = ('full body pixel art game sprite, side view facing right, the same young man as on the portrait: black tricorn hat, dark curly hair at the temples, '
+         'olive green eyes visible between the hat brim and the dark red scarf, the scarf covers his nose and mouth; worn brown leather jacket with buckled straps, dark trousers, tall worn leather boots; '
+         'slender, standing calmly, transparent background')
+    def job(k):
+        return run('/generate-image-v2', {'description': D, 'image_size': {'width': S, 'height': S}, 'no_background': True, 'seed': 91 + k,
+            'reference_images': [{'image': por, 'size': {'width': psz[0], 'height': psz[1]}, 'usage_description': 'his face strip, eyes, curls, hat and scarf exactly'},
+                                 {'image': body, 'size': {'width': bsz[0], 'height': bsz[1]}, 'usage_description': 'the body, pose, proportions, size and pixel style exactly'}]},
+            os.path.join(W, f'refport{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(2)) for q in ps]
+    sheet(paths, os.path.join(W, 'refport_sheet.png'), scale=2, cols=8); print(len(paths))

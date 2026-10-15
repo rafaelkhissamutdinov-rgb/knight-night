@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.79';
+export const VERSION = 'v0.80';
 
 export const CONFIG = {
   width: 320,
@@ -378,11 +378,15 @@ export const ITEMS = {
   sword_old: { name: 'Старый стальной полуторный меч', slot: 'weapon', weapon: 'sword' },
   rapier: { name: 'Рапира Илиа', slot: 'weapon', weapon: 'rapier' },
   armor_old: { name: 'Потёртые стальные доспехи', slot: 'armor', shield: 3 },
+  // голова и ноги (v0.80, владелец: сет мародёра надевается по частям)
+  helm_old: { name: 'Потёртый шлем с плюмажем', slot: 'head' },
+  boots_old: { name: 'Латные сапоги', slot: 'feet' },
   // сет мародёра (решение владельца): три части по разным комнатам → броня; быстрее, но щит слабее. speed — множитель ходьбы
   armor_marauder: { name: 'Снаряжение мародёра', slot: 'armor', shield: 1, speed: 1.15 },
-  mar_scarf: { name: 'Платок мародёра', set: 'marauder' },
-  mar_jacket: { name: 'Кожаная куртка мародёра', set: 'marauder' },
-  mar_boots: { name: 'Сапоги мародёра', set: 'marauder' },
+  // части сета мародёра — каждую можно надеть отдельно; весь сет — бонус к скорости (SETS)
+  mar_scarf: { name: 'Треуголка и платок мародёра', set: 'marauder', slot: 'head', speed: 1.03 },
+  mar_jacket: { name: 'Кожаная куртка мародёра', set: 'marauder', slot: 'armor', shield: 1, speed: 1.04 },
+  mar_boots: { name: 'Сапоги мародёра', set: 'marauder', slot: 'feet', speed: 1.03 },
   diamond_ace: { name: 'Бубновый туз', slot: 'amulet', price: 30, ward: { absorb: 4, cooldown: 10 } },
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
@@ -412,12 +416,13 @@ export const ITEMS = {
   // из Ризницы за алтарём Часовни: идеальное парирование лечит; слот амулета один — туз или чётки
   rosary: { name: 'Чётки монаха', slot: 'amulet', parryHeal: { heal: 1, cooldown: 8 } },
 };
-export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amulet', 'Амулет'], ['spell', 'Заклинание'], ['skill', 'Навык']];
-// Сеты: собрал все части — получаешь вещь (части уходят из сумки)
+export const SLOTS = [['weapon', 'Оружие'], ['head', 'Голова'], ['armor', 'Броня'], ['feet', 'Ноги'], ['amulet', 'Амулет'], ['spell', 'Заклинание'], ['skill', 'Навык']];
+// Сеты (v0.80): части надеваются по отдельности; надеты все — бонус (bonus.speed — множитель ходьбы, вдобавок к частям).
+// gives — прежняя цельная броня (для старых сохранений: раскладывается обратно на части)
 export const SETS = {
-  marauder: { name: 'Комплект мародёра', pieces: ['mar_scarf', 'mar_jacket', 'mar_boots'], gives: 'armor_marauder' },
+  marauder: { name: 'Комплект мародёра', pieces: ['mar_scarf', 'mar_jacket', 'mar_boots'], bonus: { speed: 1.05 }, gives: 'armor_marauder' },
 };
-export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
+export const START_EQUIP = { weapon: 'sword_old', head: 'helm_old', armor: 'armor_old', feet: 'boots_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
 export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, halberd: 3, ghost: 4, duelist: 10, mage: 15, boss: 25 };
@@ -493,6 +498,7 @@ export const ROOMS = {
   // Старая библиотека над Темницей (v0.78, идея владельца): много книг, столы, бумаги на полу, потухшая свеча; живёт кот Фуджин
   catlib: {
     name: 'Старая библиотека', tiles: 'castle', length: 420, columns: false, torches: [], dark: true, cobwebs: true,
+    ambient: [0.3, 0.26, 0.32],   // полутьма видна и без свечей; каждая зажжённая свеча — светлее (владелец, 15.10)
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'lib', name: 'Темница' }],
     // места и позы кота: выбирается случайно при входе (lift — высота стола / стопки / стула)
     npcs: [{ type: 'fujin', x: 258, z: 12.5, lift: 15, spots: [   // все — в круге света свечи: чёрного кота в темноте не видно
@@ -510,6 +516,12 @@ export const ROOMS = {
       { type: 'desk', x: 252, z: 12 }, { type: 'chair', x: 276, z: 14, flip: true },
       { type: 'table', x: 150, z: 26 }, { type: 'bookpile', x: 128, z: 28 }, { type: 'bookpile', x: 302, z: 20 },
       { type: 'candles', x: 244, z: 12.6, lift: 15, lights: 'lib_candle', look: 'look_candle', lookLit: 'look_candle_lit', name: 'свеча (зажечь)' },
+      // ещё свечи по библиотеке — каждую можно зажечь (владелец, 15.10)
+      { type: 'candles', x: 132, z: 26.6, lift: 16, lights: 'lib_candle2', look: 'look_candle', quiet: true, name: 'свеча (зажечь)' },
+      { type: 'candles', x: 92, z: 4, lights: 'lib_candle3', look: 'look_candle', quiet: true, name: 'свечи у стеллажа (зажечь)' },
+      { type: 'candles', x: 352, z: 4, lights: 'lib_candle4', look: 'look_candle', quiet: true, name: 'свечи у стеллажа (зажечь)' },
+      { type: 'candles', x: 304, z: 20.6, lift: 9, lights: 'lib_candle5', look: 'look_candle', quiet: true, name: 'свеча на книгах (зажечь)' },
+      { type: 'candles', x: 186, z: 30, lights: 'lib_candle6', look: 'look_candle', quiet: true, name: 'свечи на полу (зажечь)' },
       { type: 'papers', x: 200, z: 6, flat: true, look: 'look_libnote', name: 'записки на полу' }, { type: 'papers', x: 312, z: 30, flat: true },
       { type: 'bookpile', x: 360, z: 4 },
     ],
