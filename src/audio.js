@@ -166,7 +166,7 @@ function ensureMusic() {
   out.connect(delay);
   delay.connect(lp).connect(fb).connect(delay);
   lp.connect(master);
-  mus = { out, chord: -1, nextChord: 0, nextBell: 2, nextDrum: 0 };
+  mus = { out, lp, chord: -1, nextChord: 0, nextBell: 2, nextDrum: 0 };
 }
 
 function pad(freq, t0, dur) {
@@ -217,7 +217,7 @@ export function updateMusic(combat) {
   }
   if (t >= mus.nextBell) {
     if (Math.random() < 0.6) bell(BELL[Math.floor(Math.random() * BELL.length)], t);
-    mus.nextBell = t + 2.5 + Math.random() * 4;
+    mus.nextBell = t + (calm ? 1.6 + Math.random() * 2 : 2.5 + Math.random() * 4);
   }
   if (combat && t >= mus.nextDrum) {
     mus.beat = ((mus.beat ?? 0) + 1) % 4;
@@ -226,8 +226,18 @@ export function updateMusic(combat) {
   }
 }
 
+// «вайбовать» (v0.81): музыка тише и теплее — глуше верхи, чаще колокольчик
+let calm = false;
+export function setMusicCalm(on) {
+  calm = on;
+  if (!mus) return;
+  mus.out.gain.setTargetAtTime(musicOn ? (on ? 0.6 : 1) : 0, ctx.currentTime, 0.8);
+  mus.lp?.frequency.setTargetAtTime(on ? 700 : 1800, ctx.currentTime, 0.8);
+  if (on) mus.nextBell = Math.min(mus.nextBell, ctx.currentTime + 0.8);
+}
+
 export function setMusic(on) {
   musicOn = on;
   try { localStorage.setItem('knightNight.music', on ? 'on' : 'off'); } catch { /* ничего */ }
-  if (mus) mus.out.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.3);
+  if (mus) mus.out.gain.setTargetAtTime(on ? (calm ? 0.6 : 1) : 0, ctx.currentTime, 0.3);
 }

@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.80';
+export const VERSION = 'v0.81';
 
 export const CONFIG = {
   width: 320,
@@ -697,6 +697,7 @@ export const ROOMS = {
     ],
     // обрывок дневника №1 (лор владельца): после победы над королевским стражем — там, где он стоял
     props: [{ type: 'letter', id: 'diary1', x: 282, z: 20, pick: 'diary_1', needs: 'done_commander' }],
+    vibe: [{ id: 'balcony_view', x: 300, needs: 'done_commander', fx: 'birds' }],   // «вайбовать» (v0.81): постоять и посмотреть — место оживает (fx)
   },
   // ---------- второй этаж (черновик Claude: лор и комнаты владелец поправит) ----------
   // площадка у лестницы из Столовой; дальше — Жилое крыло
@@ -754,6 +755,7 @@ export const ROOMS = {
       { type: 'bedroll', x: 268, z: 34, look: 'look_bedroll', name: 'лежанка' }, { type: 'pack', x: 292, z: 33 }, { type: 'sack', x: 300, z: 6 }, { type: 'pot', x: 232, z: 8 },
     ],
     npcs: [{ type: 'ilia', x: 242, z: 22, needs: 'done_ilia' }],
+    vibe: [{ id: 'camp_fire', x: 170, needs: 'done_ilia', fx: 'embers', fxX: 210, fxZ: 20, sit: { x: 178, z: 22, face: 1 } }],   // сесть напротив Илиа в той же позе (владелец)
   },
   // библиотека: стеллажи, стремянка, стол с раскрытой книгой; алебардист и лучник; сундук в глубине
   library: {
@@ -784,6 +786,7 @@ export const ROOMS = {
   // Чаша на алтаре — за алтарём отъезжает плита, проход в Ризницу
   chapel: {
     name: 'Часовня', tiles: 'castle', floor: 2, length: 480, columns: false, torches: [90, 430],
+    vibe: [{ id: 'chapel_rain', x: 196, fx: 'rain', fxX: 214, fxZ: 22 }],
     doors: [
       { id: 'out', x: 50, kind: 'wood', to: 'hall2', toDoor: 'chapel', name: 'Жилое крыло' },
       { id: 'vestry', x: 400, kind: 'none', needs: 'cup_placed', to: 'vestry', toDoor: 'out', name: 'Ризница' },
@@ -835,6 +838,7 @@ export const ROOMS = {
   hall3: {
     name: 'Северное крыло', tiles: 'castle', floor: 3, length: 1300, torches: [150, 360, 560, 980, 1160],
     stairs: 'up', stairsX: 1190,
+    vibe: [{ id: 'hall3_moon', x: 660, fx: 'moon', winY: 28 }],   // лунное окно
     edges: { left: { to: 'landing3', x: 330, name: 'Верхний этаж' } },
     doors: [
       { id: 'guardhall', x: 420, kind: 'wood', to: 'guardhall', toDoor: 'out', name: 'Зал стражи' },
