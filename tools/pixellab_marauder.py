@@ -85,3 +85,14 @@ if cmd == 'eyes':   # владелец 15.10: глаза у Найта олив�
             'the rest of the face stays hidden', 'width': sz[0], 'height': sz[1], 'no_background': True, 'seed': 51 + k}, os.path.join(W, 'eyes_' + sys.argv[2][:-4] + f'_{k}'))
     with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
     sheet(paths, os.path.join(W, 'eyes_' + sys.argv[2][:-4] + '_sheet.png'), scale=3, cols=len(paths)); print(len(paths))
+if cmd == 'face':   # владелец 15.10: в прорезь между треуголкой и платком — фрагмент лица с портрета без шлема (глаза), а не тень
+    lum = lambda p: 0.3 * p[0] + 0.59 * p[1] + 0.11 * p[2]
+    nh = Image.open(os.path.join(ROOT, 'assets', 'portraits', 'knight-nohelm.png')).convert('RGBA').resize((64, 64), Image.NEAREST)
+    m = Image.open(os.path.join(W, sys.argv[2])).convert('RGBA'); out = m.copy()
+    for y in range(23, 28):
+        for x in range(14, 50):
+            p = m.getpixel((x, y))
+            if p[3] and lum(p) < 20 and nh.getpixel((x, y + 1))[3]:
+                q = nh.getpixel((x, y + 1)); k = 0.55 if y == 23 else 1   # верхняя строка — в тени полей
+                out.putpixel((x, y), (int(q[0] * k), int(q[1] * k), int(q[2] * k), q[3]))
+    out.resize((256, 256), Image.NEAREST).save(os.path.join(ROOT, 'assets', 'portraits', 'knight-marauder.png')); print('ok')
