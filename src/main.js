@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact, isBackstab } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, decorBounds, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -14,7 +14,7 @@ import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic, setMusicCalm } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogues.js';
-import { drawVibeFx, resetVibeFx } from './vibefx.js';
+import { drawVibeFx, resetVibeFx, moonSpot } from './vibefx.js';
 import { fxImpact, fxSwing, drawCombatFx, combatFxBusy } from './combatfx.js';
 import { splitDamage } from './combat.js';
 import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin } from './sprites.js';
@@ -1649,7 +1649,16 @@ function renderVibeFx(cam) {
   v.k = game.vibe ? Math.min(1, v.k + dt / 2.5) : v.k - dt / 1.2;
   if ((v.k <= 0 && !game.vibe) || !(room().vibe ?? []).includes(v.spot)) { game.vibeFx = null; return; }
   const sp = v.spot, k = v.k * v.k * (3 - 2 * v.k);
-  drawVibeFx(fx, sp.fx, { sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, winY: sp.winY, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+  const src = vibeSource(sp, cam);
+  drawVibeFx(fx, sp.fx, { sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, win: src.win, hole: src.hole, sun: sp.sun, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+}
+// откуда свет у места вайба (v0.83): окно — ближайшее к месту убранство-окно, пролом — убранство roofhole (их рамки на экране)
+function vibeSource(sp, cam) {
+  const x = sp.fxX ?? sp.x, near = type => (room().decor ?? []).filter(d => d.type === type).sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x))[0];
+  const out = {};
+  if (sp.fx === 'moon') { const d = near('window'), b = d && decorBounds(d, CONFIG.floorTop); if (b) out.win = { x0: b.x0 - cam, x1: b.x1 - cam, y0: b.y0, y1: b.y1 }; }
+  if (sp.fx === 'rain') { const d = near('roofhole'), b = d && decorBounds(d, CONFIG.floorTop); if (b) { const w = b.x1 - b.x0; out.hole = { x0: b.x0 + w * 0.3 - cam, x1: b.x1 - w * 0.3 - cam, y: b.y1 - 5 }; } }
+  return out;
 }
 function updateVibe(dt) {
   const v = game.vibe, sit = v.spot.sit;
@@ -4162,8 +4171,9 @@ function sceneLights() {
   const vf = game.vibeFx;
   if (vf?.spot.fx) {
     const sp = vf.spot, x = sp.fxX ?? sp.x, k = vf.k;
-    if (sp.fx === 'moon') add(x + 26, CONFIG.floorTop + 12, 90, [0.6, 0.75, 1], 0.7 * k, 20);
-    if (sp.fx === 'rain') add(x, groundY(sp.fxZ ?? 22) - 10, 100, [0.7, 0.82, 1], 0.6 * k, 30);
+    const src = vibeSource(sp, 0);
+    if (sp.fx === 'moon' && src.win) { const m = moonSpot(src.win, CONFIG.floorTop); add(m.x, m.y, 80, [0.6, 0.75, 1], 0.7 * k, 16); }   // пятно луны на полу
+    if (sp.fx === 'rain') add(src.hole ? (src.hole.x0 + src.hole.x1) / 2 : x, groundY(sp.fxZ ?? 22) - 10, 90, [0.7, 0.82, 1], 0.55 * k, 30);
     if (sp.fx === 'embers') add(x, groundY(sp.fxZ ?? 20) - 24, 140, WARM, 0.5 * k * (0.9 + 0.1 * Math.sin(t * 7)), 30);
   }
   // ближние к центру экрана — вперёд
