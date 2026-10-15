@@ -12,7 +12,7 @@ STYLE = ('cinematic pixel art illustration for a storybook cutscene in a melanch
 # Одна картина на страницу рассказа (просьба владельца: картина меняется под строчки).
 # одни и те же герои на всех картинах: принцесса — как на портрете в её покоях, капитан — в шлеме (лицо не показываем)
 PRINCESS = 'a young princess with chestnut brown hair tied up, in a pale ivory dress'
-CAPTAIN = 'a knight captain in a white surcoat over steel armor wearing a closed steel helmet (face hidden)'
+CAPTAIN = 'a knight captain in a white surcoat with an orange sun emblem over dark steel armor, a steel morion helmet with a red plume, his face in shadow'
 SCENES = {'erinnerland': [
     'a living medieval kingdom celebrating a festival: a white castle on a hill above a river town, colorful banners and long ribbons of fabric strung between houses, lanterns, crowds of people dancing in the square, golden evening light',
     'medieval weavers at wooden looms in a stone workshop, the threads softly glowing with warm magical light, rolls of shimmering fabric',
@@ -21,8 +21,11 @@ SCENES = {'erinnerland': [
     'a lone ' + CAPTAIN[2:] + ' standing on a dark castle rampart at night looking at a single warm lit window far away across the courtyard, hesitation, loneliness, cold blue moonlight',
     'a grand candlelit ballroom, ' + PRINCESS + ' dancing with an elegant foreign duke in dark velvet, a lone knight in a white surcoat watching from the shadows by a pillar',
     'a white castle under siege at night during a feast, siege fires, catapults, banners burning, chaos on the walls, red and orange glow',
-    'a ghostly knight in a pale white surcoat with a white mask standing guard before a closed ornate chamber door in a dark abandoned castle hall, cold blue glow, dust',
+    'the ghost of the knight captain (white mask, steel morion helmet with a red plume, white surcoat with an orange sun emblem, his legs fading into pale blue ghostly mist) standing guard with a sword before a closed ornate chamber door in a dark abandoned castle hall at night, the whole scene painted dark, deep shadows, cold blue glow, dust, cobwebs',
 ]}
+# капитан — как босс главы (assets/sprites/boss, кадр front → .pixellab_work/story/boss_ref.png)
+ALIVE = 'only the outfit of the knight captain: steel morion helmet with a red plume, white surcoat with an orange emblem, dark armor; he is alive here: no mask, no ghostly mist'
+REF = {'erinnerland': {2: ALIVE, 3: ALIVE, 4: ALIVE, 7: 'the same ghost knight: his mask, helmet, plume, surcoat and ghostly mist'}}
 # Замок — тот же, что на титульном экране (владелец): картины с ним — правкой самой титульной картины
 TITLE = os.path.join(ROOT, 'assets', 'backgrounds', 'title.png')
 EDITS = {'erinnerland': {
@@ -36,10 +39,27 @@ if sys.argv[1] == 'edit':   # python3 tools/pixellab_story.py edit <расска
     story, n = sys.argv[2], int(sys.argv[3])
     t = Image.open(TITLE).convert('RGB').resize((320, 180), Image.NEAREST); tp = os.path.join(WORK, 'title_small.png'); t.save(tp)
     img, sz = b64img(tp)
-    paths = run('/edit-images-v2', {'method': 'edit_with_text', 'description': EDITS[story][n] + '. ' + STYLE,
-                                    'edit_images': [{'image': img, 'width': 320, 'height': 180}] * 3, 'image_size': {'width': 320, 'height': 180}},
-                os.path.join(WORK, f'{story}_{n}e'))
+    from concurrent.futures import ThreadPoolExecutor
+    def job(k):   # три варианта: <рассказ>_<n>e<k>_00.png
+        return run('/edit-images-v2', {'method': 'edit_with_text', 'description': EDITS[story][n] + '. ' + STYLE, 'seed': 11 + k,
+                                       'edit_images': [{'image': img, 'width': 320, 'height': 180}], 'image_size': {'width': 320, 'height': 180}},
+                   os.path.join(WORK, f'{story}_{n}e{k}'))
+    with ThreadPoolExecutor(3) as ex: paths = [p for ps in ex.map(job, range(3)) for p in ps]
     print(story, n, 'edit', len(paths), flush=True)
+    sys.exit()
+if sys.argv[1] == 'fix':   # python3 tools/pixellab_story.py fix <файл> "<что поправить>" → <файл>_fix_00.png
+    img, sz = b64img(os.path.join(WORK, sys.argv[2] + '_00.png'))
+    paths = run('/edit-images-v2', {'method': 'edit_with_text', 'description': sys.argv[3] + '. ' + STYLE,
+                                    'edit_images': [{'image': img, 'width': 320, 'height': 180}], 'image_size': {'width': 320, 'height': 180}},
+                os.path.join(WORK, sys.argv[2] + '_fix'))
+    print('fix', len(paths), flush=True)
+    sys.exit()
+if sys.argv[1] == 'bg':   # python3 tools/pixellab_story.py bg <файл> "<фон>" → дорисовать фон вокруг героев: <файл>_bg_00.png
+    img, sz = b64img(os.path.join(WORK, sys.argv[2] + '_00.png'))
+    paths = run('/edit-images-v2', {'method': 'edit_with_text', 'description': 'keep the characters exactly as they are, paint a full detailed background behind them that fills the whole picture: ' + sys.argv[3] + '. ' + STYLE,
+                                    'edit_images': [{'image': img, 'width': 320, 'height': 180}], 'image_size': {'width': 320, 'height': 180}},
+                os.path.join(WORK, sys.argv[2] + '_bg'))
+    print('bg', len(paths), flush=True)
     sys.exit()
 if sys.argv[1] == 'pick':
     im = Image.open(os.path.join(WORK, f'{sys.argv[2]}_{sys.argv[3]}_00.png')).convert('RGB')
@@ -48,6 +68,10 @@ else:
     # вариант: TAG=b → <рассказ>_<n>b_00.png (не затирает прежние)
     story = sys.argv[1]; nums = [int(n) for n in sys.argv[2:]] or range(len(SCENES[story])); tag = os.environ.get('TAG', '')
     for n in nums:
-        paths = run('/generate-image-v2', {'description': SCENES[story][n] + '. ' + STYLE, 'image_size': {'width': 320, 'height': 180}},
+        body = {'description': SCENES[story][n] + '. ' + STYLE, 'image_size': {'width': 320, 'height': 180}}
+        if n in REF.get(story, {}) and not os.environ.get('NOREF'):   # образец — спрайт босса: тот же облик капитана
+            im, sz = b64img(os.path.join(WORK, 'boss_ref.png'))
+            body['reference_images'] = [{'image': im, 'size': {'width': sz[0], 'height': sz[1]}, 'usage_description': REF[story][n]}]
+        paths = run('/generate-image-v2', body,
                     os.path.join(WORK, f'{story}_{n}{tag}'))
         print(story, n, len(paths), flush=True)

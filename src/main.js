@@ -1153,6 +1153,7 @@ function handlePress(code) {
         sfx.perfect();
         checkSets();
         save();
+        if (ITEMS[chest.pick].diary) readPage(chest.pick);   // страница дневника — сразу прочесть (потом — в сумке)
         return;
       }
       game.coins += chest.coins ?? 0;
@@ -1179,7 +1180,7 @@ function handlePress(code) {
     const look = lookNear && !(npcNear && Math.abs(npcNear.x - p.x) <= Math.abs(lookNear.x - p.x) + 4) ? lookNear : null;
     if (look) {
       // у тайника выбор в разговоре ставит флаг — тогда проход открывается
-      startTalk(look.look, look.secret ? () => {
+      startTalk(look.lights && game.flags[look.lights] && look.lookLit ? look.lookLit : look.look, look.secret ? () => {
         if (!game.flags[look.secret]) return;
         sfx.door();
         shake(2);
@@ -1421,7 +1422,7 @@ const chestFlag = pr => `chest_${game.room}_${pr.id}`;
 // сундук у стены рядом с рыцарем (ещё не открытый)
 function nearChest() {
   const p = game.player;
-  return (room().props ?? []).find(pr => (pr.type === 'chest' || pr.pick) && !game.flags[chestFlag(pr)] && Math.abs(pr.x - p.x) < 18 && Math.abs(pr.z - p.z) < 14) ?? null;
+  return (room().props ?? []).find(pr => (pr.type === 'chest' || pr.pick) && propOn(pr) && !game.flags[chestFlag(pr)] && Math.abs(pr.x - p.x) < 18 && Math.abs(pr.z - p.z) < 14) ?? null;
 }
 // декор, который можно осмотреть (look — разговор в DIALOGUES): стоять у стены напротив
 function nearLook() {
@@ -1826,7 +1827,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : 'говорить'}: ${npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -2514,6 +2515,13 @@ function applyLineItems(line) {
 }
 
 // after — что сделать, когда разговор закончится (или сразу, если диалоги выключены)
+// предмет в комнате появляется после события (needs — флаг), например страница дневника после боя
+const propOn = pr => !pr.needs || !!game.flags[pr.needs];
+// страница дневника капитана (v0.78): текст — в ITEM_TEXTS (пишет владелец), читается рассказчиком
+function readPage(id) {
+  DIALOGUES['read_' + id] = [{ who: 'narrator', text: ITEM_TEXTS[id] ?? '' }];
+  startTalk('read_' + id);
+}
 function startTalk(id, after = null) {
   if (!CONFIG.dialogues || !DIALOGUES[id]) { after?.(); return; }
   game.flags['seen_' + id] = true;
@@ -3039,10 +3047,11 @@ function render() {
   }
   for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) { if (!drawLyingWeapon(g, it.kind, it.x - cam, groundY(it.z), it.t)) drawPickup(g, it.x - cam, groundY(it.z), it.t); }
   renderChokeAura(cam);
-  const things = [...actors, ...(r.props ?? []).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
+  const things = [...actors, ...(r.props ?? []).filter(pr => propOn(pr) && !(pr.pick && pr.type === 'letter' && game.flags[chestFlag(pr)])).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => (a.prop?.flat ? -999 : a.z) - (b.prop?.flat ? -999 : b.z));   // ковёр (flat) — под всеми
   for (const a of things) {
-    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time, a.x);
+    if (a.prop?.lights && !game.flags[a.prop.lights] && drawObjNamed(g, 'prop_candles_out', a.x - cam, groundY(a.z) + 1 - (a.prop.lift ?? 0))) continue;   // потухшая свеча
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z) - (a.prop.lift ?? 0), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) renderPlayer(cam);
     else if (a.npc) renderNpc(a, cam);
     else renderEnemy(a, cam);
@@ -3752,11 +3761,22 @@ function renderNpc(n, cam) {
   const x = n.x - cam;
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
+  const gy = groundY(n.z) + 1 - (n.lift ?? 0);   // lift — сидит на столе (кот)
   if (n.def.sitImgs) {
     // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой
     const near = Math.abs(game.player.x - n.x) < 50;
-    const name = near ? n.def.sitImgs.wave : n.def.sitImgs.idle[Math.floor(game.time / 3.2) % n.def.sitImgs.idle.length];
-    if (drawObjNamed(g, name, x, groundY(n.z) + 1, n.facing < 0)) return;
+    if (n.def.cat && game.flags.fujin_fed && drawObjNamed(g, 'cat_lounge', x, gy, n.facing > 0)) return;   // сытый кот развалился, как на фото владельца
+    const name = n.def.cat ? ((game.time + n.x) % 4.3 < 0.16 ? 'cat_sit_1' : 'cat_sit')   // кот моргает
+      : near ? n.def.sitImgs.wave : n.def.sitImgs.idle[Math.floor(game.time / 3.2) % n.def.sitImgs.idle.length];
+    if (drawObjNamed(g, name, x, gy, n.def.cat ? n.facing > 0 : n.facing < 0)) return;   // кот на картинке смотрит влево
+  }
+  if (n.def.cat) {   // без картинки — силуэт кота кодом: тело, голова, уши, хвост, жёлтые глаза
+    const f = n.facing < 0 ? -1 : 1, X = v => Math.round(x + v * f);
+    rect(g, Math.min(X(-5), X(5)), gy - 8, 10, 8, '#121018'); rect(g, Math.min(X(2), X(8)), gy - 13, 6, 6, '#121018');
+    rect(g, X(3), gy - 15, 1, 2, '#121018'); rect(g, X(6), gy - 15, 1, 2, '#121018');
+    rect(g, Math.min(X(-9), X(-5)), gy - 2, 5, 2, '#121018');
+    if (Math.floor(game.time * 0.7 + n.x) % 9) { rect(g, X(5), gy - 11, 1, 1, '#ffd23a'); rect(g, X(7), gy - 11, 1, 1, '#ffd23a'); }
+    return;
   }
   if (n.def.sprite && spriteReady(n.def.sprite)) {
     // NPC в пиксель-арте (v0.64): сидит у костра — на колене, иначе стоит без оружия
@@ -3879,8 +3899,8 @@ function sceneLights() {
   const flare = fireFlare();
   for (const x of r.torches ?? []) if (!torchUnderStairs(r, x)) add(x, 69, 150 * (1 + flare * 0.35), blueFire ? [0.45, 0.7, 1] : WARM, ((blueFire ? 1.05 : 0.85) + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3)) * (1 + flare * 0.9));
   for (const pr of r.props ?? []) {
-    if (pr.light || pr.type === 'campfire') add(pr.x, groundY(pr.z) - 8, r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
-    if (pr.type === 'candles') add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
+    if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
+    else if (pr.type === 'candles' && !pr.lights) add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
   }
   for (const d of r.decor ?? []) if (d.type === 'fireplace') add(d.x, CONFIG.floorTop - 14, 150, WARM, 1 + 0.12 * Math.sin(t * 8 + d.x), 26);
   if (r.portal) {

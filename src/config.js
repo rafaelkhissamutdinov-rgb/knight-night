@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.77';
+export const VERSION = 'v0.78';
 
 export const CONFIG = {
   width: 320,
@@ -326,6 +326,16 @@ export const NPC_TYPES = {
     name: 'Илиа', face: 'ilia', talk: 'ilia_camp_again', human: true, robe: true, sit: true, sprite: 'duelist',
     colors: { armor: '#d9c7a3', armorDark: '#b39f7c', tabard: '#efe4cc', belt: '#6b4a32', helm: '#e2b896', visor: '#1b1b22', hair: '#15151c', hairLight: '#2a2a34', boots: '#4a3626', blade: '#c9d2dc', hilt: '#8a6a3a' },
   },
+  // кот Фуджин (v0.78, владелец): живой чёрный кот с жёлтыми глазами, сидит на столе в Старой библиотеке; «говорит» ремарками
+  fujin: {
+    talks: [
+      { id: 'fujin_after', if: 'fujin_fed' },
+      { id: 'fujin_feed', if: 'fujin_met', has: ['dried_fish'] },
+      { id: 'fujin_hungry', if: 'fujin_met' },
+    ],
+    name: 'Фуджин', alias: 'чёрный кот', known: 'fujin_met', verb: 'подойти', talk: 'fujin_meet', cat: true,   // имя — с миски, после знакомства
+    sitImgs: { idle: ['cat_sit', 'cat_sit', 'cat_sit_1'], wave: 'cat_sit_1' },
+  },
   // Алкима после обучения (v0.78): ищет ткани в гардеробной на третьем этаже (лор владельца, docs/quests/alkima.md)
   alkima: {
     talks: [
@@ -358,6 +368,7 @@ export const ITEMS = {
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
   bandage: { name: 'Бинт', price: 4, use: { heal: 1 } },
+  dried_fish: { name: 'Вяленая рыбка', price: 3, quest: true },   // для кота Фуджина (v0.78)
   resin_flower: { name: 'Цветок в смоле', quest: true },
   // квест Алкимы (v0.78, лор владельца): лоскут ткани памяти — у мародёров Северного крыла; награда — медальон Солнца и страница дневника
   old_fabric: { name: 'Лоскут старинной ткани', quest: true },
@@ -410,7 +421,7 @@ export const NORMAL = { perfectWindow: CONFIG.perfectWindow, windupMult: CONFIG.
 export const MAP = {
   cell: [1, 2, 14, 3], hall: [1, 5, 14, 19], secret: [1, 16.2, 17, 2.6],
   gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], balcony: [1, 44.5, 9, 3.2],
-  shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4],
+  shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4], catlib: [1, 21.4, 11, 2.6],
   landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8], wardrobe: [3, 10, 5, 2.8],
   landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
   camp: [2, 12.6, 11, 2.6], library: [2, 12.6, 5, 4.2], reading: [2, 14.4, 2, 2.4], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
@@ -437,6 +448,8 @@ export const ROOMS = {
       { id: 'cellB', x: 870, kind: 'bars', locked: 'Пустая камера', bones: true },
       { id: 'cellC', x: 1560, kind: 'bars', locked: 'Пустая камера' },
       { id: 'secret', x: 1460, kind: 'none', needs: 'secret_hall', to: 'secret', toDoor: 'out', name: 'Тайник' },
+      // по лестнице в конце Темницы — к двери наверху, за ней Старая библиотека с котом Фуджином (владелец, v0.78)
+      { id: 'lib', x: 2306, kind: 'none', stairs: true, climb: true, to: 'catlib', toDoor: 'out', name: 'Старая библиотека' },
     ],
     trainer: { x: 300, z: 22 },
     props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 }],
@@ -454,6 +467,24 @@ export const ROOMS = {
       { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
       { x: 1740, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
       { x: 2100, story: 'ilia', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
+    ],
+  },
+  // Старая библиотека над Темницей (v0.78, идея владельца): много книг, столы, бумаги на полу, потухшая свеча; живёт кот Фуджин
+  catlib: {
+    name: 'Старая библиотека', tiles: 'castle', length: 420, columns: false, torches: [], dark: true, cobwebs: true,
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'lib', name: 'Темница' }],
+    npcs: [{ type: 'fujin', x: 258, z: 12.5, lift: 15 }],
+    decor: [
+      { type: 'bookshelf', x: 110 }, { type: 'bookshelf', x: 160, gap: 2 }, { type: 'ladder', x: 178 },
+      { type: 'bookshelf', x: 330, gap: 1 }, { type: 'bookshelf', x: 380, look: 'look_libbooks', name: 'стеллаж с хрониками' },
+      { type: 'window', x: 250, w: 22, h: 36, y: 22, moon: true },
+    ],
+    props: [
+      { type: 'desk', x: 252, z: 12 }, { type: 'chair', x: 276, z: 14, flip: true },
+      { type: 'table', x: 150, z: 26 }, { type: 'bookpile', x: 128, z: 28 },
+      { type: 'candles', x: 244, z: 12.6, lift: 15, lights: 'lib_candle', look: 'look_candle', lookLit: 'look_candle_lit', name: 'свеча (зажечь)' },
+      { type: 'papers', x: 200, z: 6, flat: true, look: 'look_libnote', name: 'записки на полу' }, { type: 'papers', x: 312, z: 30, flat: true },
+      { type: 'bookpile', x: 360, z: 4 },
     ],
   },
   // тайник за замурованной стеной Темницы: кто-то спрятался здесь со всем, что успел вынести
@@ -607,6 +638,8 @@ export const ROOMS = {
     encounters: [
       { x: 240, story: 'commander', before: 'commander_meet', after: 'balcony_after', enemies: [{ type: 'commander', dx: 40, z: 22 }] },
     ],
+    // обрывок дневника №1 (лор владельца): после победы над королевским стражем — там, где он стоял
+    props: [{ type: 'letter', id: 'diary1', x: 282, z: 20, pick: 'diary_1', needs: 'done_commander' }],
   },
   // ---------- второй этаж (черновик Claude: лор и комнаты владелец поправит) ----------
   // площадка у лестницы из Столовой; дальше — Жилое крыло
