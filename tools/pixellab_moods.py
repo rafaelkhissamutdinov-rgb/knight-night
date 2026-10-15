@@ -24,7 +24,10 @@ MOODS = {
                'tilt': 'the head is tilted to one side, curious and doubtful',
                'aside': 'the whole helmet is turned slightly away to the side and down, embarrassed; the visor stays fully closed: no face, no eyes, no mouth visible, only a dark visor slit',
                'sad': 'the head is lowered softly, shoulders dropped, the helmet in soft shadow, sad',
-               'surprised': 'the head jerks back and up slightly, the red plume flicks up, a small startle; the visor stays fully closed: no face, no eyes, no mouth visible, only a dark visor slit'},
+               'surprised': 'the head jerks back and up slightly, the red plume flicks up, a small startle; the visor stays fully closed: no face, no eyes, no mouth visible, only a dark visor slit',
+               # владелец, 16.10: смотрит прямо в камеру — комичный шок; и осуждение
+               'stare': 'the helmet turned to face the viewer straight on, perfectly frontal and symmetric, frozen and stiff, staring right at the camera like breaking the fourth wall, a comic deadpan shock; the visor stays fully closed: no face, no eyes, no mouth, only a dark visor slit',
+               'judge': 'the helmet faces the viewer straight on and is tilted slightly down, the visor slit looking at us from under the brow, a disapproving judging stare, slight dark shadow over the helmet top; the visor stays fully closed: no face, no eyes, no mouth, only a dark visor slit'},
 }
 if sys.argv[1:2] == ['pick']:
     who, mood, f = sys.argv[2:5]

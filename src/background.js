@@ -21,7 +21,7 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1, fabric: 1, papers: 1, bookpile: 1, tripod: 1, pack: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff', 'prop_candles_out', 'cat_sit', 'cat_sit_1', 'cat_sleep', 'cat_loaf', 'cat_lounge', 'cat_side', 'cat_groom', 'cat_stretch', 'cat_stand', 'priest_kneel', 'maid_ghost',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_campfire_pot', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff', 'prop_candles_out', 'cat_sit', 'cat_sit_1', 'cat_sleep', 'cat_loaf', 'cat_lounge', 'cat_side', 'cat_groom', 'cat_stretch', 'cat_stand', 'priest_kneel', 'maid_ghost',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -69,6 +69,18 @@ if (obj.decor_chandelier) obj.decor_chandelier.onload = () => {
   for (let i = 0; i < w; i++) if (top[i] <= m && (i === 0 || top[i - 1] > m)) wicks.push((i - w / 2) / 2);   // мир: от центра
   decorImages.chandelier = { wicks, h: h / 2 };
 };
+// где на экране убранство-картинка (мир): окно для лунного луча вайба (v0.83) и т. п.; null — картинки нет
+export function decorBounds(d, floorTop) {
+  const spec = DECOR_IMG[d.type];
+  if (!spec) return null;
+  const [n, anchor, top0, dy] = spec;
+  const i = Math.abs(Math.round(d.x / 10)) % n;
+  const im = objImg('decor_' + d.type + (i ? '_' + i : ''));
+  if (!im) return null;
+  const w = im.width / 2, h = im.height / 2;
+  const bottom = anchor === 'floor' ? floorTop : anchor === 'center' ? (d.y ?? top0) + h / 2 : (d.y ?? top0) + dy + h;
+  return { x0: d.x - w / 2, x1: d.x + w / 2, y0: bottom - h, y1: bottom };
+}
 // убранство картинкой (если есть); false — рисовать кодом
 function decorImage(g, d, floorTop, room) {
   const spec = DECOR_IMG[d.type];
@@ -846,7 +858,17 @@ function campfireFlames(g, x, gy, time) {
 export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
   x = Math.round(x);
   if ((type === 'loot' || type === 'cup') && opened) return;   // подобрали
-  if (type === 'campfire' && objImg('prop_campfire')) { drawObj(g, objImg('prop_campfire'), x, gy + 1); campfireFlames(g, x, gy, time); return; }
+  if (type === 'campfire_pot' && objImg('prop_campfire_pot')) {
+    // костёр с треногой и котелком одной картинкой (v0.83, владелец): котелок над огнём; живые язычки — у углей, перед котелком
+    drawObj(g, objImg('prop_campfire_pot'), x, gy + 1);
+    drawFire(g, getFire('campfire_pot:' + Math.round(gy), { w: 12, h: 8, base: 0.7, tall: 0.4 }), x, gy - 1, time);
+    for (let k = 0; k < 3; k++) {
+      const t = (time * 0.9 + k * 0.37) % 1;
+      rect(g, x + Math.round(Math.sin((time + k) * 3) * 5), gy - 22 - Math.round(t * 18), 1, 1, t < 0.6 ? '#ffd27a' : '#a0442a');
+    }
+    return;
+  }
+  if ((type === 'campfire' || type === 'campfire_pot') && objImg('prop_campfire')) { drawObj(g, objImg('prop_campfire'), x, gy + 1); campfireFlames(g, x, gy, time); return; }
   if (type === 'cup' && objImg('prop_cup')) {
     // серебряная чаша стоит на столе, поблёскивает
     drawObj(g, objImg('prop_cup'), x, gy - 13);
