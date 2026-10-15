@@ -333,7 +333,6 @@ export const NPC_TYPES = {
       { id: 'fujin_feed', if: 'fujin_met', has: ['dried_fish'] },
       { id: 'fujin_hungry', if: 'fujin_met' },
     ],
-    lounge: { x: 340, z: 4 },   // покормили — перебирается на диван
     name: 'Фуджин', alias: 'чёрный кот', known: 'fujin_met', verb: 'подойти', talk: 'fujin_meet', cat: true,   // имя — с миски, после знакомства
     sitImgs: { idle: ['cat_sit', 'cat_sit', 'cat_sit_1'], wave: 'cat_sit_1' },
   },
@@ -485,7 +484,7 @@ export const ROOMS = {
       { type: 'table', x: 150, z: 26 }, { type: 'bookpile', x: 128, z: 28 },
       { type: 'candles', x: 244, z: 12.6, lift: 15, lights: 'lib_candle', look: 'look_candle', lookLit: 'look_candle_lit', name: 'свеча (зажечь)' },
       { type: 'papers', x: 200, z: 6, flat: true, look: 'look_libnote', name: 'записки на полу' }, { type: 'papers', x: 312, z: 30, flat: true },
-      { type: 'catsofa', x: 340, z: 4 },
+      { type: 'bookpile', x: 360, z: 4 },
     ],
   },
   // тайник за замурованной стеной Темницы: кто-то спрятался здесь со всем, что успел вынести
