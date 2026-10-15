@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.82';
+export const VERSION = 'v0.83';
 
 export const CONFIG = {
   width: 320,
@@ -725,7 +725,7 @@ export const ROOMS = {
     ],
     // обрывок дневника №1 (лор владельца): после победы над королевским стражем — там, где он стоял
     props: [{ type: 'letter', id: 'diary1', x: 282, z: 20, pick: 'diary_1', needs: 'done_commander' }],
-    vibe: [{ id: 'balcony_view', x: 300, needs: 'done_commander', fx: 'birds' }],   // «вайбовать» (v0.81): постоять и посмотреть — место оживает (fx)
+    vibe: [{ id: 'balcony_view', x: 300, needs: 'done_commander', fx: 'birds', sun: { x: 311, y: 54 } }],   // sun — где закат на картине дали   // «вайбовать» (v0.81): постоять и посмотреть — место оживает (fx)
   },
   // ---------- второй этаж (черновик Claude: лор и комнаты владелец поправит) ----------
   // площадка у лестницы из Столовой; дальше — Жилое крыло
@@ -778,8 +778,8 @@ export const ROOMS = {
       { type: 'banner', x: 150, y: 10, torn: true },
     ],
     props: [
-      { type: 'campfire', x: 210, z: 20, light: true, look: 'look_campfire', name: 'костёр', rest: { seat: 0, name: 'у костра', z: 20, dx: -30, face: 1 } },
-      { type: 'tripod', x: 210, z: 20.5 },   // походный привал Илиа (v0.79): котелок на треноге над огнём, рюкзак у лежанки
+      // костёр с треногой и котелком одной картинкой (v0.83, владелец: котелок не должен перекрывать огонь); рюкзак у лежанки
+      { type: 'campfire_pot', x: 210, z: 20, light: true, look: 'look_campfire', name: 'костёр', rest: { seat: 0, name: 'у костра', z: 20, dx: -30, face: 1 } },
       { type: 'bedroll', x: 268, z: 34, look: 'look_bedroll', name: 'лежанка' }, { type: 'pack', x: 292, z: 33 }, { type: 'sack', x: 300, z: 6 }, { type: 'pot', x: 232, z: 8 },
     ],
     npcs: [{ type: 'ilia', x: 242, z: 22, needs: 'done_ilia' }],
@@ -867,7 +867,7 @@ export const ROOMS = {
   hall3: {
     name: 'Северное крыло', tiles: 'castle', floor: 3, length: 1300, torches: [150, 360, 560, 980, 1160],
     stairs: 'up', stairsX: 1190,
-    vibe: [{ id: 'hall3_moon', x: 660, fx: 'moon', winY: 28 }],   // лунное окно
+    vibe: [{ id: 'hall3_moon', x: 660, fx: 'moon' }],   // лунное окно
     edges: { left: { to: 'landing3', x: 330, name: 'Верхний этаж' } },
     doors: [
       { id: 'guardhall', x: 420, kind: 'wood', to: 'guardhall', toDoor: 'out', name: 'Зал стражи' },

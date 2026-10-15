@@ -395,11 +395,21 @@ export function drawSprite(name, g, o) {
   }
   const fr = meta.frames[fname];
   if (fr?.wrist && o.pose && !o.bladeHidden && !o.sheathed && o.weapon !== 'none') {
-    const wx = left + (right ? fr.wrist[0] : size - fr.wrist[0]);
-    const wy = top + fr.wrist[1];
+    // рукоять — в кулаке (fist, tools/fist_points.py; v0.83, владелец: «меч летает»), а не на запястье
+    const hand = fr.fist ?? fr.wrist;
+    const wx = Math.round(left + (right ? hand[0] : size - hand[0]));
+    const wy = Math.round(top + hand[1]);
     const len = (o.weaponLen ?? 17) * S;
-    const tp = drawWeapon(g, o.weapon ?? (o.rapier ? 'rapier' : 'sword'), wx, wy, o.pose.angle, o.facing, len, o.bowDraw ?? 0);
+    const kind = o.weapon ?? (o.rapier ? 'rapier' : 'sword');
+    const tp = drawWeapon(g, kind, wx, wy, o.pose.angle, o.facing, len, o.bowDraw ?? 0);
     tip = { tipX: (tp.tipX - t.e) / S, tipY: (tp.tipY - t.f) / S };
+    if (fr.fist && kind !== 'bow') {
+      // пальцы обхватывают рукоять: кулак из кадра — поверх рукояти (крестовина и клинок остаются видны)
+      g.save();
+      g.beginPath(); g.rect(wx - 2, wy - 1, 5, 3); g.rect(wx - 1, wy - 2, 3, 5); g.clip();
+      g.drawImage(img, left, top);
+      g.restore();
+    }
   }
   g.restore();
   return tip;

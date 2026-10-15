@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact, isBackstab } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, decorBounds, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -14,7 +14,8 @@ import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic, setMusicCalm } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogues.js';
-import { drawVibeFx, resetVibeFx } from './vibefx.js';
+import { drawVibeFx, resetVibeFx, moonSpot } from './vibefx.js';
+import { fxImpact, fxSwing, drawCombatFx, combatFxBusy } from './combatfx.js';
 import { splitDamage } from './combat.js';
 import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin } from './sprites.js';
 import { createLighting } from './lighting.js';
@@ -476,6 +477,11 @@ function applyImpact(height, damage, sourceX, breaks = false, bypass = false, ba
   const x = (p.x + sourceX) / 2;
   const y = clashY(height, p.z);
 
+  const dirIn = Math.sign(sourceX - p.x) || p.facing;   // откуда пришёл удар
+  if (result === 'perfect') fxImpact('perfect', x, y, { dir: dirIn, height });
+  else if (result === 'block' || result === 'warded') fxImpact('block', x, y, { dir: dirIn, height });
+  else if (result === 'broken') fxImpact('broken', x, y, { dir: dirIn, height });
+  else if (result === 'hit' && damage > 0) fxImpact('hit', p.x, y, { dir: -dirIn, height, big: 1.1 });
   if (result === 'perfect') {
     game.stats.perfect++;
     sparks(x, y, 16, [PAL.spark, PAL.sparkHot, '#ffffff'], 120);
@@ -600,6 +606,8 @@ function playerStrike(atk) {
     }
     const x = e.x - p.facing * 6;
     const y = e.kind === 'slime' ? groundY(e.z) - e.airY - 6 : clashY(atk.height === 'any' ? 'mid' : atk.height, e.z);
+    fxImpact(out === 'counter' ? 'counter' : out === 'hit' ? 'hit' : out === 'blocked' ? 'deflect' : 'miss', out === 'hit' || out === 'counter' ? e.x : x, y,
+      { dir: p.facing, height: atk.height === 'any' ? 'mid' : atk.height, big: back ? 1.5 : 1 });
     if (out === 'counter') {
       game.stats.counter++;
       sparks(x, y, 22, [PAL.blood, PAL.spark, PAL.sparkHot], 150);
@@ -624,7 +632,7 @@ function playerStrike(atk) {
       callout('Мимо', 'muted');
     }
   }
-  if (!touched) sfx.swish();
+  if (!touched) { sfx.swish(); if (atk.height !== 'any') fxImpact('miss', p.x + p.facing * (atk.reach * 0.8), clashY(atk.height, p.z), { dir: p.facing }); }
   renderFoe();
 }
 
@@ -1623,19 +1631,34 @@ function startVibe(spot) {
   save();
 }
 // живая картинка места: нарастает, пока Найт смотрит, и плавно гаснет, когда он отвернулся
-function renderVibeFx() {
-  const v = game.vibeFx;
-  if (v || fxCanvas.dataset.dirty) { fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); delete fxCanvas.dataset.dirty; }
-  if (!v || game.mode === 'title') return;
+// слой поверх живого света: живая картинка вайба и эффекты боя (src/combatfx.js) — светятся сами
+function renderOverlayFx() {
+  const busy = !!game.vibeFx || combatFxBusy();
+  if (busy || fxCanvas.dataset.dirty) { fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); delete fxCanvas.dataset.dirty; }
+  if (!busy || game.mode === 'title') return;
   fxCanvas.dataset.dirty = '1';
   fx.setTransform(S, 0, 0, S, 0, 0);
   const cam = Math.round(game.camX);
+  if (game.vibeFx) renderVibeFx(cam);
+  drawCombatFx(fx, cam);
+}
+function renderVibeFx(cam) {
+  const v = game.vibeFx;
   const now = performance.now() / 1000, dt = Math.min(0.25, now - (v.last ?? now));   // по времени, а не по кадрам
   v.last = now;
   v.k = game.vibe ? Math.min(1, v.k + dt / 2.5) : v.k - dt / 1.2;
   if ((v.k <= 0 && !game.vibe) || !(room().vibe ?? []).includes(v.spot)) { game.vibeFx = null; return; }
   const sp = v.spot, k = v.k * v.k * (3 - 2 * v.k);
-  drawVibeFx(fx, sp.fx, { sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, winY: sp.winY, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+  const src = vibeSource(sp, cam);
+  drawVibeFx(fx, sp.fx, { sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, win: src.win, hole: src.hole, sun: sp.sun, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+}
+// откуда свет у места вайба (v0.83): окно — ближайшее к месту убранство-окно, пролом — убранство roofhole (их рамки на экране)
+function vibeSource(sp, cam) {
+  const x = sp.fxX ?? sp.x, near = type => (room().decor ?? []).filter(d => d.type === type).sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x))[0];
+  const out = {};
+  if (sp.fx === 'moon') { const d = near('window'), b = d && decorBounds(d, CONFIG.floorTop); if (b) out.win = { x0: b.x0 - cam, x1: b.x1 - cam, y0: b.y0, y1: b.y1 }; }
+  if (sp.fx === 'rain') { const d = near('roofhole'), b = d && decorBounds(d, CONFIG.floorTop); if (b) { const w = b.x1 - b.x0; out.hole = { x0: b.x0 + w * 0.3 - cam, x1: b.x1 - w * 0.3 - cam, y: b.y1 - 5 }; } }
+  return out;
 }
 function updateVibe(dt) {
   const v = game.vibe, sit = v.spot.sit;
@@ -2628,10 +2651,11 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 // Нарисованные портреты владельца: у реплики можно указать mood (настроение), иначе — default.
 const FACES = {
   // Найт (v0.80): лица не видно — настроение позой головы и светом на шлеме (down — досада, тень на шлеме; up — решимость;
-  // tilt — сомнение; sad — грусть; aside — смущение; surprised — удивление)
+  // tilt — сомнение; sad — грусть; aside — смущение; surprised — удивление; stare — смотрит прямо на нас, комичный шок; judge — осуждение)
   knight: { default: 'assets/portraits/knight.png', tired: 'assets/portraits/knight-tired.png', nohelm: 'assets/portraits/knight-nohelm.png',
     down: 'assets/portraits/knight-down.png', up: 'assets/portraits/knight-up.png', tilt: 'assets/portraits/knight-tilt.png', sad: 'assets/portraits/knight-sad.png',
-    aside: 'assets/portraits/knight-aside.png', surprised: 'assets/portraits/knight-surprised.png' },   // v0.81: смущение (голова отвёрнута), удивление
+    aside: 'assets/portraits/knight-aside.png', surprised: 'assets/portraits/knight-surprised.png',
+    stare: 'assets/portraits/knight-stare.png', judge: 'assets/portraits/knight-judge.png' },   // v0.83: взгляд в камеру (комичный шок), осуждение   // v0.81: смущение (голова отвёрнута), удивление
   knight_marauder: { default: 'assets/portraits/knight-marauder.png' },   // в броне мародёра (v0.80); настроения — позже
   ilia: Object.fromEntries(['default', 'happy', 'surprised', 'serious', 'worried', 'sad', 'angry', 'pain', 'awkward']   // v0.80
     .map(m => [m, m === 'default' ? 'assets/portraits/ilia.png' : `assets/portraits/ilia-${m}.png`])),
@@ -3595,6 +3619,18 @@ function renderEnemy(e, cam) {
     });
     if (riseK < 1 && !sprite) g.restore();
     if (whirl) spinTrail(ex, GROUND - 24 - e.airY, whirlK, e.facing, false);
+    // читаемые удары врага (v0.83): блеск на клинке в начале замаха и красный росчерк при ударе
+    if (e.kind !== 'archer' && e.kind !== 'slime' && !e.disarmed && e.alive) {
+      if (e.state === 'windup' && !e.glinted) {
+        e.glinted = true;
+        const danger = e.strike?.breaks || e.strike?.bypass || e.strike?.pose === 'diagUp' || e.strike?.pose === 'diagDown';
+        fxImpact('glint', tip.tipX + cam, tip.tipY, { color: danger ? '#ffb05a' : '#ffffff' });
+      } else if (e.state !== 'windup') e.glinted = false;
+      if (e.state === 'strike' && !whirl) {
+        const bx = ex, by = GROUND - 24 - e.airY;
+        fxSwing(e, tip.tipX + cam, tip.tipY, bx + cam, by, e.kind === 'boss' || e.kind === 'ghost' ? '#9fd4ff' : '#ff7a5a');
+      }
+    }
     if (e.kind === 'boss' && e.eyes > 0) {
       // глаза вспыхивают под маской
       const hy = GROUND - 31 - e.airY, hx = ex + e.facing * 2;
@@ -3931,6 +3967,11 @@ function renderPlayer(cam) {
   });
   if (spinning) spinTrail(px, GROUND - 24, spinK, p.facing, false);   // передняя половина диска — поверх рыцаря
   if (rapierAnim && rapierKey === 'whip' && active) whipArc(px, GROUND, p.facing, (p.t - p.atk.windup) / p.atk.active);
+  // росчерк клинка (v0.83): от конца замаха через удар — светлая дуга по следу острия
+  if (p.state === 'attack' && p.atk && !spinning && !rapierAnim && !p.atk.weave && (active || (p.phase === 'windup' && p.t > p.atk.windup - 0.05))) {
+    const sx0 = px, sy0 = GROUND - 24;
+    fxSwing(p, tip.tipX + cam, tip.tipY, sx0 + cam, sy0, '#fff1c8');
+  }
   if (active && !spinning && !rapierAnim) {   // у вихря свой шлейф-диск, у рапиры — кадры с клинком
     p.trail.push({ tipX: tip.tipX, tipY: tip.tipY });
     if (p.trail.length > (spinning || weaving ? 6 : 3)) p.trail.shift();
@@ -3957,7 +3998,7 @@ function renderNpc(n, cam) {
     // душа с сожалением (v0.79): полупрозрачная, чуть парит и мерцает
     g.save();
     g.globalAlpha = 0.68 + 0.12 * Math.sin(game.time * 2.3 + n.x);
-    const ok = drawObjNamed(g, n.def.img, x, gy - 2 - Math.round(1.5 + 1.5 * Math.sin(game.time * 1.6)), n.facing > 0);
+    const ok = drawObjNamed(g, n.def.img, x, gy - Math.round(0.6 + 0.6 * Math.sin(game.time * 1.6)), n.facing > 0);   // чуть парит, ниже Найта (владелец)
     g.restore();
     if (ok) return;
   }
@@ -4130,8 +4171,9 @@ function sceneLights() {
   const vf = game.vibeFx;
   if (vf?.spot.fx) {
     const sp = vf.spot, x = sp.fxX ?? sp.x, k = vf.k;
-    if (sp.fx === 'moon') add(x + 26, CONFIG.floorTop + 12, 90, [0.6, 0.75, 1], 0.7 * k, 20);
-    if (sp.fx === 'rain') add(x, groundY(sp.fxZ ?? 22) - 10, 100, [0.7, 0.82, 1], 0.6 * k, 30);
+    const src = vibeSource(sp, 0);
+    if (sp.fx === 'moon' && src.win) { const m = moonSpot(src.win, CONFIG.floorTop); add(m.x, m.y, 80, [0.6, 0.75, 1], 0.7 * k, 16); }   // пятно луны на полу
+    if (sp.fx === 'rain') add(src.hole ? (src.hole.x0 + src.hole.x1) / 2 : x, groundY(sp.fxZ ?? 22) - 10, 90, [0.7, 0.82, 1], 0.55 * k, 30);
     if (sp.fx === 'embers') add(x, groundY(sp.fxZ ?? 20) - 24, 140, WARM, 0.5 * k * (0.9 + 0.1 * Math.sin(t * 7)), 30);
   }
   // ближние к центру экрана — вперёд
@@ -4195,7 +4237,7 @@ function frame(now) {
     light?.off();
     frameError(now, err);
   }
-  try { renderVibeFx(); } catch (err) { game.vibeFx = null; frameError(now, err); }
+  try { renderOverlayFx(); } catch (err) { game.vibeFx = null; frameError(now, err); }
 }
 function resetCtx(c) {
   for (let i = 0; i < 64; i++) c.restore();
