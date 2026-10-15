@@ -650,6 +650,22 @@ function handlePlayerEvents() {
   }
 }
 
+// подсказка про удушье (v0.76): владелец умер от удушья 22 раза, не поняв, что делать. Пока босс тянет руку —
+// «кувырок или отскок, уйди», пока душит — «бей часто» со счётом ударов
+function updateChokeHint() {
+  const p = game.player;
+  const caster = game.enemies.find(e => e.kind === 'boss' && e.alive && e.state === 'cast');
+  let text = null;
+  if (p.state === 'held') {
+    const need = p.holder?.def?.chokeBreak ?? 7;
+    text = `ЛКМ — бей часто, вырвись! ${Math.min(p.struggles ?? 0, need)} / ${need}`;
+  } else if (caster) text = 'Пробел — кувырок или отскок назад: уйди от захвата!';
+  if (text) {
+    if (!game.chokeHintOn) game.hintBeforeChoke = ui.hint.hidden ? '' : ui.hint.textContent;   // вернуть потом прежнюю
+    hint(text); game.chokeHintOn = true;
+  } else if (game.chokeHintOn) { game.chokeHintOn = false; hint(game.hintBeforeChoke ?? ''); }
+}
+
 // ---------- режимы ----------
 
 function die() {
@@ -1851,6 +1867,7 @@ function update(dt) {
   }
   p.lastFall = fall;
   handlePlayerEvents();
+  updateChokeHint();
   updatePickups(dt);
   for (const n of game.npcs) if (Math.abs(n.x - p.x) < 80) n.facing = Math.sign(p.x - n.x) || n.facing;
 
