@@ -47,6 +47,39 @@ if sys.argv[1] == 'edit':   # python3 tools/pixellab_story.py edit <расска
     with ThreadPoolExecutor(3) as ex: paths = [p for ps in ex.map(job, range(3)) for p in ps]
     print(story, n, 'edit', len(paths), flush=True)
     sys.exit()
+# Картины с героями по канону (docs/art-canon.md): эталоны капитана и принцессы — reference images.
+# python3 tools/pixellab_story.py canon <рассказ> <n> [<n>...] → <рассказ>_<n>k<вариант>_00.png (по 2 варианта)
+CAP = ('the knight captain: tall and slender, half a head taller than the princess; white porcelain Venetian mask with gold filigree around the eyes, '
+       'a dark red patch on one cheek and gold lips; steel morion helmet with a red plume over a dark chainmail coif; long white satin surcoat with wide sleeves lined with red, '
+       'a white belt, a small grey shield badge with an orange fleur-de-lis on the chest; dark armor underneath')
+PRIN = 'the princess: slender, chestnut hair in a high bun, long simple ivory gown with long sleeves, natural warm skin tone, normal human proportions'
+CANON = {'erinnerland': {
+    2: ('the princess and the knight captain walking side by side through a lush moonlit castle garden at night, a fountain, rose bushes, lit castle windows, dark blue starry sky with a full moon', 'cp'),
+    3: ('the knight captain shyly offering the princess a small golden heart pendant and a softly glowing rose in a moonlit castle garden at night, a hesitant distance between them, stone arches, roses', 'cp'),
+    4: ('the knight captain alone on a dark castle rampart at night, looking at a single warm lit window far away across the courtyard, cold blue moonlight, loneliness', 'c'),
+    5: ('a grand candlelit ballroom: the princess dancing with an elegant foreign duke in dark velvet, guests around them, and the knight captain standing alone in the shadows by a pillar, watching', 'cp'),
+    7: ('the ghost of the knight captain standing guard with a sword before a closed ornate chamber door in a dark abandoned castle hall at night, his legs fading into pale blue ghostly mist, cold blue glow, dust, cobwebs', 'g'),
+}}
+if sys.argv[1] == 'canon':
+    from concurrent.futures import ThreadPoolExecutor
+    story = sys.argv[2]
+    def ref(name, usage):
+        im, sz = b64img(os.path.join(WORK, name))
+        return {'image': im, 'size': {'width': sz[0], 'height': sz[1]}, 'usage_description': usage}
+    def job(args):
+        n, k = args
+        desc, who = CANON[story][n]
+        refs, people = [], []
+        if 'c' in who: refs.append(ref('captain_ref.png', 'the knight captain exactly as here: mask, helmet, plume, chainmail coif, white surcoat, red sleeve lining, grey shield with orange fleur-de-lis')); people.append(CAP)
+        if 'g' in who: refs += [ref('captain_ref.png', 'his exact costume, mask, helmet, plume and fleur-de-lis badge'), ref('boss_ref.png', 'the ghostly pale blue mist instead of legs and the glow')]; people.append(CAP)
+        if 'p' in who: refs.append(ref('princess_ref.png', 'the princess exactly as here: chestnut hair in a high bun, ivory gown; but a natural warm skin tone')); people.append(PRIN)
+        body = {'description': desc + '. ' + ' '.join(people) + '. The whole picture is a fully painted scene with a detailed background, no empty white areas. ' + STYLE,
+                'image_size': {'width': 320, 'height': 180}, 'reference_images': refs, 'seed': 100 + n * 10 + k}
+        return run('/generate-image-v2', body, os.path.join(WORK, f'{story}_{n}k{k}'))
+    jobs = [(int(n), k) for n in sys.argv[3:] for k in range(2)]
+    with ThreadPoolExecutor(4) as ex: res = list(ex.map(job, jobs))
+    print('canon', [len(r) for r in res], flush=True)
+    sys.exit()
 if sys.argv[1] == 'fix':   # python3 tools/pixellab_story.py fix <файл> "<что поправить>" → <файл>_fix_00.png
     img, sz = b64img(os.path.join(WORK, sys.argv[2] + '_00.png'))
     paths = run('/edit-images-v2', {'method': 'edit_with_text', 'description': sys.argv[3] + '. ' + STYLE,
