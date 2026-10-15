@@ -390,7 +390,7 @@ export const ITEMS = {
   dried_fish: { name: 'Вяленая рыбка', price: 3, quest: true },
   old_letter: { name: 'Письмо с сорванной печатью', quest: true },   // для служанки (v0.79)
   sun_medallion_pure: { name: 'Очищенный медальон Солнца', quest: true },   // исход Пилигрима в задании священника   // для кота Фуджина (v0.78)
-  resin_flower: { name: 'Цветок в смоле', quest: true },
+  resin_flower: { name: 'Цветок в янтарной смоле', quest: true },
   // квест Алкимы (v0.78, лор владельца): лоскут ткани памяти — у мародёров Северного крыла; награда — медальон Солнца и страница дневника
   old_fabric: { name: 'Лоскут старинной ткани', quest: true },
   sun_medallion: { name: 'Медальон Солнца', quest: true },
@@ -473,9 +473,7 @@ export const ROOMS = {
       { id: 'lib', x: 2306, kind: 'none', stairs: true, climb: true, to: 'catlib', toDoor: 'out', name: 'Старая библиотека' },
     ],
     trainer: { x: 300, z: 22 },
-    props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 },
-      // капель с потолка: вода для чаши священника (нечистая, но добытая стараньем — лор владельца)
-      { type: 'puddle', x: 1640, z: 6, flat: true, fill: 'cup_water', look: 'look_puddle', name: 'лужа под капелью' }],
+    props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 }],
     decor: [
       { type: 'note', x: 1500, y: 70, look: 'look_prisoner', name: 'надпись на стене' },
       { type: 'chains', x: 700, y: 46 }, { type: 'chains', x: 1150, y: 46 }, { type: 'chains', x: 1680, y: 46 },
@@ -785,6 +783,8 @@ export const ROOMS = {
     ],
     props: [
       { type: 'candles', x: 110, z: 4, look: 'look_candles', name: 'свечи' },
+      // дождевая вода из пролома в крыше — для чаши священника (владелец, 15.10: «вода с неба, но в грязной чаше»)
+      { type: 'puddle', x: 214, z: 22, flat: true, fill: 'cup_water', look: 'look_puddle', name: 'лужа под проломом в крыше' },
       { type: 'pew', x: 170, z: 14, rest: { seat: 4, name: 'на скамье', z: 15, face: 1 } }, { type: 'pew', x: 170, z: 30 }, { type: 'pew', x: 250, z: 14 }, { type: 'pew', x: 250, z: 30 },
       { type: 'altar', id: 'altar', x: 340, z: 4, altar: 'cup_placed' },
     ],

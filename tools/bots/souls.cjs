@@ -22,10 +22,11 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/souls'; require('fs').
   const door = async () => { await p.keyboard.down('KeyW'); await p.waitForTimeout(700); await p.keyboard.up('KeyW'); await p.waitForTimeout(2600); };
   const npcE = async type => { await p.evaluate(t => { const g = window.knightNight, n = g.npcs.find(n => n.type === t); g.player.z = n.z; g.player.x = n.x - 6; }, type); await p.waitForTimeout(300); await p.keyboard.press('KeyE'); await p.waitForTimeout(600); };
 
-  // 1. вода из лужи под капелью в Темнице
-  await load('hall', 1600, 6, ['sword_old', 'silver_cup', 'sun_medallion'], {});
-  await go(1640, 6); await log('puddle'); await shot('0_puddle');
+  // 1. дождевая вода из пролома в крыше Часовни (владелец, 15.10)
+  await load('chapel', 180, 22, ['sword_old', 'silver_cup', 'sun_medallion'], {});
+  await go(214, 22); await log('puddle'); await shot('0_puddle');
   await p.keyboard.press('KeyE'); await p.waitForTimeout(400); await log('water');
+  await load('hall', 1540, 2, ['sword_old', 'silver_cup', 'sun_medallion'], { cup_water: true });
   // 2. келья: знакомство
   await go(1560, 2); await door(); await log('cell'); await shot('1_cell');
   await npcE('priest'); await shot('2_meet'); await talkThrough(); await log('met');

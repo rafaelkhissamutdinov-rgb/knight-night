@@ -59,12 +59,29 @@ elif cmd == 'sheet':
     Image.open(os.path.join(SRC, 'knight_n.png')).save(os.path.join(D, 'knight_marauder_n.png'))
     json.dump(meta, open(os.path.join(D, 'knight_marauder.json'), 'w'), ensure_ascii=False)
     print('ok')
+if cmd == 'head':   # владелец 15.10: в сете мародёра вместо шлема — треуголка и платок на лице (лица не видно)
+    img, sz = b64img(sys.argv[2])
+    HEAD = ('keep the body, leather jacket, red scarf, boots, pose, proportions and pixel style exactly the same; only the head changes: '
+            'remove the steel helmet and plume; instead a worn black leather pirate tricorn hat, and the dark red scarf wrapped up over the nose and mouth, '
+            'so the face is completely hidden; the eyes are only a dark shadow under the hat brim; like a marauder')
+    def job(k):
+        return run('/edit-image-pixen', {'image': img, 'description': HEAD, 'width': S, 'height': S, 'no_background': True, 'seed': 41 + k}, os.path.join(W, f'head{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
+    sheet(paths, os.path.join(W, 'head_sheet.png'), scale=3, cols=len(paths)); print(len(paths))
 if cmd == 'portrait':   # портрет в броне мародёра: шлем, забрало и плюмаж — как на утверждённом портрете (без лица)
     P = os.path.join(ROOT, 'assets', 'portraits', 'knight.png')
     small = os.path.join(W, 'portrait64.png'); Image.open(P).convert('RGBA').resize((64, 64), Image.NEAREST).save(small)
     img, sz = b64img(small)
     def job(k):
-        return run('/edit-image-pixen', {'image': img, 'description': 'keep exactly the same helmet, visor, red plume, colors and pixel style; only the armor on the shoulders and chest changes to marauder gear: '
-            'a worn brown leather jacket with buckled straps and a dark red scarf wrapped around the neck', 'width': 64, 'height': 64, 'no_background': True, 'seed': 21 + k}, os.path.join(W, f'portrait{k}'))
+        return run('/edit-image-pixen', {'image': img, 'description': 'the same character in marauder gear, same framing, colors and pixel style: the steel helmet and plume are replaced by '
+            'a worn black leather pirate tricorn hat and a dark red scarf wrapped over the nose and mouth so the face is completely hidden, the eyes only a dark shadow under the brim; '
+            'a worn brown leather jacket with buckled straps on the shoulders', 'width': 64, 'height': 64, 'no_background': True, 'seed': 21 + k}, os.path.join(W, f'portrait{k}'))
     with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
     sheet(paths, os.path.join(W, 'portrait_sheet.png'), scale=3, cols=len(paths)); print(len(paths))
+if cmd == 'eyes':   # владелец 15.10: глаза у Найта оливковые — видны в тени под треуголкой, лицо закрыто платком
+    src = os.path.join(W, sys.argv[2]); img, sz = b64img(src)
+    def job(k):
+        return run('/edit-image-pixen', {'image': img, 'description': 'keep everything exactly the same; only in the dark shadow between the hat brim and the scarf show two calm olive green eyes, '
+            'the rest of the face stays hidden', 'width': sz[0], 'height': sz[1], 'no_background': True, 'seed': 51 + k}, os.path.join(W, 'eyes_' + sys.argv[2][:-4] + f'_{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
+    sheet(paths, os.path.join(W, 'eyes_' + sys.argv[2][:-4] + '_sheet.png'), scale=3, cols=len(paths)); print(len(paths))

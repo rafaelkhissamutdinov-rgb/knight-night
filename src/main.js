@@ -1440,7 +1440,7 @@ function nearChest() {
 function nearLook() {
   const p = game.player;
   const r = room();
-  return [...(r.decor ?? []), ...(r.props ?? [])].find(d => d.look && propOn(d) && !(d.secret && game.flags[d.secret]) && Math.abs(d.x - p.x) < 20 && (d.z === undefined ? p.z < 14 : Math.abs(d.z - p.z) < 12)) ?? null;
+  return [...(r.decor ?? []), ...(r.props ?? [])].find(d => d.look && propOn(d) && !(d.secret && game.flags[d.secret]) && !(d.lights && game.flags[d.lights]) && Math.abs(d.x - p.x) < 20 && (d.z === undefined ? p.z < 14 : Math.abs(d.z - p.z) < 12)) ?? null;
 }
 // удар у замурованного прохода: три удара — стена рушится
 function hitWall(atk) {
@@ -2510,9 +2510,12 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 // Нарисованные портреты владельца: у реплики можно указать mood (настроение), иначе — default.
 const FACES = {
   knight: { default: 'assets/portraits/knight.png', tired: 'assets/portraits/knight-tired.png', nohelm: 'assets/portraits/knight-nohelm.png' },
-  ilia: { default: 'assets/portraits/ilia.png' },
+  knight_marauder: { default: 'assets/portraits/knight-marauder.png' },   // в броне мародёра (v0.80); настроения — позже
+  ilia: Object.fromEntries(['default', 'happy', 'surprised', 'serious', 'worried', 'sad', 'angry', 'pain', 'awkward']   // v0.80
+    .map(m => [m, m === 'default' ? 'assets/portraits/ilia.png' : `assets/portraits/ilia-${m}.png`])),
   boss: { default: 'assets/portraits/boss.png' },
-  trainer: { default: 'assets/portraits/alkima.png' },
+  trainer: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'serious', 'worried', 'sad', 'annoyed']   // v0.80: настроения как у Лики
+    .map(m => [m, m === 'default' ? 'assets/portraits/alkima.png' : `assets/portraits/alkima-${m}.png`])),
   lika: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry']
     .map(m => [m, m === 'default' ? 'assets/portraits/lika.png' : `assets/portraits/lika-${m}.png`])),
 };
@@ -2595,7 +2598,7 @@ function showLine() {
   const who = SPEAKERS[line.who] ?? SPEAKERS.narrator;
   ui.talk.hidden = false;
   ui.talkName.textContent = who.name;
-  const face = FACES[who.portrait];
+  const face = who.portrait === 'knight' && game.equip?.armor === 'armor_marauder' ? FACES.knight_marauder : FACES[who.portrait];
   ui.talkFace.hidden = !face;
   if (face) {
     const src = face[line.mood] ?? face.default;
