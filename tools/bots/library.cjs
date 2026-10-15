@@ -26,8 +26,8 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/library'; require('fs'
   await go(240, 12.6); await p.keyboard.press('KeyE'); await p.waitForTimeout(500); await log('candle'); await talkThrough(); await p.waitForTimeout(400); await shot('2_lit');
   // 3. кот: знакомство, рыбка
   const cat = await p.evaluate(() => window.knightNight.npcs.find(n => n.type === 'fujin')?.x);
-  await go(cat + 14, 12.5); await p.keyboard.press('KeyE'); await p.waitForTimeout(500); await log('meet'); await shot('3_meet'); await talkThrough();
-  await go(cat + 14, 12.5); await p.keyboard.press('KeyE'); await p.waitForTimeout(500); await log('feed'); await talkThrough();
+  await go(cat - 4, 12.5); await p.keyboard.press('KeyE'); await p.waitForTimeout(500); await log('meet'); await shot('3_meet'); await talkThrough();
+  await go(cat - 4, 12.5); await p.keyboard.press('KeyE'); await p.waitForTimeout(500); await log('feed'); await talkThrough();
   await p.waitForTimeout(500); await log('fed'); await talkThrough(); await shot('4_fed');
   await p.keyboard.press('KeyE'); await p.waitForTimeout(500); await log('after'); await talkThrough();
   // 4. балкон: страница I после королевского стража

@@ -1440,7 +1440,7 @@ function nearChest() {
 function nearLook() {
   const p = game.player;
   const r = room();
-  return [...(r.decor ?? []), ...(r.props ?? [])].find(d => d.look && propOn(d) && !(d.secret && game.flags[d.secret]) && Math.abs(d.x - p.x) < 20 && (d.z === undefined ? p.z < 14 : Math.abs(d.z - p.z) < 12)) ?? null;
+  return [...(r.decor ?? []), ...(r.props ?? [])].find(d => d.look && propOn(d) && !(d.secret && game.flags[d.secret]) && !(d.lights && game.flags[d.lights]) && Math.abs(d.x - p.x) < 20 && (d.z === undefined ? p.z < 14 : Math.abs(d.z - p.z) < 12)) ?? null;
 }
 // удар у замурованного прохода: три удара — стена рушится
 function hitWall(atk) {
