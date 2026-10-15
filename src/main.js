@@ -15,7 +15,7 @@ import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, update
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
 loadWeapons();
@@ -2487,6 +2487,7 @@ function updateFx(dt) {
 
 function step(dt) {
   if (admin.open) { input.take(); return; }   // админка открыта — игра стоит
+  setKnightSkin(game.equip?.armor === 'armor_marauder' ? 'knight_marauder' : 'knight');   // облик по броне (v0.80)
   updateFx(dt);
   if (game.mode === 'shop' || game.mode === 'equip' || game.mode === 'journal') {
     for (const code of input.take()) handlePress(code);
