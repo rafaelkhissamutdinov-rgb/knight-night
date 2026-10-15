@@ -133,3 +133,15 @@ if cmd == 'reffix':   # владелец 15.10: у спрайта, как на �
         return run('/edit-image-pixen', {'image': img, 'description': D, 'width': sz[0], 'height': sz[1], 'no_background': True, 'seed': 81 + k}, os.path.join(W, f'reffix{k}'))
     with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
     sheet(paths, os.path.join(W, 'reffix_sheet.png'), scale=3, cols=8); print(len(paths))
+if cmd == 'refport':   # эталон спрайта по портрету владельца (вариант 3): тот же облик в полный рост, вид сбоку
+    body, bsz = b64img(os.path.join(W, 'ref_hat.png')); por, psz = b64img(os.path.join(W, 'own0_05.png'))
+    D = ('full body pixel art game sprite, side view facing right, the same young man as on the portrait: black tricorn hat, dark curly hair at the temples, '
+         'olive green eyes visible between the hat brim and the dark red scarf, the scarf covers his nose and mouth; worn brown leather jacket with buckled straps, dark trousers, tall worn leather boots; '
+         'slender, standing calmly, transparent background')
+    def job(k):
+        return run('/generate-image-v2', {'description': D, 'image_size': {'width': S, 'height': S}, 'no_background': True, 'seed': 91 + k,
+            'reference_images': [{'image': por, 'size': {'width': psz[0], 'height': psz[1]}, 'usage_description': 'his face strip, eyes, curls, hat and scarf exactly'},
+                                 {'image': body, 'size': {'width': bsz[0], 'height': bsz[1]}, 'usage_description': 'the body, pose, proportions, size and pixel style exactly'}]},
+            os.path.join(W, f'refport{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(2)) for q in ps]
+    sheet(paths, os.path.join(W, 'refport_sheet.png'), scale=2, cols=8); print(len(paths))
