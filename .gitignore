@@ -5,3 +5,4 @@ node_modules/
 .pixellab_key
 .pixellab_work/
 __pycache__/
+tools/bots/out/
