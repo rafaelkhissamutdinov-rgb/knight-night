@@ -125,3 +125,11 @@ if cmd == 'ownerface':   # владелец 15.10: Найт списан с не
             'style_image': {'image': st, 'size': {'width': ssz[0], 'height': ssz[1]}}}, os.path.join(W, f'own{k}'))
     with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(2)) for q in ps]
     sheet(paths, os.path.join(W, 'own_sheet.png'), scale=3, cols=8); print(len(paths))
+if cmd == 'reffix':   # владелец 15.10: у спрайта, как на портрете, — полоска лица с оливковыми глазами и кудри из-под треуголки
+    img, sz = b64img(os.path.join(W, 'ref_hat.png')); por, psz = b64img(os.path.join(W, 'own0_05.png'))
+    D = ('keep the same character, pose, size, outfit and pixel style; only the head: under the black tricorn hat show a narrow strip of the face with two olive green eyes '
+         'between the hat brim and the dark red scarf, and a few dark curls of hair at the temples, like on the portrait')
+    def job(k):
+        return run('/edit-image-pixen', {'image': img, 'description': D, 'width': sz[0], 'height': sz[1], 'no_background': True, 'seed': 81 + k}, os.path.join(W, f'reffix{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
+    sheet(paths, os.path.join(W, 'reffix_sheet.png'), scale=3, cols=8); print(len(paths))
