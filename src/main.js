@@ -293,6 +293,13 @@ function continueGame(data) {
   game.bag = data.bag ?? [];
   game.bestiary = data.bestiary ?? {};
   game.equip = { ...START_EQUIP, ...(data.equip ?? {}) };
+  // v0.80: цельная броня мародёра → части по слотам (голова, тело, ноги)
+  for (const set of Object.values(SETS)) {
+    const worn = game.equip.armor === set.gives, held = game.bag.indexOf(set.gives);
+    if (!worn && held < 0) continue;
+    if (held >= 0) game.bag.splice(held, 1);
+    for (const id of set.pieces) { const s = ITEMS[id].slot; if (worn) { if (game.equip[s] && game.equip[s] !== id && game.equip[s] !== set.gives) game.bag.push(game.equip[s]); game.equip[s] = id; } else game.bag.push(id); }
+  }
   // старые сохранения: рапира была только в unlocked
   if (game.unlocked.has('rapier') && game.equip.weapon !== 'rapier' && !game.bag.includes('rapier')) game.bag.push('rapier');
   if (!data.equip && data.weapon === 'rapier') { game.bag = game.bag.filter(i => i !== 'rapier'); game.bag.push('sword_old'); game.equip.weapon = 'rapier'; }
@@ -926,7 +933,7 @@ const ADMIN_POINTS = [
   { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
 ];
-const ADMIN_LOOT = ['sword_old', 'rapier', 'map', 'journal', 'key_tower', 'diamond_ace', 'rosary', 'armor_marauder', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup'];
+const ADMIN_LOOT = ['sword_old', 'rapier', 'map', 'journal', 'key_tower', 'diamond_ace', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup'];
 
 // текущая игра → данные сохранения (как save(), но комнату и место можно подменить)
 function adminSnapshot(room = game.room, x = game.player.x) {
@@ -2097,7 +2104,7 @@ function equipItem(id) {
   const prev = game.equip[item.slot];
   if (prev) game.bag.push(prev);
   game.equip[item.slot] = id;
-  if (item.slot === 'armor') { applyArmor(); renderHearts(); }
+  if (['armor', 'head', 'feet'].includes(item.slot)) { applyArmor(); renderHearts(); checkSets(); }
   if (item.slot === 'weapon') {
     p.setWeapon(item.weapon);
     game.charge = null;
@@ -2106,9 +2113,9 @@ function equipItem(id) {
   return true;
 }
 
-// Снять амулет, заклинание или навык (оружие и броню не снять — можно только заменить)
+// Снять амулет, заклинание или навык (оружие и броню — голову, тело, ноги — не снять, можно только заменить)
 function unequip(slot) {
-  if (slot === 'weapon' || slot === 'armor' || !game.equip[slot]) return;
+  if (['weapon', 'armor', 'head', 'feet'].includes(slot) || !game.equip[slot]) return;
   game.bag.push(game.equip[slot]);
   game.equip[slot] = null;
 }
@@ -2487,7 +2494,9 @@ function updateFx(dt) {
 
 function step(dt) {
   if (admin.open) { input.take(); return; }   // админка открыта — игра стоит
-  setKnightSkin(game.equip?.armor === 'armor_marauder' ? 'knight_marauder' : 'knight');   // облик по броне (v0.80)
+  // облик по снаряжению (v0.80): куртка мародёра → кожаная броня; с треуголкой — полный мародёр
+  const eq = game.equip ?? {};
+  setKnightSkin(eq.armor === 'mar_jacket' || eq.armor === 'armor_marauder' ? (eq.head === 'mar_scarf' || eq.armor === 'armor_marauder' ? 'knight_marauder' : 'knight_leather') : 'knight');
   updateFx(dt);
   if (game.mode === 'shop' || game.mode === 'equip' || game.mode === 'journal') {
     for (const code of input.take()) handlePress(code);
@@ -2601,7 +2610,7 @@ function showLine() {
   const who = SPEAKERS[line.who] ?? SPEAKERS.narrator;
   ui.talk.hidden = false;
   ui.talkName.textContent = who.name;
-  const face = who.portrait === 'knight' && game.equip?.armor === 'armor_marauder' ? FACES.knight_marauder : FACES[who.portrait];
+  const face = who.portrait === 'knight' && game.equip?.head === 'mar_scarf' ? FACES.knight_marauder : FACES[who.portrait];   // в треуголке и платке
   ui.talkFace.hidden = !face;
   if (face) {
     const src = face[line.mood] ?? face.default;
@@ -2976,20 +2985,26 @@ function updateEnterTalk() {
 }
 
 // Собран сет — части превращаются в вещь (сет мародёра → снаряжение мародёра)
+// сеты (v0.80): части надеваются по одной; надеты все — бонус и одна надпись
+const setWorn = set => set.pieces.every(id => Object.values(game.equip).includes(id));
 function checkSets() {
-  for (const set of Object.values(SETS)) {
-    if (owns(set.gives) || !set.pieces.every(id => game.bag.includes(id))) continue;
-    for (const id of set.pieces) game.bag.splice(game.bag.indexOf(id), 1);
-    game.bag.push(set.gives);
-    setTimeout(() => callout(`${set.name} собран! ${ITEMS[set.gives].name} — в сумке (I)`, 'counter'), 900);
+  for (const [key, set] of Object.entries(SETS)) {
+    const all = set.pieces.every(id => owns(id));
+    if (all && !game.flags['set_found_' + key]) { game.flags['set_found_' + key] = true; setTimeout(() => callout(`${set.name}: все части у тебя! Надень их (I)`, 'counter'), 900); }
+    if (setWorn(set) && !game.flags['set_worn_' + key]) { game.flags['set_worn_' + key] = true; setTimeout(() => callout(`${set.name} надет целиком: быстрее шаг`, 'counter'), 300); }
   }
 }
 
 // скорость ходьбы от брони (ITEMS[...].speed)
-const applyArmor = () => { game.player.speedMult = ITEMS[game.equip.armor]?.speed ?? 1; };
+const WORN = ['head', 'armor', 'feet'];
+const applyArmor = () => {
+  let k = WORN.reduce((m, s) => m * (ITEMS[game.equip[s]]?.speed ?? 1), 1);
+  for (const set of Object.values(SETS)) if (set.bonus?.speed && setWorn(set)) k *= set.bonus.speed;
+  game.player.speedMult = k;
+};
 
 // Щит — от надетой брони (ITEMS[...].shield)
-const shieldMax = () => ITEMS[game.equip.armor]?.shield ?? 0;
+const shieldMax = () => WORN.reduce((n, s) => n + (ITEMS[game.equip[s]]?.shield ?? 0), 0);
 
 // Шкалы жизни и щита (раньше — сердечки)
 function renderHearts() {

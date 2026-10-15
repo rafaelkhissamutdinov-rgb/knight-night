@@ -48,16 +48,18 @@ elif cmd == 'all':
         return names[0] + ' ok'
     with ThreadPoolExecutor(4) as ex:
         for r in ex.map(job, pairs): print(r, flush=True)
-elif cmd == 'sheet':
+elif cmd == 'sheet':   # sheet [папка кадров] [имя набора] — по умолчанию кадры f_* → knight_marauder
+    FD = os.path.join(W, sys.argv[2]) if len(sys.argv) > 2 else W
+    NAME = sys.argv[3] if len(sys.argv) > 3 else 'knight_marauder'
     out = Image.new('RGBA', sheet_img.size)
     for i, n in enumerate(ORDER):
-        p = os.path.join(W, f'f_{n}.png')
+        p = os.path.join(FD, f'f_{n}.png')
         im = Image.open(p).convert('RGBA') if os.path.exists(p) else frame(n)
         out.paste(im, ((i % COLS) * S, (i // COLS) * S))
-    D = os.path.join(ROOT, 'assets', 'sprites', 'knight_marauder'); os.makedirs(D, exist_ok=True)
-    out.save(os.path.join(D, 'knight_marauder.png'))
-    Image.open(os.path.join(SRC, 'knight_n.png')).save(os.path.join(D, 'knight_marauder_n.png'))
-    json.dump(meta, open(os.path.join(D, 'knight_marauder.json'), 'w'), ensure_ascii=False)
+    D = os.path.join(ROOT, 'assets', 'sprites', NAME); os.makedirs(D, exist_ok=True)
+    out.save(os.path.join(D, NAME + '.png'))
+    Image.open(os.path.join(SRC, 'knight_n.png')).save(os.path.join(D, NAME + '_n.png'))
+    json.dump(meta, open(os.path.join(D, NAME + '.json'), 'w'), ensure_ascii=False)
     print('ok')
 if cmd == 'head':   # владелец 15.10: в сете мародёра вместо шлема — треуголка и платок на лице (лица не видно)
     img, sz = b64img(sys.argv[2])

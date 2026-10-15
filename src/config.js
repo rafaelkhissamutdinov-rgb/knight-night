@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.79';
+export const VERSION = 'v0.80';
 
 export const CONFIG = {
   width: 320,
@@ -378,11 +378,15 @@ export const ITEMS = {
   sword_old: { name: 'Старый стальной полуторный меч', slot: 'weapon', weapon: 'sword' },
   rapier: { name: 'Рапира Илиа', slot: 'weapon', weapon: 'rapier' },
   armor_old: { name: 'Потёртые стальные доспехи', slot: 'armor', shield: 3 },
+  // голова и ноги (v0.80, владелец: сет мародёра надевается по частям)
+  helm_old: { name: 'Потёртый шлем с плюмажем', slot: 'head' },
+  boots_old: { name: 'Латные сапоги', slot: 'feet' },
   // сет мародёра (решение владельца): три части по разным комнатам → броня; быстрее, но щит слабее. speed — множитель ходьбы
   armor_marauder: { name: 'Снаряжение мародёра', slot: 'armor', shield: 1, speed: 1.15 },
-  mar_scarf: { name: 'Платок мародёра', set: 'marauder' },
-  mar_jacket: { name: 'Кожаная куртка мародёра', set: 'marauder' },
-  mar_boots: { name: 'Сапоги мародёра', set: 'marauder' },
+  // части сета мародёра — каждую можно надеть отдельно; весь сет — бонус к скорости (SETS)
+  mar_scarf: { name: 'Треуголка и платок мародёра', set: 'marauder', slot: 'head', speed: 1.03 },
+  mar_jacket: { name: 'Кожаная куртка мародёра', set: 'marauder', slot: 'armor', shield: 1, speed: 1.04 },
+  mar_boots: { name: 'Сапоги мародёра', set: 'marauder', slot: 'feet', speed: 1.03 },
   diamond_ace: { name: 'Бубновый туз', slot: 'amulet', price: 30, ward: { absorb: 4, cooldown: 10 } },
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
@@ -412,12 +416,13 @@ export const ITEMS = {
   // из Ризницы за алтарём Часовни: идеальное парирование лечит; слот амулета один — туз или чётки
   rosary: { name: 'Чётки монаха', slot: 'amulet', parryHeal: { heal: 1, cooldown: 8 } },
 };
-export const SLOTS = [['weapon', 'Оружие'], ['armor', 'Броня'], ['amulet', 'Амулет'], ['spell', 'Заклинание'], ['skill', 'Навык']];
-// Сеты: собрал все части — получаешь вещь (части уходят из сумки)
+export const SLOTS = [['weapon', 'Оружие'], ['head', 'Голова'], ['armor', 'Броня'], ['feet', 'Ноги'], ['amulet', 'Амулет'], ['spell', 'Заклинание'], ['skill', 'Навык']];
+// Сеты (v0.80): части надеваются по отдельности; надеты все — бонус (bonus.speed — множитель ходьбы, вдобавок к частям).
+// gives — прежняя цельная броня (для старых сохранений: раскладывается обратно на части)
 export const SETS = {
-  marauder: { name: 'Комплект мародёра', pieces: ['mar_scarf', 'mar_jacket', 'mar_boots'], gives: 'armor_marauder' },
+  marauder: { name: 'Комплект мародёра', pieces: ['mar_scarf', 'mar_jacket', 'mar_boots'], bonus: { speed: 1.05 }, gives: 'armor_marauder' },
 };
-export const START_EQUIP = { weapon: 'sword_old', armor: 'armor_old', amulet: null, spell: null, skill: null };
+export const START_EQUIP = { weapon: 'sword_old', head: 'helm_old', armor: 'armor_old', feet: 'boots_old', amulet: null, spell: null, skill: null };
 
 // Монеты с врагов (тренировочные — без монет)
 export const COINS = { commander: 12, axe: 3, slime: 1, skelShort: 2, skelShield: 2, skelArcher: 2, skelLong: 3, merc: 3, spear: 3, guard: 3, captain: 8, crossbow: 4, halberd: 3, ghost: 4, duelist: 10, mage: 15, boss: 25 };

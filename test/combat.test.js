@@ -685,8 +685,7 @@ test('сеты: части и награда есть в ITEMS, части ле�
   const { SETS, ITEMS, ROOMS } = await import('../src/config.js');
   const picks = Object.values(ROOMS).flatMap(r => (r.props ?? []).map(p => p.pick).filter(Boolean));
   for (const set of Object.values(SETS)) {
-    assert.ok(ITEMS[set.gives]?.slot, set.gives);
-    for (const id of set.pieces) { assert.ok(ITEMS[id], id); assert.ok(picks.includes(id), 'часть лежит в комнате: ' + id); }
+    for (const id of set.pieces) { assert.ok(ITEMS[id]?.slot, 'часть надевается: ' + id); assert.ok(picks.includes(id), 'часть лежит в комнате: ' + id); }
   }
 });
 
