@@ -22,18 +22,20 @@ MOODS = {
     'knight': {'down': 'the head is bowed down and slightly tilted, a dark shadow falls over the helmet and visor, gloomy and displeased',
                'up': 'the head is raised up proudly, light falls on the helmet, determined',
                'tilt': 'the head is tilted to one side, curious and doubtful',
-               'aside': 'the head is turned slightly away and down, embarrassed',
+               'aside': 'the whole helmet is turned slightly away to the side and down, embarrassed; the visor stays fully closed: no face, no eyes, no mouth visible, only a dark visor slit',
                'sad': 'the head is lowered softly, shoulders dropped, the helmet in soft shadow, sad',
-               'surprised': 'the head jerks back slightly, the plume swings, surprised'},
+               'surprised': 'the head jerks back and up slightly, the red plume flicks up, a small startle; the visor stays fully closed: no face, no eyes, no mouth visible, only a dark visor slit'},
 }
 if sys.argv[1:2] == ['pick']:
     who, mood, f = sys.argv[2:5]
     Image.open(os.path.join(W, f)).convert('RGBA').resize((256, 256), Image.NEAREST).save(os.path.join(POR, f'{FACE[who]}-{mood}.png')); print('ok')
     sys.exit()
+only = os.environ.get('MOODS_ONLY', '').split(',') if os.environ.get('MOODS_ONLY') else None   # только эти настроения
 for who in sys.argv[1:] or list(MOODS):
     small = os.path.join(W, who + '64.png'); Image.open(os.path.join(POR, FACE[who] + '.png')).convert('RGBA').resize((64, 64), Image.NEAREST).save(small)
     img, sz = b64img(small)
-    jobs = [(m, k) for m in MOODS[who] for k in range(2)]
+    seeds = range(2, 4) if only else range(2)   # повтор — с новыми семенами, прежние файлы не затираются
+    jobs = [(m, k) for m in MOODS[who] if not only or m in only for k in seeds]
     def job(a):
         m, k = a
         try:

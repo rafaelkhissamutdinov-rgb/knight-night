@@ -2614,9 +2614,10 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 // Нарисованные портреты владельца: у реплики можно указать mood (настроение), иначе — default.
 const FACES = {
   // Найт (v0.80): лица не видно — настроение позой головы и светом на шлеме (down — досада, тень на шлеме; up — решимость;
-  // tilt — сомнение; sad — грусть)
+  // tilt — сомнение; sad — грусть; aside — смущение; surprised — удивление)
   knight: { default: 'assets/portraits/knight.png', tired: 'assets/portraits/knight-tired.png', nohelm: 'assets/portraits/knight-nohelm.png',
-    down: 'assets/portraits/knight-down.png', up: 'assets/portraits/knight-up.png', tilt: 'assets/portraits/knight-tilt.png', sad: 'assets/portraits/knight-sad.png' },
+    down: 'assets/portraits/knight-down.png', up: 'assets/portraits/knight-up.png', tilt: 'assets/portraits/knight-tilt.png', sad: 'assets/portraits/knight-sad.png',
+    aside: 'assets/portraits/knight-aside.png', surprised: 'assets/portraits/knight-surprised.png' },   // v0.81: смущение (голова отвёрнута), удивление
   knight_marauder: { default: 'assets/portraits/knight-marauder.png' },   // в броне мародёра (v0.80); настроения — позже
   ilia: Object.fromEntries(['default', 'happy', 'surprised', 'serious', 'worried', 'sad', 'angry', 'pain', 'awkward']   // v0.80
     .map(m => [m, m === 'default' ? 'assets/portraits/ilia.png' : `assets/portraits/ilia-${m}.png`])),
