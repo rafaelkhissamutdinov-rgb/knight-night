@@ -54,7 +54,7 @@ CAP = ('the knight captain: tall and slender, half a head taller than the prince
        'a white belt, a small grey shield badge with an orange fleur-de-lis on the chest; dark armor underneath')
 PRIN = 'the princess: slender, chestnut hair in a high bun, long simple ivory gown with long sleeves, natural warm skin tone, normal human proportions'
 CANON = {'erinnerland': {
-    2: ('the princess and the knight captain walking side by side through a lush moonlit castle garden at night, a fountain, rose bushes, lit castle windows, dark blue starry sky with a full moon', 'cp'),
+    2: ('the princess and the knight captain walking side by side through a lush moonlit castle garden at night, the knight is clearly taller: the top of the princess head reaches only his chin, a fountain, rose bushes, lit castle windows, dark blue starry sky with a full moon', 'cp'),
     3: ('the knight captain shyly offering the princess a small golden heart pendant and a softly glowing rose in a moonlit castle garden at night, a hesitant distance between them, stone arches, roses', 'cp'),
     4: ('the knight captain alone on a dark castle rampart at night, looking at a single warm lit window far away across the courtyard, cold blue moonlight, loneliness', 'c'),
     5: ('a grand candlelit ballroom: the princess dancing with an elegant foreign duke in dark velvet, guests around them, and the knight captain standing alone in the shadows by a pillar, watching', 'cp'),

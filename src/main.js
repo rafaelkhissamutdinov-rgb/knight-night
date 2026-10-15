@@ -6,7 +6,7 @@ import { Player } from './player.js';
 import { resolveImpact } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, drawBonePileImg, drawSlimeImg, drawObjNamed } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -131,7 +131,7 @@ function spawnGroup(roomId, i) {
 // враги комнаты: непройденные встречи и наставница, если обучение ещё впереди
 function spawnRoom(roomId) {
   const r = ROOMS[roomId];
-  const list = (r.encounters ?? []).flatMap((_, i) => game.cleared.has(encKey(roomId, i)) ? [] : spawnGroup(roomId, i));
+  const list = (r.encounters ?? []).flatMap((enc, i) => game.cleared.has(encKey(roomId, i)) || !flagsOK(enc.needs) ? [] : spawnGroup(roomId, i));
   if (r.trainer && !game.flags.trainer_gone) list.unshift(createEnemy('trainer', r.trainer.x, Math.random, r.trainer.z));
   return list;
 }
@@ -147,6 +147,8 @@ function respawnable(enc) {
 
 const FLOOR_NAMES = { 2: 'Второй этаж', 3: 'Третий этаж' };
 function loadRoom(id, at) {
+  const left = game.room && ROOMS[game.room]?.onLeave;
+  if (left && left.if && game.flags[left.if] && left.set) game.flags[left.set] = true;
   game.climb = null;
   game.blueFireAt = null;
   game.coinFx = [];
@@ -173,7 +175,12 @@ function loadRoom(id, at) {
   game.visited.push(id);
   const r = ROOMS[id];
   game.enemies = spawnRoom(id);
-  game.npcs = (r.npcs ?? []).filter(n => !n.needs || game.flags[n.needs]).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: -1 }));
+  game.npcs = (r.npcs ?? []).filter(n => flagsOK(n.needs) && ![].concat(n.ifNot ?? []).some(f => game.flags[f])).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: -1 }));
+  // кот Фуджин (владелец): при каждом входе — в другом месте и в другой позе (spots: x, z, lift, img)
+  for (const n of game.npcs) if (n.spots) {
+    const ok = n.spots.filter(s => hasObj(s.img));
+    if (ok.length) Object.assign(n, ok[Math.floor(Math.random() * ok.length)]);
+  }
   game.arena = null;
   game.current = null;
   game.token = null;
@@ -1180,6 +1187,11 @@ function handlePress(code) {
     const look = lookNear && !(npcNear && Math.abs(npcNear.x - p.x) <= Math.abs(lookNear.x - p.x) + 4) ? lookNear : null;
     if (look) {
       // у тайника выбор в разговоре ставит флаг — тогда проход открывается
+      if (look.fill && hasItem('silver_cup') && !game.flags[look.fill]) {
+        game.flags[look.fill] = true;
+        callout('Чаша наполнена мутной водой', 'perfect'); sfx.perfect(); save();
+        return;
+      }
       startTalk(look.lights && game.flags[look.lights] && look.lookLit ? look.lookLit : look.look, look.secret ? () => {
         if (!game.flags[look.secret]) return;
         sfx.door();
@@ -1275,7 +1287,7 @@ function updateArena() {
   const encs = room().encounters ?? [];
   if (!game.arena) {
     if (game.tutorial) return;
-    const i = encs.findIndex((enc, i) => !game.cleared.has(encKey(game.room, i)) && p.x > enc.x - 140 && p.x < enc.x + 150);
+    const i = encs.findIndex((enc, i) => !game.cleared.has(encKey(game.room, i)) && flagsOK(enc.needs) && p.x > enc.x - 140 && p.x < enc.x + 150);
     if (i < 0) return;
     game.arena = { index: i, x: encs[i].x, key: encKey(game.room, i) };
     game.checkpoint = Math.max(40, encs[i].x - 140);
@@ -1428,7 +1440,7 @@ function nearChest() {
 function nearLook() {
   const p = game.player;
   const r = room();
-  return [...(r.decor ?? []), ...(r.props ?? [])].find(d => d.look && !(d.secret && game.flags[d.secret]) && Math.abs(d.x - p.x) < 20 && (d.z === undefined ? p.z < 14 : Math.abs(d.z - p.z) < 12)) ?? null;
+  return [...(r.decor ?? []), ...(r.props ?? [])].find(d => d.look && propOn(d) && !(d.secret && game.flags[d.secret]) && Math.abs(d.x - p.x) < 20 && (d.z === undefined ? p.z < 14 : Math.abs(d.z - p.z) < 12)) ?? null;
 }
 // удар у замурованного прохода: три удара — стена рушится
 function hitWall(atk) {
@@ -1472,11 +1484,36 @@ function nearAltar() {
   const p = game.player;
   return (room().props ?? []).find(pr => pr.altar && Math.abs(pr.x - p.x) < 20 && Math.abs(pr.z - p.z) < 12) ?? null;
 }
+// чаша стоит на алтаре (старые сохранения: поставлена — значит стоит)
+const cupOnAltar = () => game.flags.cup_on_altar ?? !!game.flags.cup_placed;
+const canSanctify = () => hasItem('silver_cup') && game.flags.cup_water && hasItem('sun_medallion') && !game.flags.cup_holy;
 function useAltar(pr) {
-  if (game.flags[pr.altar]) { startTalk('look_altar_done'); return; }
+  if (canSanctify()) {
+    // освящение (лор владельца): вода в старой чаше, медальон Солнца — в воду; освящает не священник, но свет отвечает
+    game.bag.splice(game.bag.indexOf('sun_medallion'), 1);
+    game.flags.cup_holy = true;
+    game.flags[pr.altar] = true;
+    sparks(pr.x, groundY(pr.z) - 20, 40, ['#ffe080', '#ffffff', '#fff4c2'], 140);
+    flash('#fff4c2', 0.7);
+    sfx.portal();
+    shake(2);
+    callout('Свет ответил. Вода в чаше освящена', 'perfect');
+    save();
+    startTalk('altar_sanctify');
+    return;
+  }
+  if (game.flags[pr.altar] && cupOnAltar()) {
+    game.bag.push('silver_cup');
+    game.flags.cup_on_altar = false;
+    callout('Чаша снова у тебя', 'perfect');
+    save();
+    return;
+  }
+  if (game.flags[pr.altar]) { startTalk(hasItem('silver_cup') && game.flags.cup_water && !hasItem('sun_medallion') ? 'altar_need_sun' : 'look_altar_done'); return; }
   if (!hasItem('silver_cup')) { startTalk('look_altar'); return; }
   game.bag.splice(game.bag.indexOf('silver_cup'), 1);
   game.flags[pr.altar] = true;
+  game.flags.cup_on_altar = true;
   sparks(pr.x, groundY(pr.z) - 20, 18, ['#ffe080', '#ffffff', '#8fd3ff'], 90);
   flash('#fff4c2', 0.4);
   sfx.portal();
@@ -1827,7 +1864,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
   }
   updateToken();
   pickTarget();
@@ -2516,7 +2553,8 @@ function applyLineItems(line) {
 
 // after — что сделать, когда разговор закончится (или сразу, если диалоги выключены)
 // предмет в комнате появляется после события (needs — флаг), например страница дневника после боя
-const propOn = pr => !pr.needs || !!game.flags[pr.needs];
+const flagsOK = need => [].concat(need ?? []).every(f => game.flags[f]);
+const propOn = pr => flagsOK(pr.needs) && ![].concat(pr.unless ?? []).some(f => game.flags[f]);   // unless — исчезает после флага
 // страница дневника капитана (v0.78): текст — в ITEM_TEXTS (пишет владелец), читается рассказчиком
 function readPage(id) {
   DIALOGUES['read_' + id] = [{ who: 'narrator', text: ITEM_TEXTS[id] ?? '' }];
@@ -3050,8 +3088,19 @@ function render() {
   const things = [...actors, ...(r.props ?? []).filter(pr => propOn(pr) && !(pr.pick && pr.type === 'letter' && game.flags[chestFlag(pr)])).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => (a.prop?.flat ? -999 : a.z) - (b.prop?.flat ? -999 : b.z));   // ковёр (flat) — под всеми
   for (const a of things) {
+    if (a.prop?.type === 'puddle') {
+      // лужа под капелью: тёмное пятно, блик, круги от капель; капля падает с потолка
+      const px = Math.round(a.x - cam), py = Math.round(groundY(a.z));
+      for (let i = -3; i <= 3; i++) { const w = 12 - Math.abs(i) * 2.5; rect(g, px - w, py + i * 0.6, w * 2, 1, '#141a26'); }
+      rect(g, px - 6, py - 1, 5, 1, '#3a4a5e');
+      const ph = (game.time * 0.8 + a.x * 0.01) % 1, rr = Math.round(2 + ph * 7);
+      if (ph < 0.8) { g.globalAlpha = 0.6 * (1 - ph); rect(g, px - rr, py, rr * 2, 1, '#6f87a3'); g.globalAlpha = 1; }
+      const dy = ((game.time * 0.8 + a.x * 0.01 + 0.85) % 1) * 1.25;
+      if (dy < 1 && a.prop.fill) rect(g, px, Math.round(CONFIG.floorTop - 70 + dy * (py - CONFIG.floorTop + 70)), 1, 2, '#8fb0cc');
+      continue;
+    }
     if (a.prop?.lights && !game.flags[a.prop.lights] && drawObjNamed(g, 'prop_candles_out', a.x - cam, groundY(a.z) + 1 - (a.prop.lift ?? 0))) continue;   // потухшая свеча
-    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z) - (a.prop.lift ?? 0), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time, a.x);
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z) - (a.prop.lift ?? 0), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? (!!game.flags[a.prop.altar] && cupOnAltar()) : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) renderPlayer(cam);
     else if (a.npc) renderNpc(a, cam);
     else renderEnemy(a, cam);
@@ -3762,10 +3811,18 @@ function renderNpc(n, cam) {
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
   const gy = groundY(n.z) + 1 - (n.lift ?? 0);   // lift — сидит на столе (кот)
+  if (n.def.ghost) {
+    // душа с сожалением (v0.79): полупрозрачная, чуть парит и мерцает
+    g.save();
+    g.globalAlpha = 0.68 + 0.12 * Math.sin(game.time * 2.3 + n.x);
+    const ok = drawObjNamed(g, n.def.img, x, gy - 2 - Math.round(1.5 + 1.5 * Math.sin(game.time * 1.6)), n.facing > 0);
+    g.restore();
+    if (ok) return;
+  }
   if (n.def.sitImgs) {
     // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой
     const near = Math.abs(game.player.x - n.x) < 50;
-    if (n.def.cat && game.flags.fujin_fed && drawObjNamed(g, 'cat_sleep', x, gy, n.facing > 0)) return;   // сытый кот спит клубком на столе
+    if (n.def.cat && n.img && n.img !== 'cat_sit' && drawObjNamed(g, n.img, x, gy, n.flip ? n.facing < 0 : n.facing > 0)) return;   // другая поза (flip — картинка смотрит вправо)
     const name = n.def.cat ? ((game.time + n.x) % 4.3 < 0.16 ? 'cat_sit_1' : 'cat_sit')   // кот моргает
       : near ? n.def.sitImgs.wave : n.def.sitImgs.idle[Math.floor(game.time / 3.2) % n.def.sitImgs.idle.length];
     if (drawObjNamed(g, name, x, gy, n.def.cat ? n.facing > 0 : n.facing < 0)) return;   // кот на картинке смотрит влево
@@ -3898,6 +3955,7 @@ function sceneLights() {
   const blueFire = bossFire();
   const flare = fireFlare();
   for (const x of r.torches ?? []) if (!torchUnderStairs(r, x)) add(x, 69, 150 * (1 + flare * 0.35), blueFire ? [0.45, 0.7, 1] : WARM, ((blueFire ? 1.05 : 0.85) + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3)) * (1 + flare * 0.9));
+  for (const n of game.npcs ?? []) if (n.def?.ghost) add(n.x, groundY(n.z) - 14, 90, [0.55, 0.8, 1], 0.7 + 0.1 * Math.sin(t * 2.3 + n.x), 16);   // душа светится
   for (const pr of r.props ?? []) {
     if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
     else if (pr.type === 'candles' && !pr.lights) add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);

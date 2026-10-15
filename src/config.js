@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.78';
+export const VERSION = 'v0.79';
 
 export const CONFIG = {
   width: 320,
@@ -326,6 +326,25 @@ export const NPC_TYPES = {
     name: 'Илиа', face: 'ilia', talk: 'ilia_camp_again', human: true, robe: true, sit: true, sprite: 'duelist',
     colors: { armor: '#d9c7a3', armorDark: '#b39f7c', tabard: '#efe4cc', belt: '#6b4a32', helm: '#e2b896', visor: '#1b1b22', hair: '#15151c', hairLight: '#2a2a34', boots: '#4a3626', blade: '#c9d2dc', hilt: '#8a6a3a' },
   },
+  // душа служанки принцессы (v0.79): у засохшего букета на лестнице башни; письмо → страница дневника IV
+  maid: {
+    talks: [
+      { id: 'maid_after', if: 'maid_done' },
+      { id: 'maid_give', if: 'maid_asked', has: ['old_letter'] },
+      { id: 'maid_wait', if: 'maid_asked' },
+    ],
+    name: 'Призрак служанки', talk: 'maid_meet', ghost: true, img: 'maid_ghost',
+  },
+  // призрак священника (v0.79, лор владельца): одержим праведностью; чаша, из которой он ни разу не пил
+  priest: {
+    talks: [
+      { id: 'priest_silent', if: 'priest_done' },
+      { id: 'priest_cup', if: 'cup_holy', has: ['silver_cup'] },
+      { id: 'priest_cup_unholy', if: 'priest_met', has: ['silver_cup'] },
+      { id: 'priest_again', if: 'priest_met' },
+    ],
+    name: 'Призрак священника', talk: 'priest_meet', ghost: true, img: 'priest_kneel', verb: 'говорить',
+  },
   // кот Фуджин (v0.78, владелец): живой чёрный кот с жёлтыми глазами, сидит на столе в Старой библиотеке; «говорит» ремарками
   fujin: {
     talks: [
@@ -368,7 +387,9 @@ export const ITEMS = {
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
   bandage: { name: 'Бинт', price: 4, use: { heal: 1 } },
-  dried_fish: { name: 'Вяленая рыбка', price: 3, quest: true },   // для кота Фуджина (v0.78)
+  dried_fish: { name: 'Вяленая рыбка', price: 3, quest: true },
+  old_letter: { name: 'Письмо с сорванной печатью', quest: true },   // для служанки (v0.79)
+  sun_medallion_pure: { name: 'Очищенный медальон Солнца', quest: true },   // исход Пилигрима в задании священника   // для кота Фуджина (v0.78)
   resin_flower: { name: 'Цветок в смоле', quest: true },
   // квест Алкимы (v0.78, лор владельца): лоскут ткани памяти — у мародёров Северного крыла; награда — медальон Солнца и страница дневника
   old_fabric: { name: 'Лоскут старинной ткани', quest: true },
@@ -421,7 +442,7 @@ export const NORMAL = { perfectWindow: CONFIG.perfectWindow, windupMult: CONFIG.
 export const MAP = {
   cell: [1, 2, 14, 3], hall: [1, 5, 14, 19], secret: [1, 16.2, 17, 2.6],
   gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], balcony: [1, 44.5, 9, 3.2],
-  shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4], catlib: [1, 21.4, 11, 2.6],
+  shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4], priestcell: [1, 15.5, 11, 2.6], catlib: [1, 21.4, 11, 2.6],
   landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8], wardrobe: [3, 10, 5, 2.8],
   landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
   camp: [2, 12.6, 11, 2.6], library: [2, 12.6, 5, 4.2], reading: [2, 14.4, 2, 2.4], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
@@ -446,13 +467,15 @@ export const ROOMS = {
     doors: [
       { id: 'cellA', x: 470, kind: 'bars', locked: 'Пустая камера' },
       { id: 'cellB', x: 870, kind: 'bars', locked: 'Пустая камера', bones: true },
-      { id: 'cellC', x: 1560, kind: 'bars', locked: 'Пустая камера' },
+      { id: 'cellC', x: 1560, kind: 'bars', to: 'priestcell', toDoor: 'out', name: 'Келья' },   // v0.79: здесь заперся священник
       { id: 'secret', x: 1460, kind: 'none', needs: 'secret_hall', to: 'secret', toDoor: 'out', name: 'Тайник' },
       // по лестнице в конце Темницы — к двери наверху, за ней Старая библиотека с котом Фуджином (владелец, v0.78)
       { id: 'lib', x: 2306, kind: 'none', stairs: true, climb: true, to: 'catlib', toDoor: 'out', name: 'Старая библиотека' },
     ],
     trainer: { x: 300, z: 22 },
-    props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 }],
+    props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 },
+      // капель с потолка: вода для чаши священника (нечистая, но добытая стараньем — лор владельца)
+      { type: 'puddle', x: 1640, z: 6, flat: true, fill: 'cup_water', look: 'look_puddle', name: 'лужа под капелью' }],
     decor: [
       { type: 'note', x: 1500, y: 70, look: 'look_prisoner', name: 'надпись на стене' },
       { type: 'chains', x: 700, y: 46 }, { type: 'chains', x: 1150, y: 46 }, { type: 'chains', x: 1680, y: 46 },
@@ -473,7 +496,13 @@ export const ROOMS = {
   catlib: {
     name: 'Старая библиотека', tiles: 'castle', length: 420, columns: false, torches: [], dark: true, cobwebs: true,
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'lib', name: 'Темница' }],
-    npcs: [{ type: 'fujin', x: 258, z: 12.5, lift: 15 }],
+    // места и позы кота: выбирается случайно при входе (lift — высота стола / стопки / стула)
+    npcs: [{ type: 'fujin', x: 258, z: 12.5, lift: 15, spots: [   // все — в круге света свечи: чёрного кота в темноте не видно
+      { x: 258, z: 12.5, lift: 15, img: 'cat_sit' }, { x: 256, z: 12.5, lift: 15, img: 'cat_sleep' },
+      { x: 277, z: 14.5, lift: 6, img: 'cat_groom' }, { x: 302, z: 20.5, lift: 9, img: 'cat_lounge' },
+      { x: 222, z: 20, lift: 0, img: 'cat_side' }, { x: 296, z: 8, lift: 0, img: 'cat_stretch' },
+      { x: 200, z: 12, lift: 0, img: 'cat_loaf' }, { x: 214, z: 6, lift: 0, img: 'cat_stand' },
+    ] }],
     decor: [
       { type: 'bookshelf', x: 110 }, { type: 'bookshelf', x: 160, gap: 2 }, { type: 'ladder', x: 178 },
       { type: 'bookshelf', x: 330, gap: 1 }, { type: 'bookshelf', x: 380, look: 'look_libbooks', name: 'стеллаж с хрониками' },
@@ -481,10 +510,27 @@ export const ROOMS = {
     ],
     props: [
       { type: 'desk', x: 252, z: 12 }, { type: 'chair', x: 276, z: 14, flip: true },
-      { type: 'table', x: 150, z: 26 }, { type: 'bookpile', x: 128, z: 28 },
+      { type: 'table', x: 150, z: 26 }, { type: 'bookpile', x: 128, z: 28 }, { type: 'bookpile', x: 302, z: 20 },
       { type: 'candles', x: 244, z: 12.6, lift: 15, lights: 'lib_candle', look: 'look_candle', lookLit: 'look_candle_lit', name: 'свеча (зажечь)' },
       { type: 'papers', x: 200, z: 6, flat: true, look: 'look_libnote', name: 'записки на полу' }, { type: 'papers', x: 312, z: 30, flat: true },
       { type: 'bookpile', x: 360, z: 4 },
+    ],
+  },
+  // келья священника за решёткой в Темнице (v0.79): он запер себя сам. Исходы задания — по флагам при следующем входе
+  priestcell: {
+    name: 'Келья', length: 320, columns: false, tiles: 'dungeon', tileCount: 3, torches: [], cobwebs: true, dark: true,
+    doors: [{ id: 'out', x: 56, kind: 'bars', to: 'hall', toDoor: 'cellC', name: 'Темница' }],
+    onLeave: { if: 'priest_done', set: 'priest_left' },
+    npcs: [{ type: 'priest', x: 220, z: 10, ifNot: 'priest_left' }],
+    decor: [{ type: 'tally', x: 140, y: 44, n: 52 }, { type: 'chains', x: 270, y: 46 }],
+    props: [
+      { type: 'candles', x: 196, z: 4 },
+      { type: 'bedroll', x: 120, z: 6 },
+      { type: 'loot', id: 'sunpure', x: 220, z: 10, pick: 'sun_medallion_pure', needs: ['priest_pilgrim', 'priest_left'] },
+      { type: 'puddle', x: 220, z: 10, flat: true, needs: ['priest_monarch', 'priest_left'], look: 'look_stain', name: 'мокрое пятно' },
+    ],
+    encounters: [
+      { x: 200, story: 'priest_wrath', before: 'priest_wrath', needs: ['priest_ghostpath', 'priest_left'], enemies: [{ type: 'ghost', dx: 40, z: 10 }] },
     ],
   },
   // тайник за замурованной стеной Темницы: кто-то спрятался здесь со всем, что успел вынести
@@ -621,7 +667,8 @@ export const ROOMS = {
     props: [
       { type: 'table', x: 300, z: 16 }, { type: 'chair', x: 252, z: 10 }, { type: 'chair', x: 348, z: 24, flip: true },
       { type: 'cup', id: 'cup', x: 318, z: 17, pick: 'silver_cup' },
-      { type: 'letter', x: 280, z: 15, look: 'look_letter', name: 'письмо' },
+      { type: 'letter', x: 280, z: 15, look: 'look_letter', name: 'письмо', unless: 'maid_asked' },
+      { type: 'letter', id: 'maidletter', x: 280, z: 15, pick: 'old_letter', needs: 'maid_asked' },   // служанка просила — письмо можно взять
       { type: 'barrel', x: 452, z: 3 },
     ],
     decor: [
@@ -693,7 +740,8 @@ export const ROOMS = {
     ],
     props: [
       { type: 'campfire', x: 210, z: 20, light: true, look: 'look_campfire', name: 'костёр', rest: { seat: 0, name: 'у костра', z: 20, dx: -30, face: 1 } },
-      { type: 'bedroll', x: 268, z: 34, look: 'look_bedroll', name: 'лежанка' }, { type: 'sack', x: 300, z: 6 }, { type: 'pot', x: 232, z: 8 },
+      { type: 'tripod', x: 210, z: 20.5 },   // походный привал Илиа (v0.79): котелок на треноге над огнём, рюкзак у лежанки
+      { type: 'bedroll', x: 268, z: 34, look: 'look_bedroll', name: 'лежанка' }, { type: 'pack', x: 292, z: 33 }, { type: 'sack', x: 300, z: 6 }, { type: 'pot', x: 232, z: 8 },
     ],
     npcs: [{ type: 'ilia', x: 242, z: 22, needs: 'done_ilia' }],
   },
@@ -837,6 +885,7 @@ export const ROOMS = {
       { type: 'doorglow', x: 268, y: 75 },   // свет из-под двери на площадке лестницы { type: 'chains', x: 110, y: 44 },
     ],
     // последний отдых перед боссом — сохраниться у двери покоев
+    npcs: [{ type: 'maid', x: 168, z: 12, ifNot: 'maid_done' }],
     props: [{ type: 'bench', x: 118, z: 2, rest: { seat: 4, name: 'на каменной скамье', face: 1 } }, { type: 'bouquet', x: 160, z: 4, look: 'look_bouquet', name: 'засохший букет' }],   // не на ступенях
     doors: [
       { id: 'out', x: 52, kind: 'iron', to: 'gallery', toDoor: 'tower', name: 'Галерея' },

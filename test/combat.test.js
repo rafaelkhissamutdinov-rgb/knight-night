@@ -640,7 +640,7 @@ test('сюжетные бои помечены story и не повторяют�
     if (enc.enemies.some(e => ['duelist', 'captain', 'commander', 'boss'].includes(e.type))) assert.ok(enc.story, `нет story у встречи с ${enc.enemies.map(e => e.type)}`);
     if (enc.story) story.push(enc.story);
   }
-  assert.deepEqual(story.sort(), ['ataman', 'boss', 'commander', 'ilia', 'keyguard']);
+  assert.deepEqual(story.sort(), ['ataman', 'boss', 'commander', 'ilia', 'keyguard', 'priest_wrath']);   // priest_wrath — злой призрак священника (путь Призрака)
 });
 
 test('предметы: свитки учат навыки, у навыков есть удар нужного оружия, у всех вещей есть описание', async () => {

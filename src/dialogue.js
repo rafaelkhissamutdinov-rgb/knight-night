@@ -37,14 +37,14 @@ export class DialogueRunner {
       return null;
     }
     const line = this.lines[this.i];
-    if (line.set) this.flags[line.set] = true;
+    for (const f of [].concat(line.set ?? [])) this.flags[f] = true;   // set — флаг или список
     return line;
   }
 
   choose(k) {
     const choice = this.current?.choices?.[k];
     if (!choice) return this.current;
-    if (choice.set) this.flags[choice.set] = true;
+    for (const f of [].concat(choice.set ?? [])) this.flags[f] = true;
     if (choice.goto) return this.start(choice.goto);
     return this.advance();
   }
