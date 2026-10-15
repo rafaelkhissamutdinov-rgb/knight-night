@@ -9,8 +9,8 @@ export const SPEAKERS = {
   trainer: { name: 'Алкима', portrait: 'trainer' },
   lika: { name: 'Лика', portrait: 'lika' },
   boss: { name: 'Глава стражи', portrait: 'boss' },
-  priest: { name: 'Призрак священника' },
-  maid: { name: 'Служанка' },
+  priest: { name: 'Призрак священника', portrait: 'priest' },
+  maid: { name: 'Служанка', portrait: 'maid' },
 };
 
 export const DIALOGUES = {
@@ -134,7 +134,7 @@ export const DIALOGUES = {
     { who: 'knight', text: '[черновик] Пустой доспех. Ржавый — даже мародёры побрезговали.' },
   ],
   look_fire: [
-    { who: 'knight', text: '[черновик] В камине горит огонь. Кто-то его разжёг — и недавно.' },
+    { who: 'knight', text: '[черновик] В камине горит огонь. Кто-то его разжёг — и недавно.', mood: 'surprised' },
   ],
   look_tapestry: [
     { who: 'knight', text: '[черновик] Гобелен: замок на горе, внизу деревня. Похоже, этот самый замок.' },
@@ -295,7 +295,7 @@ export const DIALOGUES = {
     { who: 'narrator', text: '[черновик] Фуджин выразительно посмотрел на тебя. Потом — на пустую миску. Потом снова на тебя.' },
   ],
   fujin_feed: [
-    { who: 'knight', text: '[черновик] Держи, Фуджин. Только не говори Лике, что я её отдал.' },
+    { who: 'knight', text: '[черновик] Держи, Фуджин. Только не говори Лике, что я её отдал.', mood: 'aside' },
     { who: 'narrator', text: '[черновик] Кот обнюхал рыбку, утвердительно кивнул и утащил её под стол.', take: 'dried_fish' },
     { who: 'narrator', text: '[черновик] Через мгновение он вспрыгнул обратно и положил перед тобой сложенный пожелтевший листок. Сел. Ждёт похвалы.', give: 'diary_2', set: 'fujin_fed' },
   ],
