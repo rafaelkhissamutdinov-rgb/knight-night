@@ -13,7 +13,7 @@ import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
 import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
-import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS } from './story/dialogues.js';
+import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogues.js';
 import { splitDamage } from './combat.js';
 import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim } from './sprites.js';
 import { createLighting } from './lighting.js';
@@ -138,6 +138,7 @@ function spawnRoom(roomId) {
 
 // Перейти в комнату: враги, персонажи, камера. at — { x, z, facing } прибытия.
 // Обычные встречи (не боссы и не встречи с диалогом) возвращаются, если долго не заходил: монеты не кончаются.
+const MARAUDERS = new Set(['merc', 'axe', 'spear', 'crossbow', 'captain']);
 const BOSSES = new Set(['duelist', 'captain', 'commander', 'mage']);
 // сюжетные бои (story — имя) не возвращаются никогда: победа помнится флагом done_<имя>, а не номером встречи
 function respawnable(enc) {
@@ -1062,6 +1063,7 @@ function recordGuard(height) {
 
 
 function handlePress(code) {
+  if (game.storyView) { storyPress(code); return; }
   if (game.mode === 'shop') { shopPress(code); return; }
   if (game.mode === 'map') { mapPress(code); return; }
   if (game.mode === 'equip') { equipPress(code); return; }
@@ -1876,7 +1878,13 @@ function update(dt) {
   for (const e of game.enemies) {
     if ((e.state === 'dead' && e.t > 2) || e.state === 'gone') continue;
     e.update(dt, world);
-    if (!e.alive && !e.paid && e.state !== 'leave' && COINS[e.type]) payCoins(e);
+    if (!e.alive && !e.paid && e.state !== 'leave' && COINS[e.type]) {
+      payCoins(e);
+      // задание Алкимы (v0.78): обрывок старинной ткани — у мародёра там, где их больше всего (Северное крыло)
+      if (game.room === 'hall3' && MARAUDERS.has(e.type) && game.flags.alkima_quest && !owns('old_fabric') && !game.flags.alkima_done) {
+        game.bag.push('old_fabric'); callout('Найдено: обрывок старинной ткани', 'perfect'); sfx.perfect(); save();
+      }
+    }
     if (e.state === 'rise' && !e.roseFx) {
       // кости зашевелились и собираются
       e.roseFx = true;
@@ -2450,6 +2458,7 @@ function step(dt) {
   if (game.mode === 'talk') {
     for (const code of input.take()) handlePress(code);
     tickTalk(dt);
+    tickStory(dt);
     return;
   }
   if (game.hitstop > 0) { game.hitstop -= dt; return; }
@@ -2530,6 +2539,12 @@ function showLine() {
     return;
   }
   applyLineItems(line);
+  if (line.story) {
+    // режим рассказа: полноэкранные картины с текстом, потом разговор продолжается
+    ui.talk.hidden = true;
+    openStory(line.story, () => { game.talk.advance(); showLine(); });
+    return;
+  }
   const who = SPEAKERS[line.who] ?? SPEAKERS.narrator;
   ui.talk.hidden = false;
   ui.talkName.textContent = who.name;
@@ -2594,6 +2609,9 @@ function chooseTalk(i) {
   const line = game.talk?.current;
   if (!line?.choices?.[i]) return;
   if (performance.now() - (game.lineAt ?? 0) < TALK_GUARD) return;
+  // путь (v0.78, лор владельца): pilgrim — солнце, ghost — Уроборос, monarch — корона, egoist — закрытый глаз; копится тихо
+  const path = line.choices[i].path;
+  if (path) game.flags['path_' + path] = (game.flags['path_' + path] ?? 0) + 1;
   game.talk.choose(i);
   showLine();
 }
@@ -2608,6 +2626,55 @@ function skipTalk() {
 }
 ui.talkSkip.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); skipTalk(); });
 ui.shopClose.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (game.shop) closeShop(); });
+
+// ---------- режим рассказа (v0.78) ----------
+// Сюжетная вставка: картина во весь экран, текст снизу печатается; ЛКМ / Enter — дальше, Esc — пропустить.
+function openStory(id, after) {
+  const pages = STORIES[id];
+  if (!pages?.length) { after?.(); return; }
+  let el = ui.story;
+  if (!el) {
+    el = ui.story = document.createElement('div');
+    el.className = 'storymode';
+    el.innerHTML = '<img class="story-img" alt=""><div class="story-band"><p class="story-text"></p><div class="story-keys">ЛКМ или Enter — дальше · Esc — пропустить</div></div>';
+    el.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); storyPress('Enter'); });
+    const im = el.querySelector('.story-img'); im.onerror = () => { im.style.visibility = 'hidden'; }; im.onload = () => { im.style.visibility = ''; };
+    ui.box.appendChild(el);
+  }
+  game.storyView = { pages, i: -1, after, shown: 0 };
+  el.hidden = false;
+  storyNext();
+}
+function storyNext() {
+  const v = game.storyView;
+  v.i++;
+  if (v.i >= v.pages.length) { closeStory(); return; }
+  const pg = v.pages[v.i], img = ui.story.querySelector('.story-img');
+  if (pg.img && !img.src.endsWith(pg.img)) { img.classList.remove('in'); img.src = pg.img; void img.offsetWidth; img.classList.add('in'); }
+  v.shown = 0;
+  ui.story.querySelector('.story-text').textContent = '';
+}
+function storyPress(code) {
+  const v = game.storyView;
+  if (!v) return;
+  if (code === 'Escape') { closeStory(); return; }
+  if (code !== 'Enter' && code !== 'Space' && code !== 'KeyE' && !is(code, 'attack')) return;
+  const text = v.pages[v.i].text;
+  if (v.shown < text.length) { v.shown = text.length; ui.story.querySelector('.story-text').textContent = text; }
+  else storyNext();
+}
+function tickStory(dt) {
+  const v = game.storyView;
+  if (!v || v.i < 0 || v.i >= v.pages.length) return;
+  const text = v.pages[v.i].text;
+  if (v.shown < text.length) { v.shown = Math.min(text.length, v.shown + dt * 38); ui.story.querySelector('.story-text').textContent = text.slice(0, Math.floor(v.shown)); }
+}
+function closeStory() {
+  const v = game.storyView;
+  game.storyView = null;
+  if (ui.story) ui.story.hidden = true;
+  v?.after?.();
+}
 
 // ---------- лавка ----------
 // Как в Undertale: продавец, его реплика и меню «Купить / Поговорить / Уйти».

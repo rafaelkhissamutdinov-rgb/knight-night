@@ -326,6 +326,15 @@ export const NPC_TYPES = {
     name: 'Илиа', face: 'ilia', talk: 'ilia_camp_again', human: true, robe: true, sit: true, sprite: 'duelist',
     colors: { armor: '#d9c7a3', armorDark: '#b39f7c', tabard: '#efe4cc', belt: '#6b4a32', helm: '#e2b896', visor: '#1b1b22', hair: '#15151c', hairLight: '#2a2a34', boots: '#4a3626', blade: '#c9d2dc', hilt: '#8a6a3a' },
   },
+  // Алкима после обучения (v0.78): ищет ткани в гардеробной на третьем этаже (лор владельца, docs/quests/alkima.md)
+  alkima: {
+    talks: [
+      { id: 'alkima_after', if: 'alkima_done' },
+      { id: 'alkima_found', if: 'alkima_quest', has: ['old_fabric'] },
+    ],
+    name: 'Алкима', face: 'trainer', talk: 'alkima_topics', human: true, robe: true, sprite: 'trainer',
+    colors: ENEMY_TYPES.trainer.colors,
+  },
   lika: {
     name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika',
     sitImgs: { idle: ['lika_sit', 'lika_sit_1'], wave: 'lika_wave' },   // сидит на бочке у прилавка (v0.67)
@@ -349,7 +358,15 @@ export const ITEMS = {
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
   bandage: { name: 'Бинт', price: 4, use: { heal: 1 } },
-  resin_flower: { name: 'Цветок в смоле', quest: true },   // от Илиа; сила, застывшая в нём, починит портал (лор владельца)
+  resin_flower: { name: 'Цветок в смоле', quest: true },
+  // квест Алкимы (v0.78, лор владельца): лоскут ткани памяти — у мародёров Северного крыла; награда — медальон Солнца и страница дневника
+  old_fabric: { name: 'Лоскут старинной ткани', quest: true },
+  sun_medallion: { name: 'Медальон Солнца', quest: true },
+  // обрывки дневника капитана (лор владельца: 1 — балкон, 2 — библиотека, 3 — Алкима, 4 — служанка)
+  diary_1: { name: 'Страница дневника I', diary: 1 },
+  diary_2: { name: 'Страница дневника II', diary: 2 },
+  diary_3: { name: 'Страница дневника III', diary: 3 },
+  diary_4: { name: 'Страница дневника IV', diary: 4 },   // от Илиа; сила, застывшая в нём, починит портал (лор владельца)
   map: { name: 'Карта замка', price: 25, once: true },
   key_tower: { name: 'Ключ от башни', key: true },
   spell_bolt: { name: 'Магическая стрела', slot: 'spell' },
@@ -394,7 +411,7 @@ export const MAP = {
   cell: [1, 2, 14, 3], hall: [1, 5, 14, 19], secret: [1, 16.2, 17, 2.6],
   gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], balcony: [1, 44.5, 9, 3.2],
   shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4],
-  landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8],
+  landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8], wardrobe: [3, 10, 5, 2.8],
   landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
   camp: [2, 12.6, 11, 2.6], library: [2, 12.6, 5, 4.2], reading: [2, 14.4, 2, 2.4], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
 };
@@ -728,6 +745,7 @@ export const ROOMS = {
     edges: { left: { to: 'landing3', x: 330, name: 'Верхний этаж' } },
     doors: [
       { id: 'guardhall', x: 420, kind: 'wood', to: 'guardhall', toDoor: 'out', name: 'Зал стражи' },
+      { id: 'wardrobe', x: 205, kind: 'wood', to: 'wardrobe', toDoor: 'out', name: 'Гардеробная' },
       { id: 'pit', x: 780, kind: 'none', to: 'gallery', toDoor: 'tower', oneWay: true, fall: true, name: 'спрыгнуть в пролом (вниз, к башне)' },
       { id: 'rubble', x: 1240, kind: 'none', name: 'Лестница наверх', locked: 'Лестница наверх завалена — не пройти' },
     ],
@@ -742,6 +760,18 @@ export const ROOMS = {
       { x: 600, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'merc', dx: 90, z: 30 }, { type: 'crossbow', dx: 180, z: 8 }] },
       { x: 1000, enemies: [{ type: 'skelLong', dx: 60, z: 22 }, { type: 'ghost', dx: 110, z: 34 }] },
     ],
+  },
+  // гардеробная принцесс (v0.78): здесь Алкима ищет ткани (лор владельца); выцветшие платья, манекены, рулоны ткани
+  wardrobe: {
+    name: 'Гардеробная', tiles: 'castle', floor: 3, length: 360, columns: false, torches: [130, 290], cobwebs: true,
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall3', toDoor: 'wardrobe', name: 'Северное крыло' }],
+    enterTalk: { id: 'alkima_meet', needs: 'trainer_gone' },
+    npcs: [{ type: 'alkima', x: 236, z: 16 }],
+    decor: [
+      { type: 'wardrobe', x: 110 }, { type: 'mannequin', x: 176 }, { type: 'mannequin', x: 318 },
+      { type: 'window', x: 260, w: 24, h: 40, y: 22, moon: true }, { type: 'tapestry', x: 200, y: 16 },
+    ],
+    props: [{ type: 'fabric', x: 280, z: 4 }, { type: 'chest', id: 'w', x: 330, z: 3, coins: 15 }, { type: 'rug', x: 220, z: 12 }],
   },
   // зал стражи: тяжёлый бой, за ним — сундук с ключом от башни (решение владельца: ключ — на третьем этаже)
   guardhall: {

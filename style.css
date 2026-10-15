@@ -286,3 +286,16 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 .item-name { display: inline-flex; align-items: center; gap: 0.8cqw; }
 .item-icon { width: 3.6cqw; height: 3.6cqw; image-rendering: pixelated; flex: none; margin: -0.6cqw 0; }
 .shop-menu.dense .item-icon { width: 3cqw; height: 3cqw; }
+
+/* режим рассказа (v0.78): картина на весь экран, сменяется под строчки; текст — полосой внизу */
+.storymode { position: absolute; inset: 0; z-index: 30; background: #07060b; cursor: pointer; }
+.storymode[hidden] { display: none; }
+.story-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; opacity: 0; }
+.story-img.in { animation: story-in 1.4s ease-out forwards; }
+@keyframes story-in { from { opacity: 0; } to { opacity: 1; } }
+.story-band {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 7cqw 8cqw 2.2cqw;
+  background: linear-gradient(to bottom, rgba(7, 6, 11, 0), rgba(7, 6, 11, 0.86) 38%, rgba(7, 6, 11, 0.95));
+}
+.story-text { margin: 0; font-size: 2.4cqw; line-height: 1.5; color: var(--fg); min-height: 7.2cqw; text-shadow: 0 0.25cqw 0 #000; }
+.story-keys { margin-top: 1cqw; font-family: var(--pixel); font-size: 1.5cqw; color: var(--dim, #8a8296); text-align: right; opacity: 0.8; }

@@ -1,5 +1,5 @@
 // Диалоги: идёт по репликам, проверяет условия, ставит флаги, обрабатывает выбор.
-// Формат реплики: { who, text, if: 'флаг', ifNot: 'флаг', set: 'флаг', choices: [{ text, set, goto }] }.
+// Формат реплики: { who, text, if: 'флаг', ifNot: 'флаг', set: 'флаг', goto: 'диалог', choices: [{ text, set, goto, path }] }.
 // goto — id другого диалога, который продолжит разговор.
 export class DialogueRunner {
   constructor(dialogues, flags) {
@@ -28,6 +28,9 @@ export class DialogueRunner {
   }
 
   advance() {
+    // реплика с goto (без выбора) — после неё разговор продолжается другим диалогом (v0.78: возврат к темам)
+    const cur = this.done ? null : this.lines[this.i];
+    if (cur?.goto && !cur.choices) return this.start(cur.goto);
     do this.i++; while (this.i < this.lines.length && !this.passes(this.lines[this.i]));
     if (this.i >= this.lines.length) {
       this.done = true;
