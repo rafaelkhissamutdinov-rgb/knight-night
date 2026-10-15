@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.76';
+export const VERSION = 'v0.77';
 
 export const CONFIG = {
   width: 320,
@@ -317,6 +317,12 @@ export const NPC_TYPES = {
   // (по портрету владельца assets/portraits/lika.png)
   // Илиа после поражения: сидит у костра на Привале (решение владельца); face: 'ilia' — портрет, human — лицо на фигурке
   ilia: {
+    // задание у костра (v0.77, лор владельца): ранен — бинт и зелье; потом — дружеский разговор
+    talks: [
+      { id: 'ilia_friend', if: 'ilia_healed' },
+      { id: 'ilia_heal', if: 'ilia_asked', has: ['bandage', 'potion'] },
+      { id: 'ilia_need', if: 'ilia_asked' },
+    ],
     name: 'Илиа', face: 'ilia', talk: 'ilia_camp_again', human: true, robe: true, sit: true, sprite: 'duelist',
     colors: { armor: '#d9c7a3', armorDark: '#b39f7c', tabard: '#efe4cc', belt: '#6b4a32', helm: '#e2b896', visor: '#1b1b22', hair: '#15151c', hairLight: '#2a2a34', boots: '#4a3626', blade: '#c9d2dc', hilt: '#8a6a3a' },
   },
@@ -343,6 +349,7 @@ export const ITEMS = {
   journal: { name: 'Журнал', price: 15, journal: true },
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
   bandage: { name: 'Бинт', price: 4, use: { heal: 1 } },
+  resin_flower: { name: 'Цветок в смоле', quest: true },   // от Илиа; сила, застывшая в нём, починит портал (лор владельца)
   map: { name: 'Карта замка', price: 25, once: true },
   key_tower: { name: 'Ключ от башни', key: true },
   spell_bolt: { name: 'Магическая стрела', slot: 'spell' },
