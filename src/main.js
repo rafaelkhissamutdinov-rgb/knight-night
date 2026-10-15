@@ -1172,7 +1172,9 @@ function handlePress(code) {
     if (altar) { useAltar(altar); return; }
     const rest = !game.doorNear && nearRest();
     if (rest) { startRest(rest); return; }
-    const look = !game.doorNear && nearLook();
+    // NPC рядом и ближе вещи для осмотра — сначала разговор (v0.77: Илиа сидит у костра)
+    const npcNear = nearNpc(), lookNear = !game.doorNear && nearLook();
+    const look = lookNear && !(npcNear && Math.abs(npcNear.x - p.x) <= Math.abs(lookNear.x - p.x) + 4) ? lookNear : null;
     if (look) {
       // у тайника выбор в разговоре ставит флаг — тогда проход открывается
       startTalk(look.look, look.secret ? () => {
@@ -1189,7 +1191,7 @@ function handlePress(code) {
     if (npc) {
       npc.facing = Math.sign(p.x - npc.x) || -1;
       if (npc.def.shop) openShop(npc);
-      else startTalk(npc.def.talk);
+      else startTalk(npcTalkId(npc.def));
       return;
     }
   }
@@ -2476,12 +2478,39 @@ const PORTRAITS = {
   boss: { colors: ENEMY_TYPES.boss.colors },
 };
 
+// какой разговор у NPC сейчас (v0.77): talks — список вариантов по порядку, первый подходящий:
+// { id, if: флаг, ifNot: флаг, has: [предметы в сумке] }; иначе — talk
+function npcTalkId(def) {
+  for (const t of def.talks ?? []) {
+    if (t.if && !game.flags[t.if]) continue;
+    if (t.ifNot && game.flags[t.ifNot]) continue;
+    if (t.has && !t.has.every(id => game.bag.includes(id))) continue;
+    return t.id;
+  }
+  return def.talk;
+}
+// реплика может дать или забрать вещи (v0.77): give — в сумку (один раз за флаг given_<id>), take — из сумки
+function applyLineItems(line) {
+  if (!line || game.talkApplied?.has(line)) return;   // одна реплика — один раз за разговор (и при пропуске)
+  (game.talkApplied ??= new WeakSet()).add(line);
+  for (const id of [].concat(line.take ?? [])) { const i = game.bag.indexOf(id); if (i >= 0) game.bag.splice(i, 1); }
+  for (const id of [].concat(line.give ?? [])) {
+    if (game.flags['given_' + id]) continue;
+    game.flags['given_' + id] = true;
+    game.bag.push(id);
+    callout(`Получено: ${ITEMS[id]?.name ?? id}`, 'perfect');
+    sfx.perfect();
+  }
+  if (line.give || line.take) save();
+}
+
 // after — что сделать, когда разговор закончится (или сразу, если диалоги выключены)
 function startTalk(id, after = null) {
   if (!CONFIG.dialogues || !DIALOGUES[id]) { after?.(); return; }
   game.flags['seen_' + id] = true;
   game.afterTalk = after;
   game.talk = new DialogueRunner(DIALOGUES, game.flags);
+  game.talkApplied = new WeakSet();
   game.talk.start(id);
   game.talkShown = 0;
   game.resumeMode = game.mode === 'talk' ? game.resumeMode : game.mode;
@@ -2500,6 +2529,7 @@ function showLine() {
     after?.();
     return;
   }
+  applyLineItems(line);
   const who = SPEAKERS[line.who] ?? SPEAKERS.narrator;
   ui.talk.hidden = false;
   ui.talkName.textContent = who.name;
@@ -2573,7 +2603,7 @@ function chooseTalk(i) {
 function skipTalk() {
   if (!game.talk?.current) return;
   let n = 0;
-  while (game.talk.current && !game.talk.current.choices && n++ < 500) game.talk.advance();
+  while (game.talk.current && !game.talk.current.choices && n++ < 500) { applyLineItems(game.talk.current); game.talk.advance(); }
   showLine();
 }
 ui.talkSkip.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); skipTalk(); });
