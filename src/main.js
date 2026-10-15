@@ -2513,7 +2513,8 @@ const FACES = {
   knight_marauder: { default: 'assets/portraits/knight-marauder.png' },   // в броне мародёра (v0.80); настроения — позже
   ilia: { default: 'assets/portraits/ilia.png' },
   boss: { default: 'assets/portraits/boss.png' },
-  trainer: { default: 'assets/portraits/alkima.png' },
+  trainer: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'serious', 'worried', 'sad', 'annoyed']   // v0.80: настроения как у Лики
+    .map(m => [m, m === 'default' ? 'assets/portraits/alkima.png' : `assets/portraits/alkima-${m}.png`])),
   lika: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry']
     .map(m => [m, m === 'default' ? 'assets/portraits/lika.png' : `assets/portraits/lika-${m}.png`])),
 };
