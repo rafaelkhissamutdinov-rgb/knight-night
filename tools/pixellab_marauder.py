@@ -96,3 +96,15 @@ if cmd == 'face':   # владелец 15.10: в прорезь между тр�
                 q = nh.getpixel((x, y + 1)); k = 0.55 if y == 23 else 1   # верхняя строка — в тени полей
                 out.putpixel((x, y), (int(q[0] * k), int(q[1] * k), int(q[2] * k), q[3]))
     out.resize((256, 256), Image.NEAREST).save(os.path.join(ROOT, 'assets', 'portraits', 'knight-marauder.png')); print('ok')
+if cmd == 'fixport':   # замечания владельца 15.10 к портрету мародёра
+    src = os.path.join(W, 'portrait_fix_src.png')
+    Image.open(os.path.join(ROOT, 'assets', 'portraits', 'knight-marauder.png')).convert('RGBA').resize((64, 64), Image.NEAREST).save(src)
+    img, sz = b64img(src)
+    D = ('keep the same character, jacket, colors and pixel style; fix the head: the black tricorn hat is a bit wider than the face; '
+         'the dark red scarf covers the nose and mouth and its top edge rises to a soft rounded point at the bridge of the nose and slopes gently down to both sides, like a bandit mask; '
+         'only a narrow strip of the face around the eyes is visible, not wider than the head, the face does not bulge out of the scarf; '
+         'the olive green eyes are a bit larger and set wider apart, calm look')
+    def job(k):
+        return run('/edit-image-pixen', {'image': img, 'description': D, 'width': 64, 'height': 64, 'no_background': True, 'seed': 61 + k}, os.path.join(W, f'fix{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(6)) for q in ps]
+    sheet(paths, os.path.join(W, 'fix_sheet.png'), scale=3, cols=6); print(len(paths))
