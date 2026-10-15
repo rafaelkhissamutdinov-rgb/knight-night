@@ -2510,6 +2510,7 @@ const portraitCtx = ui.talkPortrait.getContext('2d');
 // Нарисованные портреты владельца: у реплики можно указать mood (настроение), иначе — default.
 const FACES = {
   knight: { default: 'assets/portraits/knight.png', tired: 'assets/portraits/knight-tired.png', nohelm: 'assets/portraits/knight-nohelm.png' },
+  knight_marauder: { default: 'assets/portraits/knight-marauder.png' },   // в броне мародёра (v0.80); настроения — позже
   ilia: { default: 'assets/portraits/ilia.png' },
   boss: { default: 'assets/portraits/boss.png' },
   trainer: { default: 'assets/portraits/alkima.png' },
@@ -2595,7 +2596,7 @@ function showLine() {
   const who = SPEAKERS[line.who] ?? SPEAKERS.narrator;
   ui.talk.hidden = false;
   ui.talkName.textContent = who.name;
-  const face = FACES[who.portrait];
+  const face = who.portrait === 'knight' && game.equip?.armor === 'armor_marauder' ? FACES.knight_marauder : FACES[who.portrait];
   ui.talkFace.hidden = !face;
   if (face) {
     const src = face[line.mood] ?? face.default;
