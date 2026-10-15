@@ -40,7 +40,7 @@ elif cmd == 'all':
         try:
             out = run('/transfer-outfit-v2', {'reference_image': {'image': ref, 'size': {'width': rsz[0], 'height': rsz[1]}}, 'frames': fr,
                                               'image_size': {'width': S, 'height': S}, 'no_background': True, 'seed': 3,
-                                              'additional_instructions': 'side view game sprite frames of the same knight; keep each pose and the helmet with the red plume exactly'},
+                                              'additional_instructions': 'side view game sprite frames of the same character; keep each pose exactly; the head wears the black tricorn hat and the dark red scarf over the face exactly as on the reference: no steel helmet, no plume'},
                       os.path.join(W, 'tmp_' + names[0]))
         except SystemExit as e:
             return names[0] + ' ' + str(e)[:200]
