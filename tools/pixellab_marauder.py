@@ -78,3 +78,10 @@ if cmd == 'portrait':   # портрет в броне мародёра: шле�
             'a worn brown leather jacket with buckled straps on the shoulders', 'width': 64, 'height': 64, 'no_background': True, 'seed': 21 + k}, os.path.join(W, f'portrait{k}'))
     with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
     sheet(paths, os.path.join(W, 'portrait_sheet.png'), scale=3, cols=len(paths)); print(len(paths))
+if cmd == 'eyes':   # владелец 15.10: глаза у Найта оливковые — видны в тени под треуголкой, лицо закрыто платком
+    src = os.path.join(W, sys.argv[2]); img, sz = b64img(src)
+    def job(k):
+        return run('/edit-image-pixen', {'image': img, 'description': 'keep everything exactly the same; only in the dark shadow between the hat brim and the scarf show two calm olive green eyes, '
+            'the rest of the face stays hidden', 'width': sz[0], 'height': sz[1], 'no_background': True, 'seed': 51 + k}, os.path.join(W, 'eyes_' + sys.argv[2][:-4] + f'_{k}'))
+    with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, range(4)) for q in ps]
+    sheet(paths, os.path.join(W, 'eyes_' + sys.argv[2][:-4] + '_sheet.png'), scale=3, cols=len(paths)); print(len(paths))
