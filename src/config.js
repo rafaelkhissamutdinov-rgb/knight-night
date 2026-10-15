@@ -498,6 +498,7 @@ export const ROOMS = {
   // Старая библиотека над Темницей (v0.78, идея владельца): много книг, столы, бумаги на полу, потухшая свеча; живёт кот Фуджин
   catlib: {
     name: 'Старая библиотека', tiles: 'castle', length: 420, columns: false, torches: [], dark: true, cobwebs: true,
+    ambient: [0.3, 0.26, 0.32],   // полутьма видна и без свечей; каждая зажжённая свеча — светлее (владелец, 15.10)
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'lib', name: 'Темница' }],
     // места и позы кота: выбирается случайно при входе (lift — высота стола / стопки / стула)
     npcs: [{ type: 'fujin', x: 258, z: 12.5, lift: 15, spots: [   // все — в круге света свечи: чёрного кота в темноте не видно
@@ -515,6 +516,12 @@ export const ROOMS = {
       { type: 'desk', x: 252, z: 12 }, { type: 'chair', x: 276, z: 14, flip: true },
       { type: 'table', x: 150, z: 26 }, { type: 'bookpile', x: 128, z: 28 }, { type: 'bookpile', x: 302, z: 20 },
       { type: 'candles', x: 244, z: 12.6, lift: 15, lights: 'lib_candle', look: 'look_candle', lookLit: 'look_candle_lit', name: 'свеча (зажечь)' },
+      // ещё свечи по библиотеке — каждую можно зажечь (владелец, 15.10)
+      { type: 'candles', x: 132, z: 26.6, lift: 16, lights: 'lib_candle2', look: 'look_candle', quiet: true, name: 'свеча (зажечь)' },
+      { type: 'candles', x: 92, z: 4, lights: 'lib_candle3', look: 'look_candle', quiet: true, name: 'свечи у стеллажа (зажечь)' },
+      { type: 'candles', x: 352, z: 4, lights: 'lib_candle4', look: 'look_candle', quiet: true, name: 'свечи у стеллажа (зажечь)' },
+      { type: 'candles', x: 304, z: 20.6, lift: 9, lights: 'lib_candle5', look: 'look_candle', quiet: true, name: 'свеча на книгах (зажечь)' },
+      { type: 'candles', x: 186, z: 30, lights: 'lib_candle6', look: 'look_candle', quiet: true, name: 'свечи на полу (зажечь)' },
       { type: 'papers', x: 200, z: 6, flat: true, look: 'look_libnote', name: 'записки на полу' }, { type: 'papers', x: 312, z: 30, flat: true },
       { type: 'bookpile', x: 360, z: 4 },
     ],

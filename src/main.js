@@ -1194,6 +1194,11 @@ function handlePress(code) {
     const look = lookNear && !(npcNear && Math.abs(npcNear.x - p.x) <= Math.abs(lookNear.x - p.x) + 4) ? lookNear : null;
     if (look) {
       // у тайника выбор в разговоре ставит флаг — тогда проход открывается
+      if (look.lights && !game.flags[look.lights] && look.quiet) {   // ещё одна свеча: просто зажечь, без разговора
+        game.flags[look.lights] = true;
+        callout('Свеча зажжена', 'perfect'); sfx.perfect(); save();
+        return;
+      }
       if (look.fill && hasItem('silver_cup') && !game.flags[look.fill]) {
         game.flags[look.fill] = true;
         callout('Чаша наполнена мутной водой', 'perfect'); sfx.perfect(); save();
@@ -4015,7 +4020,10 @@ function applyLight() {
   if (!light) return;
   const r = game.mode === 'title' || game.mode === 'map' ? null : room();
   if (!r) { light.off(); return; }
-  light.draw(sceneLights(), r.dark ? DARK_AMBIENT : AMBIENT, true);
+  // тёмная комната с ambient (v0.80, библиотека): полутьма видна и без свечей, каждая зажжённая свеча (lights) светлеет
+  let amb = r.dark ? (r.ambient ?? DARK_AMBIENT) : AMBIENT;
+  if (r.ambient) { const lit = (r.props ?? []).filter(pr => pr.lights && game.flags[pr.lights]).length; amb = amb.map(v => Math.min(0.62, v + lit * 0.045)); }
+  light.draw(sceneLights(), amb, true);
 }
 // пыль в воздухе: пылинки видны у огня (сами светлее там, где свет сильнее)
 const dustMotes = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: 20 + Math.random() * 100, v: 1 + Math.random() * 3, p: Math.random() * 6.28 }));

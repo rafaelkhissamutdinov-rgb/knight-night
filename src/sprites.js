@@ -410,5 +410,7 @@ export function setKnightSkin(name) {
   if (name === knightSkin) return;
   knightSkin = name;
   if (name !== 'knight') loadSpriteSet(name);
+  if (name === 'knight_marauder') loadSpriteSet('knight_leather');   // пока полного листа нет — кожаная броня
 }
-export const drawKnight = (g, o) => drawSprite(spriteReady(knightSkin) ? knightSkin : 'knight', g, o);
+const skinNow = () => spriteReady(knightSkin) ? knightSkin : knightSkin === 'knight_marauder' && spriteReady('knight_leather') ? 'knight_leather' : 'knight';
+export const drawKnight = (g, o) => drawSprite(skinNow(), g, o);
