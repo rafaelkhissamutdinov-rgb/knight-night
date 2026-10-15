@@ -404,4 +404,11 @@ export function drawSprite(name, g, o) {
   return tip;
 }
 
-export const drawKnight = (g, o) => drawSprite('knight', g, o);
+// облик Найта по броне (v0.80): лист knight_<броня> с теми же кадрами; пока не загружен — обычный
+let knightSkin = 'knight';
+export function setKnightSkin(name) {
+  if (name === knightSkin) return;
+  knightSkin = name;
+  if (name !== 'knight') loadSpriteSet(name);
+}
+export const drawKnight = (g, o) => drawSprite(spriteReady(knightSkin) ? knightSkin : 'knight', g, o);
