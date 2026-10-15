@@ -3050,6 +3050,7 @@ function render() {
   const things = [...actors, ...(r.props ?? []).filter(pr => propOn(pr) && !(pr.pick && pr.type === 'letter' && game.flags[chestFlag(pr)])).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => (a.prop?.flat ? -999 : a.z) - (b.prop?.flat ? -999 : b.z));   // ковёр (flat) — под всеми
   for (const a of things) {
+    if (a.prop?.type === 'catsofa') { if (!game.flags.fujin_fed) drawObjNamed(g, 'sofa_empty', a.x - cam, groundY(a.z) + 1); continue; }   // диван Фуджина: пустой, пока кот на столе
     if (a.prop?.lights && !game.flags[a.prop.lights] && drawObjNamed(g, 'prop_candles_out', a.x - cam, groundY(a.z) + 1 - (a.prop.lift ?? 0))) continue;   // потухшая свеча
     if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z) - (a.prop.lift ?? 0), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? !!game.flags[a.prop.altar] : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) renderPlayer(cam);
@@ -3765,7 +3766,11 @@ function renderNpc(n, cam) {
   if (n.def.sitImgs) {
     // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой
     const near = Math.abs(game.player.x - n.x) < 50;
-    if (n.def.cat && game.flags.fujin_fed && drawObjNamed(g, 'cat_lounge', x, gy, n.facing > 0)) return;   // сытый кот развалился, как на фото владельца
+    if (n.def.cat && game.flags.fujin_fed && n.def.lounge) {
+      // сытый кот перебрался на диван и развалился — как на фото владельца (картинка — диван вместе с котом)
+      if (!n.lounged) { n.lounged = true; Object.assign(n, n.def.lounge, { lift: 0 }); return; }
+      if (drawObjNamed(g, 'cat_lounge', x, groundY(n.z) + 1)) return;
+    }
     const name = n.def.cat ? ((game.time + n.x) % 4.3 < 0.16 ? 'cat_sit_1' : 'cat_sit')   // кот моргает
       : near ? n.def.sitImgs.wave : n.def.sitImgs.idle[Math.floor(game.time / 3.2) % n.def.sitImgs.idle.length];
     if (drawObjNamed(g, name, x, gy, n.def.cat ? n.facing > 0 : n.facing < 0)) return;   // кот на картинке смотрит влево

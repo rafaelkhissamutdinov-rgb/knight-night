@@ -15,7 +15,11 @@ run chapter tools/bots/chapter.cjs
 grep -q "Конец главы" "$KN_OUT/chapter.log" || { echo "   глава не пройдена до конца"; fail=1; }
 run rooms tools/bots/rooms.cjs cell:160 hall:200 hall:1300 hall:2250 secret:160 gallery:200 gallery:1000 shop:160 armory:200 guardroom:160 \
   barracks:200 corridor:200 corridor:650 dining:200 balcony:200 landing2:200 hall2:200 hall2:1300 camp:200 library:200 chapel:200 reading:160 \
-  vestry:160 landing3:180 hall3:200 hall3:1150 guardhall:200 stairs3:160 tower:160 mage:200
+  vestry:160 landing3:180 hall3:200 hall3:1150 guardhall:200 stairs3:160 tower:160 mage:200 wardrobe:200 catlib:200
+run alkima tools/bots/alkima.cjs
+grep -q 'alkima_done' "$KN_OUT/alkima.log" || { echo "   квест Алкимы не пройден"; fail=1; }
+run library tools/bots/library.cjs
+grep -q 'diary_2' "$KN_OUT/library.log" && grep -q 'diary_1' "$KN_OUT/library.log" || { echo "   библиотека/страницы не пройдены"; fail=1; }
 if [ -z "$BOTS_QUICK" ]; then
   run boss tools/bots/boss.cjs 0.2 turn 60
   for r in "hall 300" "gallery 160" "hall2 300"; do set -- $r; run "monkey_$1" tools/bots/monkey.cjs $1 $2 250; done

@@ -20,7 +20,7 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1, fabric: 1, papers: 1, bookpile: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff', 'prop_candles_out', 'cat_sit', 'cat_sit_1', 'cat_lounge',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff', 'prop_candles_out', 'cat_sit', 'cat_sit_1', 'cat_lounge', 'sofa_empty',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
