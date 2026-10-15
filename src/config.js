@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.83';
+export const VERSION = 'v0.84';
 
 export const CONFIG = {
   width: 320,
@@ -136,7 +136,9 @@ export const DAGGER = {
     dashCut:  { name: 'Удар в рывке',     height: 'mid',  pose: 'thrust', windup: 0.04, active: 0.08, recover: 0.2,  reach: 26, damage: 1, move: 12, backstab: true },
     leap:     { name: 'Прыжок с ударом',  height: 'high', pose: 'high',   windup: 0.22, active: 0.1,  recover: 0.3,  reach: 24, damage: 2, move: 26, backstab: true },
     rollCut:  { name: 'Подрез из кувырка', height: 'low', pose: 'sweep',  windup: 0.08, active: 0.1,  recover: 0.24, reach: 26, damage: 1, backstab: true },
-    flurry:   { name: 'Шквал',            height: 'any',  pose: 'thrust', windup: 0.05, active: 0.5,  recover: 0.25, reach: 24, damage: 1, hits: [0.04, 0.14, 0.24, 0.34, 0.44], front: true, backstab: true },
+    // «Шквал» (v0.84, владелец: «тык-тык, подкинуть, удар-удар-удар — красивая комбинация»): два укола, подброс с вращением,
+    // ловля обратным хватом, удары сверху, в середину, снизу и финальный росчерк (раскадровка — FLURRY в src/player.js)
+    flurry:   { name: 'Шквал',            height: 'any',  pose: 'flurry', windup: 0.05, active: 1.1,  recover: 0.25, reach: 24, damage: 1, hits: [0.06, 0.18, 0.62, 0.74, 0.86, 1.0], front: true, backstab: true },
   },
 };
 
@@ -404,7 +406,7 @@ export const NPC_TYPES = {
 export const ITEMS = {
   sword_old: { name: 'Старый стальной полуторный меч', slot: 'weapon', weapon: 'sword' },
   rapier: { name: 'Рапира Илиа', slot: 'weapon', weapon: 'rapier' },
-  dagger: { name: 'Кинжал', slot: 'weapon', weapon: 'dagger' },   // v0.82: где лежит — черновик (Зал стражи), решит владелец
+  dagger: { name: 'Кинжал атамана', slot: 'weapon', weapon: 'dagger' },   // награда за бой в Логове атамана (v0.84, владелец)
   armor_old: { name: 'Потёртые стальные доспехи', slot: 'armor', shield: 3 },
   // голова и ноги (v0.80, владелец: сет мародёра надевается по частям)
   helm_old: { name: 'Потёртый шлем с плюмажем', slot: 'head' },
@@ -476,7 +478,7 @@ export const MAP = {
   cell: [1, 2, 14, 3], hall: [1, 5, 14, 19], secret: [1, 16.2, 17, 2.6],
   gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], balcony: [1, 44.5, 9, 3.2],
   shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4], priestcell: [1, 15.5, 11, 2.6], catlib: [1, 21.4, 11, 2.6],
-  landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8], wardrobe: [3, 10, 5, 2.8],
+  landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8], wardrobe: [3, 10, 5, 2.8], lair: [3, 17.2, 5, 3.8],
   landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
   camp: [2, 12.6, 11, 2.6], library: [2, 12.6, 5, 4.2], reading: [2, 14.4, 2, 2.4], chapel: [2, 17, 5, 3.8], vestry: [2, 18.2, 2, 2.6], royal: [2, 20.8, 5, 2.4],
 };
@@ -660,7 +662,7 @@ export const ROOMS = {
       { x: 200, enemies: [{ type: 'skelShort', dx: 30, z: 18 }, { type: 'axe', dx: 80, z: 32 }] },
     ],
   },
-  // логово мародёров: атаман стережёт сундук с монетами (ключ от башни — на втором или третьем этаже, решение владельца)
+  // казарма мародёров (атаман — в логове на третьем этаже)
   barracks: {
     name: 'Казарма', tiles: 'castle', length: 480, columns: false, torches: [120, 360],
     doors: [{ id: 'out', x: 56, kind: 'wood', to: 'gallery', toDoor: 'barracks', name: 'Галерея' }],
@@ -675,7 +677,8 @@ export const ROOMS = {
       { type: 'banner', x: 318, y: 10, h: 40, torn: true },
     ],
     encounters: [
-      { x: 270, story: 'ataman', before: 'captain_meet', enemies: [{ type: 'captain', dx: 60, z: 22 }, { type: 'merc', dx: 110, z: 36 }] },
+      // атаман переехал в своё логово на третьем этаже (v0.84, владелец); здесь — его люди
+      { x: 270, enemies: [{ type: 'merc', dx: 60, z: 22 }, { type: 'axe', dx: 110, z: 36 }] },
     ],
   },
   // лестница башни: наверх — покои принцессы, там призрак главы стражи
@@ -872,6 +875,7 @@ export const ROOMS = {
     doors: [
       { id: 'guardhall', x: 420, kind: 'wood', to: 'guardhall', toDoor: 'out', name: 'Зал стражи' },
       { id: 'wardrobe', x: 205, kind: 'wood', to: 'wardrobe', toDoor: 'out', name: 'Гардеробная' },
+      { id: 'lair', x: 930, kind: 'wood', to: 'lair', toDoor: 'out', name: 'Логово атамана' },
       { id: 'pit', x: 780, kind: 'none', to: 'gallery', toDoor: 'tower', oneWay: true, fall: true, name: 'спрыгнуть в пролом (вниз, к башне)' },
       { id: 'rubble', x: 1240, kind: 'none', name: 'Лестница наверх', locked: 'Лестница наверх завалена — не пройти' },
     ],
@@ -885,6 +889,28 @@ export const ROOMS = {
     encounters: [
       { x: 600, enemies: [{ type: 'spear', dx: 50, z: 16 }, { type: 'merc', dx: 90, z: 30 }, { type: 'crossbow', dx: 180, z: 8 }] },
       { x: 1000, enemies: [{ type: 'skelLong', dx: 60, z: 22 }, { type: 'ghost', dx: 110, z: 34 }] },
+    ],
+  },
+  // логово атамана мародёров (v0.84, владелец: «атамана — на третий этаж, кучу бойцов разного класса, тяжёлый бой,
+  // награда того стоит»): сначала дозор (копьё и арбалет), потом атаман со свитой — топор, меч, арбалет. Награда — кинжал.
+  lair: {
+    name: 'Логово атамана', tiles: 'castle', floor: 3, length: 560, columns: false, torches: [120, 300, 470],
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall3', toDoor: 'lair', name: 'Северное крыло' }],
+    props: [
+      { type: 'chest', id: 'lair', x: 520, z: 3, coins: 40 },
+      { type: 'weapon', id: 'dagger', x: 470, z: 14, pick: 'dagger', needs: 'done_ataman' },   // кинжал атамана — после победы
+      { type: 'barrel', x: 150, z: 2 }, { type: 'crate', x: 175, z: 2 }, { type: 'sack', x: 188, z: 6 }, { type: 'barrel', x: 500, z: 18 },
+      { type: 'bones', x: 330, z: 30 }, { type: 'table', x: 400, z: 4 },
+    ],
+    decor: [
+      { type: 'bunk', x: 220, look: 'look_bunk', name: 'нары' }, { type: 'bunk', x: 280, blanket: '#5a3a2a' },
+      { type: 'banner', x: 360, y: 10, h: 40, torn: true }, { type: 'rack', x: 440, items: ['spear', null, 'axe'] },
+    ],
+    encounters: [
+      { x: 180, enemies: [{ type: 'spear', dx: 60, z: 14 }, { type: 'crossbow', dx: 140, z: 34 }] },
+      { x: 330, story: 'ataman', before: 'captain_meet', enemies: [
+        { type: 'captain', dx: 70, z: 22 }, { type: 'axe', dx: 40, z: 36 }, { type: 'merc', dx: 100, z: 8 }, { type: 'crossbow', dx: 170, z: 30 },
+      ] },
     ],
   },
   // гардеробная принцесс (v0.78): здесь Алкима ищет ткани (лор владельца); выцветшие платья, манекены, рулоны ткани
@@ -908,8 +934,7 @@ export const ROOMS = {
       { type: 'armor', x: 240 }, { type: 'banner', x: 140, y: 10 }, { type: 'banner', x: 340, y: 10 },
       { type: 'rack', x: 420, items: ['spear', 'sword', 'spear'] },
     ],
-    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'weapon', id: 'dagger', x: 300, z: 12, pick: 'dagger' },   // кинжал (v0.82; место — черновик)
-      { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }, { type: 'logbook', x: 170, z: 4, look: 'look_logbook', name: 'журнал дежурств' }],
+    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }, { type: 'logbook', x: 170, z: 4, look: 'look_logbook', name: 'журнал дежурств' }],
     encounters: [
       { x: 260, story: 'keyguard', before: 'keyguard_meet', noRise: true, enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'commander', dx: 170, z: 8 }] },   // одна стража, без мародёров (владелец)
     ],

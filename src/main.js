@@ -2,7 +2,7 @@ import { CONFIG, ROOMS, START, MAP, EASY, NORMAL, NPC_TYPES, ITEMS, SLOTS, START
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy, RISE_TIME } from './enemy.js';
-import { Player } from './player.js';
+import { Player, FLURRY_TOSS } from './player.js';
 import { resolveImpact, isBackstab } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
@@ -17,7 +17,7 @@ import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogu
 import { drawVibeFx, resetVibeFx, moonSpot } from './vibefx.js';
 import { fxImpact, fxSwing, drawCombatFx, combatFxBusy } from './combatfx.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin, drawWeaponWorld } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
 loadWeapons();
@@ -947,9 +947,9 @@ const ADMIN_POINTS = [
   { name: 'После обучения', room: 'hall', x: 420, steps: ['wake', 'tutorial'], bag: ['sword_old'] },
   { name: 'Перед Илиа', room: 'hall', x: 1980, steps: ['wake', 'tutorial'], bag: ['sword_old'] },
   { name: 'После Илиа (рапира)', room: 'gallery', x: 80, steps: ['wake', 'tutorial', 'ilia'], bag: ['sword_old', 'rapier', 'map'] },
-  { name: 'Перед балконом', room: 'balcony', x: 60, steps: ['wake', 'tutorial', 'ilia', 'ataman'], bag: ['sword_old', 'rapier', 'map'] },
-  { name: 'Второй этаж', room: 'landing2', x: 200, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
-  { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Перед балконом', room: 'balcony', x: 60, steps: ['wake', 'tutorial', 'ilia'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Второй этаж', room: 'landing2', x: 200, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
 ];
 const ADMIN_LOOT = ['sword_old', 'rapier', 'dagger', 'map', 'journal', 'key_tower', 'diamond_ace', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup'];
@@ -3949,14 +3949,25 @@ function renderPlayer(cam) {
     : drawing ? Math.max(0, 1 - p.t / Math.max(0.05, p.atk.windup)) : null;
   const rapierKey = rapier && p.state === 'attack' ? (p.atk.pose === 'thrust' ? 'lunge' : p.atk.pose === 'flick' ? 'whip' : null) : null;
   const rapierAnim = rapierKey && spriteAnim('knight', rapierKey) ? { key: rapierKey, k: Math.min(1, p.t / (p.atk.windup + p.atk.active + p.atk.recover)) } : null;
-  const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && !rapier && spriteAnim('knight', 'sheathe');   // кадры «рука за спину» — только для меча
+  const sheathing = p.sheathed && sk < 1 && !p.walking && !p.sheatheRun && p.state === 'ready' && !rapier && spriteAnim('knight', 'sheathe');
+  // кинжал (v0.84): у каждого удара своё движение — уколы цепочки под разными углами, удар сверху обратным хватом,
+  // «Шквал» — подброс с вращением и ловля обратным хватом (раскадровка FLURRY в src/player.js)
+  let weaponAngle, toss = null;
+  if (p.weapon === 'dagger' && p.state === 'attack' && p.atk) {
+    const lt = p.t - p.atk.windup;
+    if (p.atk.key === 'flurry' && lt >= 0) {
+      if (lt >= FLURRY_TOSS[0] && lt < FLURRY_TOSS[1]) toss = (lt - FLURRY_TOSS[0]) / (FLURRY_TOSS[1] - FLURRY_TOSS[0]);
+      else if (lt >= FLURRY_TOSS[1]) weaponAngle = 180 - p.pose.angle;   // поймал обратным хватом: клинок вдоль предплечья
+    } else if (p.atk.key === 'overhead') weaponAngle = p.phase === 'windup' ? 100 : 62;   // как ледоруб: клинок вниз
+    else if (p.atk.chain) weaponAngle = p.pose.angle + [0, -16, 12, -6][p.atk.chainIdx ?? 0];   // тык-тык: каждый укол — свой угол
+  }   // кадры «рука за спину» — только для меча
   const tip = sprite ? drawKnight(g, {
     x: px, ground: GROUND, facing, pose: p.pose, state: p.state, walking: p.walking, step: p.step, time: game.time, airY: p.airY,
     turn, run: (p.gaitRun ?? 0) > 0.5, depth,
     sheath: sk != null ? { kind: sheathKind, len: sheathLen, k: sk } : null,
     anim: rapierAnim ?? (sheathing ? { key: 'sheathe', k: sk } : null) ?? (spinFrames ? { key: 'spin', k: (spinK * 2) % 1 }   // два оборота
       : p.state === 'held' && spriteAnim('knight', 'held') ? { key: 'held', k: (p.t * 0.9) % 1 } : null),   // висит, хватается за горло
-    weaponLen: p.arms.length ?? 17, rapier, weapon: p.weapon === 'dagger' ? 'dagger' : undefined, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || !!rapierAnim || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
+    weaponLen: p.arms.length ?? 17, rapier, weapon: p.weapon === 'dagger' ? 'dagger' : undefined, weaponAngle, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || !!rapierAnim || p.state === 'held' || toss != null,   // у кадров вихря свой меч с росчерком; в удушье руки у горла
     alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
   }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
@@ -3967,8 +3978,14 @@ function renderPlayer(cam) {
   });
   if (spinning) spinTrail(px, GROUND - 24, spinK, p.facing, false);   // передняя половина диска — поверх рыцаря
   if (rapierAnim && rapierKey === 'whip' && active) whipArc(px, GROUND, p.facing, (p.t - p.atk.windup) / p.atk.active);
+  if (toss != null && tip.handX != null) {
+    // подброшенный кинжал: летит над кулаком по дуге и делает два оборота; в верхней точке — блеск
+    const h = 17 * 4 * toss * (1 - toss), hx = tip.handX + p.facing * 2, hy = tip.handY - h;
+    drawWeaponWorld(g, 'dagger', hx, hy, -90 + toss * 720, p.facing, p.arms.length ?? 10);
+    if (toss > 0.45 && !p.atk.glinted) { p.atk.glinted = true; fxImpact('glint', hx + cam, hy - 4, { color: '#ffffff' }); }
+  }
   // росчерк клинка (v0.83): от конца замаха через удар — светлая дуга по следу острия
-  if (p.state === 'attack' && p.atk && !spinning && !rapierAnim && !p.atk.weave && (active || (p.phase === 'windup' && p.t > p.atk.windup - 0.05))) {
+  if (p.state === 'attack' && p.atk && toss == null && !spinning && !rapierAnim && !p.atk.weave && (active || (p.phase === 'windup' && p.t > p.atk.windup - 0.05))) {
     const sx0 = px, sy0 = GROUND - 24;
     fxSwing(p, tip.tipX + cam, tip.tipY, sx0 + cam, sy0, '#fff1c8');
   }
@@ -4211,7 +4228,7 @@ function renderDust(cam) {
 let lastErrAt = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  acc += Math.min(0.1, (now - last) / 1000);
+  acc += Math.min(0.1, (now - last) / 1000) * (window.knightNightDebug?.timeScale ?? 1);   // timeScale — замедление для раскадровок ботов
   last = now;
   // логика и рисование — порознь: ошибка в одном не замораживает другое (картинка идёт, Esc и меню работают)
   try {
