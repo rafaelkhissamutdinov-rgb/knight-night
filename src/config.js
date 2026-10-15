@@ -786,13 +786,14 @@ export const ROOMS = {
   // Чаша на алтаре — за алтарём отъезжает плита, проход в Ризницу
   chapel: {
     name: 'Часовня', tiles: 'castle', floor: 2, length: 480, columns: false, torches: [90, 430],
-    vibe: [{ id: 'chapel_rain', x: 196, fx: 'rain', fxX: 214, fxZ: 22 }],
+    vibe: [{ id: 'chapel_rain', x: 196, fx: 'rain', fxX: 214, fxZ: 22, fxTop: 20 }],
     doors: [
       { id: 'out', x: 50, kind: 'wood', to: 'hall2', toDoor: 'chapel', name: 'Жилое крыло' },
       { id: 'vestry', x: 400, kind: 'none', needs: 'cup_placed', to: 'vestry', toDoor: 'out', name: 'Ризница' },
     ],
     decor: [
       { type: 'stainedglass', x: 340, y: 10 },
+      { type: 'roofhole', x: 214 },   // пролом в крыше над лужей (v0.81)
       { type: 'slab', x: 400, secret: 'cup_placed' },
       { type: 'banner', x: 160, y: 10, h: 40, color: '#e8e0d0', dark: '#a89a8a' },
     ],

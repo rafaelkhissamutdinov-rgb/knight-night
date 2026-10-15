@@ -9,8 +9,8 @@ export const SPEAKERS = {
   trainer: { name: 'Алкима', portrait: 'trainer' },
   lika: { name: 'Лика', portrait: 'lika' },
   boss: { name: 'Глава стражи', portrait: 'boss' },
-  priest: { name: 'Призрак священника' },
-  maid: { name: 'Служанка' },
+  priest: { name: 'Призрак священника', portrait: 'priest' },
+  maid: { name: 'Служанка', portrait: 'maid' },
 };
 
 export const DIALOGUES = {

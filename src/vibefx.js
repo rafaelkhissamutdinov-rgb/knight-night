@@ -70,16 +70,16 @@ export function drawVibeFx(g, fx, o) {
     }
   } else if (fx === 'rain') {
     // капли из пролома: столб света, капли разной скорости, круги на луже
-    const cx = sx, py = gy(o.z ?? 22);
+    const cx = sx, py = gy(o.z ?? 22), top = o.top ?? -2;   // top — низ пролома в крыше
     g.globalCompositeOperation = 'lighter';
     g.globalAlpha = 0.2 * k;
-    const grd = g.createLinearGradient(0, 0, 0, py);
+    const grd = g.createLinearGradient(0, top, 0, py);
     grd.addColorStop(0, '#b8d4ff'); grd.addColorStop(1, 'rgba(184,212,255,0.15)');
     g.fillStyle = grd;
-    g.beginPath(); g.moveTo(cx - 12, -2); g.lineTo(cx + 12, -2); g.lineTo(cx + 22, py + 2); g.lineTo(cx - 20, py + 2); g.fill();
+    g.beginPath(); g.moveTo(cx - 12, top); g.lineTo(cx + 12, top); g.lineTo(cx + 22, py + 2); g.lineTo(cx - 20, py + 2); g.fill();
     g.globalCompositeOperation = 'source-over';
     S.acc += dt * 26 * k;
-    while (S.acc > 1) { S.acc--; S.parts.push({ x: cx + rnd(-12, 12), y: rnd(-6, 4), vy: rnd(150, 210), t: 0, splash: 0 }); }
+    while (S.acc > 1) { S.acc--; S.parts.push({ x: cx + rnd(-11, 11), y: top + rnd(-4, 4), vy: rnd(150, 210), t: 0, splash: 0 }); }
     for (const p of S.parts) {
       if (!p.splash) {
         p.y += p.vy * dt; p.x += p.vy * dt * 0.04;

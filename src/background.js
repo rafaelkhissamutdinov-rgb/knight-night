@@ -15,6 +15,7 @@ const DECOR_IMG = {
   chains: [1, 'top', 40, 0], shield: [1, 'center', 44, 0], armor: [2, 'floor'], rack: [2, 'floor'], bunk: [2, 'floor'], bookshelf: [2, 'floor'], shelf: [2, 'top', 40, 0], fireplace: [1, 'floor'],
   pit: [1, 'hole'], rubble: [1, 'stairs'], sign: [1, 'top', 12, 0], chandelier: [1, 'hang', 30],
   wardrobe: [1, 'floor'], mannequin: [2, 'floor'],   // гардеробная (v0.78)
+  roofhole: [1, 'top', 0, 0],   // пролом в крыше Часовни (v0.81): сквозь него дождь, вода для чаши
 };
 // предметы на полу картинкой: тип → вариантов (вариант — по месту); сундук — закрытый / открытый
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
@@ -237,6 +238,9 @@ export function buildRoom(room, height, floorTop, tiles = null) {
       const gr = g.createLinearGradient(0, CEIL.height, 0, CEIL.height + 10);
       gr.addColorStop(0, 'rgba(8,6,12,0.55)'); gr.addColorStop(1, 'rgba(8,6,12,0)');
       g.fillStyle = gr; g.fillRect(0, CEIL.height, length * 2, 10);
+      // пролом в своде (v0.81) — поверх потолка
+      g.setTransform(2, 0, 0, 2, 0, 0);
+      for (const d of room.decor ?? []) if (d.type === 'roofhole') decorImage(g, d, floorTop, room);
     }
     return c;
   }

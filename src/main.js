@@ -1623,11 +1623,12 @@ function renderVibeFx() {
   fxCanvas.dataset.dirty = '1';
   fx.setTransform(S, 0, 0, S, 0, 0);
   const cam = Math.round(game.camX);
-  const dt = 1 / 60;
+  const now = performance.now() / 1000, dt = Math.min(0.25, now - (v.last ?? now));   // по времени, а не по кадрам
+  v.last = now;
   v.k = game.vibe ? Math.min(1, v.k + dt / 2.5) : v.k - dt / 1.2;
-  if (v.k <= 0 || !(room().vibe ?? []).includes(v.spot)) { game.vibeFx = null; return; }
+  if ((v.k <= 0 && !game.vibe) || !(room().vibe ?? []).includes(v.spot)) { game.vibeFx = null; return; }
   const sp = v.spot, k = v.k * v.k * (3 - 2 * v.k);
-  drawVibeFx(fx, sp.fx, { sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, winY: sp.winY, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+  drawVibeFx(fx, sp.fx, { sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, winY: sp.winY, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
 }
 function updateVibe(dt) {
   const v = game.vibe, sit = v.spot.sit;
@@ -2620,6 +2621,7 @@ const FACES = {
   ilia: Object.fromEntries(['default', 'happy', 'surprised', 'serious', 'worried', 'sad', 'angry', 'pain', 'awkward']   // v0.80
     .map(m => [m, m === 'default' ? 'assets/portraits/ilia.png' : `assets/portraits/ilia-${m}.png`])),
   boss: { default: 'assets/portraits/boss.png' },
+  priest: { default: 'assets/portraits/priest.png' }, maid: { default: 'assets/portraits/maid.png' },   // призраки (v0.81)
   trainer: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'serious', 'worried', 'sad', 'annoyed']   // v0.80: настроения как у Лики
     .map(m => [m, m === 'default' ? 'assets/portraits/alkima.png' : `assets/portraits/alkima-${m}.png`])),
   lika: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry']
@@ -3212,8 +3214,12 @@ function render() {
       rect(g, px - 6, py - 1, 5, 1, '#3a4a5e');
       const ph = (game.time * 0.8 + a.x * 0.01) % 1, rr = Math.round(2 + ph * 7);
       if (ph < 0.8) { g.globalAlpha = 0.6 * (1 - ph); rect(g, px - rr, py, rr * 2, 1, '#6f87a3'); g.globalAlpha = 1; }
-      const dy = ((game.time * 0.8 + a.x * 0.01 + 0.85) % 1) * 1.25;
-      if (dy < 1 && a.prop.fill) rect(g, px, Math.round(CONFIG.floorTop - 70 + dy * (py - CONFIG.floorTop + 70)), 1, 2, '#8fb0cc');
+      // капля — из пролома в крыше (если он есть, v0.81: дождь гуще — три капли вразнобой) или с потолка
+      const hole = (r.decor ?? []).some(d => d.type === 'roofhole'), top = hole ? 22 : CONFIG.floorTop - 70;
+      for (let i = 0; i < (hole ? 3 : 1); i++) {
+        const dy = ((game.time * 0.8 + a.x * 0.01 + 0.85 + i * 0.37) % 1) * 1.25;
+        if (dy < 1 && a.prop.fill) rect(g, px + (i ? (i % 2 ? 4 : -5) : 0), Math.round(top + dy * (py - top)), 1, 2, '#8fb0cc');
+      }
       continue;
     }
     if (a.prop?.lights && !game.flags[a.prop.lights] && drawObjNamed(g, 'prop_candles_out', a.x - cam, groundY(a.z) + 1 - (a.prop.lift ?? 0))) continue;   // потухшая свеча
