@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.81';
+export const VERSION = 'v0.82';
 
 export const CONFIG = {
   width: 320,
@@ -65,6 +65,7 @@ export const CONFIG = {
 export const WEAPON = {
   name: 'Полуторный меч',
   spinKey: 'spin',      // приём на колесе
+  spinName: 'вихрь',
   length: 17,
   drawSide: -0.01,      // удар сбоку прямо из ножен — чуть быстрее обычного
   drawExtra: 0.06,      // верхний или нижний удар из ножен — чуть медленнее
@@ -92,6 +93,7 @@ export const RAPIER = {
   drawSide: 0,
   drawExtra: 0,
   spinKey: 'figure8',   // колесо — «восьмёрка»: слабая атака и блок одновременно
+  spinName: 'восьмёрка',
   chainMax: 3,          // до трёх уколов подряд быстрыми кликами
   chainRecover: 0.35,   // пауза после третьего укола
   chargeTime: 0.3,      // зажать ЛКМ вверху столько — прыжок с захлёстом
@@ -113,7 +115,32 @@ export const RAPIER = {
   },
 };
 
-export const WEAPONS = { sword: WEAPON, rapier: RAPIER };
+// Кинжал (v0.82, план главы 1: «быстрый, удар в спину»): короткий и слабый, зато самый быстрый — до четырёх уколов
+// подряд. Рывок с кинжалом проскакивает сквозь врага; удар в спину (враг отвернулся или рыцарь только что проскочил
+// мимо — slipWindow) — урон ×backstab и сквозь защиту. Колесо — «Шквал»: пять уколов подряд.
+export const DAGGER = {
+  name: 'Кинжал',
+  length: 10,
+  drawSide: -0.02,
+  drawExtra: 0,
+  spinKey: 'flurry',
+  spinName: 'шквал',
+  chainMax: 4,
+  chainRecover: 0.22,
+  backstab: 3,
+  slipWindow: 0.6,
+  attacks: {
+    side:     { name: 'Укол',             height: 'mid',  pose: 'thrust', windup: 0.06, active: 0.05, recover: 0.12, reach: 22, damage: 1, chain: true, backstab: true },
+    overhead: { name: 'Удар сверху',      height: 'high', pose: 'high',   windup: 0.13, active: 0.06, recover: 0.18, reach: 20, damage: 1, backstab: true },
+    low:      { name: 'Подрез',           height: 'low',  pose: 'low',    windup: 0.08, active: 0.06, recover: 0.14, reach: 22, damage: 1, backstab: true },
+    dashCut:  { name: 'Удар в рывке',     height: 'mid',  pose: 'thrust', windup: 0.04, active: 0.08, recover: 0.2,  reach: 26, damage: 1, move: 12, backstab: true },
+    leap:     { name: 'Прыжок с ударом',  height: 'high', pose: 'high',   windup: 0.22, active: 0.1,  recover: 0.3,  reach: 24, damage: 2, move: 26, backstab: true },
+    rollCut:  { name: 'Подрез из кувырка', height: 'low', pose: 'sweep',  windup: 0.08, active: 0.1,  recover: 0.24, reach: 26, damage: 1, backstab: true },
+    flurry:   { name: 'Шквал',            height: 'any',  pose: 'thrust', windup: 0.05, active: 0.5,  recover: 0.25, reach: 24, damage: 1, hits: [0.04, 0.14, 0.24, 0.34, 0.44], front: true, backstab: true },
+  },
+};
+
+export const WEAPONS = { sword: WEAPON, rapier: RAPIER, dagger: DAGGER };
 
 // Удары врагов. guard — какой защитой отбивать; pose — поза замаха и удара;
 // breaks — сбивает защиту, если отбить обычным блоком (идеальное парирование спасает); mult — множитель урона;
@@ -377,6 +404,7 @@ export const NPC_TYPES = {
 export const ITEMS = {
   sword_old: { name: 'Старый стальной полуторный меч', slot: 'weapon', weapon: 'sword' },
   rapier: { name: 'Рапира Илиа', slot: 'weapon', weapon: 'rapier' },
+  dagger: { name: 'Кинжал', slot: 'weapon', weapon: 'dagger' },   // v0.82: где лежит — черновик (Зал стражи), решит владелец
   armor_old: { name: 'Потёртые стальные доспехи', slot: 'armor', shield: 3 },
   // голова и ноги (v0.80, владелец: сет мародёра надевается по частям)
   helm_old: { name: 'Потёртый шлем с плюмажем', slot: 'head' },
@@ -880,7 +908,8 @@ export const ROOMS = {
       { type: 'armor', x: 240 }, { type: 'banner', x: 140, y: 10 }, { type: 'banner', x: 340, y: 10 },
       { type: 'rack', x: 420, items: ['spear', 'sword', 'spear'] },
     ],
-    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }, { type: 'logbook', x: 170, z: 4, look: 'look_logbook', name: 'журнал дежурств' }],
+    props: [{ type: 'chest', id: 'key', x: 446, z: 3, coins: 20, item: 'key_tower' }, { type: 'weapon', id: 'dagger', x: 300, z: 12, pick: 'dagger' },   // кинжал (v0.82; место — черновик)
+      { type: 'armchair', x: 120, z: 2, rest: { seat: 5, name: 'в кресле начальника стражи', face: 1 } }, { type: 'logbook', x: 170, z: 4, look: 'look_logbook', name: 'журнал дежурств' }],
     encounters: [
       { x: 260, story: 'keyguard', before: 'keyguard_meet', noRise: true, enemies: [{ type: 'skelLong', dx: 60, z: 20 }, { type: 'halberd', dx: 100, z: 34 }, { type: 'commander', dx: 170, z: 8 }] },   // одна стража, без мародёров (владелец)
     ],

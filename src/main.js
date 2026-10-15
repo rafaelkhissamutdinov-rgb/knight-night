@@ -1,9 +1,9 @@
-import { CONFIG, ROOMS, START, MAP, EASY, NORMAL, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS, SETS } from './config.js';
+import { CONFIG, ROOMS, START, MAP, EASY, NORMAL, NPC_TYPES, ITEMS, SLOTS, START_EQUIP, COINS, VERSION, STRIKES, WEAPON, WEAPONS, DAGGER, SETS } from './config.js';
 import { PAL, KNIGHT_COLORS } from './palette.js';
 import { createInput } from './input.js';
 import { createEnemy, RISE_TIME } from './enemy.js';
 import { Player } from './player.js';
-import { resolveImpact } from './combat.js';
+import { resolveImpact, isBackstab } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
@@ -47,7 +47,8 @@ const near = (a, b) => Math.abs(a.z - b.z) <= CONFIG.depthReach;
 const ATTACKING = new Set(['windup', 'strike', 'reel', 'leapIn', 'vault', 'crouch', 'leap', 'retreat', 'inflate', 'suck']);
 const HEIGHT_NAME = { high: 'верх', mid: 'середина', low: 'низ' };
 const RESULT_NAME = { perfect: 'идеально', block: 'блок', broken: 'защита сбита', hit: 'попадание', dodged: 'уклон', warded: 'заслон', miss: 'мимо' };
-const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin', 'figure8', 'vaultFlick']);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin', 'figure8', 'vaultFlick', 'flurry']);
 // Управление (решение владельца после бета-теста): курсор выбирает высоту, ЛКМ — удар, держать ПКМ — защита, пробел — рывок.
 const HINT_WALK = 'WASD — ходить · курсор выше / ниже рыцаря — высота · ЛКМ удар · ПКМ защита · пробел рывок';
 const HINT_FIGHT = 'курсор — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок';
@@ -586,7 +587,11 @@ function playerStrike(atk) {
     const inReach = atk.height === 'any' && !atk.front ? Math.abs(dx) <= atk.reach : dx >= -6 && dx <= atk.reach;
     if (!inReach || !near(p, e)) continue;
     touched = true;
-    const { out, dmg } = e.receiveAttack(atk);
+    // кинжал: удар в спину — враг отвернулся или рыцарь только что проскочил мимо него рывком (v0.82)
+    const back = atk.backstab && e.kind !== 'slime' && e.kind !== 'boss' && isBackstab(e.x, e.facing, p.x, game.time - (e.slipAt ?? -9), DAGGER.slipWindow);
+    const hitAtk = back ? { ...atk, damage: atk.damage * DAGGER.backstab, pierce: true, name: 'В спину!' } : atk;
+    const { out, dmg } = e.receiveAttack(hitAtk);
+    if (back && (out === 'hit' || out === 'counter')) { game.stats.backstab = (game.stats.backstab ?? 0) + 1; flash('#ffffff', 0.15); }
     if (e.kind === 'trainer' && (out === 'hit' || out === 'counter')) tutorialEvent({ type: out, height: atk.height, key: atk.key });
     if (atk.key === 'vaultFlick' && (out === 'hit' || out === 'counter')) game.stats.vaultHit++;
     if (e.state === 'yield' && e.def.defeatDialogue && !e.spoke) {
@@ -608,7 +613,7 @@ function playerStrike(atk) {
       sfx.enemyHit();
       game.hitstop = Math.max(game.hitstop, CONFIG.hitstop.strike);
       shake(2);
-      callout(e.def.practice ? `${atk.name} · ${HEIGHT_NAME[atk.height] ?? 'по кругу'}` : `${atk.name}  −${dmg}`, 'block');
+      callout(e.def.practice ? `${atk.name} · ${HEIGHT_NAME[atk.height] ?? 'по кругу'}` : `${hitAtk.name}  −${dmg}`, back ? 'counter' : 'block');
     } else if (out === 'blocked') {
       sparks(x, y, 6, [PAL.sparkHot], 60);
       sfx.block();
@@ -637,7 +642,7 @@ function handlePlayerEvents() {
     } else if (ev.type === 'dash' || ev.type === 'roll' || ev.type === 'backdash') {
       sfx.dash();
     } else if (ev.type === 'spinNotReady') {
-      callout(p.weapon === 'rapier' ? 'Восьмёрка не готова' : 'Вихрь не готов', 'muted');
+      callout(`${cap(p.arms.spinName)} не готов${p.weapon === 'rapier' ? 'а' : ''}`, 'muted');
     } else if (ev.type === 'feint') {
       callout('Отмена', 'muted');
     } else if (ev.type === 'struggle') {
@@ -939,7 +944,7 @@ const ADMIN_POINTS = [
   { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
 ];
-const ADMIN_LOOT = ['sword_old', 'rapier', 'map', 'journal', 'key_tower', 'diamond_ace', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup'];
+const ADMIN_LOOT = ['sword_old', 'rapier', 'dagger', 'map', 'journal', 'key_tower', 'diamond_ace', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup'];
 
 // текущая игра → данные сохранения (как save(), но комнату и место можно подменить)
 function adminSnapshot(room = game.room, x = game.player.x) {
@@ -1174,7 +1179,9 @@ function handlePress(code) {
       if (chest.pick) {
         // предмет просто лежит — взять
         game.bag.push(chest.pick);
-        callout(`Взято: ${ITEMS[chest.pick].name}`, 'perfect');
+        const w = ITEMS[chest.pick].weapon;
+        if (w) game.unlocked.add(w);
+        callout(w ? `${ITEMS[chest.pick].name}! Q — сменить оружие` : `Взято: ${ITEMS[chest.pick].name}`, 'perfect');
         sfx.perfect();
         checkSets();
         save();
@@ -1240,7 +1247,7 @@ function handlePress(code) {
   const vert = game.aim === 'high' ? 'up' : game.aim === 'low' ? 'down' : null;
   if (code === 'WheelUp') {
     // колесо вверх — приём оружия (вихрь или восьмёрка); пока перезаряжается, ничего не делает
-    if (p.spinCharge < 1) callout(p.weapon === 'rapier' ? 'Восьмёрка не готова' : 'Вихрь не готов', 'muted');
+    if (p.spinCharge < 1) callout(`${cap(p.arms.spinName)} не готов${p.weapon === 'rapier' ? 'а' : ''}`, 'muted');
     else p.requestAttack(null, true);
   }
   if (code === 'WheelDown') useSkill();
@@ -2022,6 +2029,13 @@ function update(dt) {
   const solids = game.enemies.filter(e => e.solid && e.type !== 'dummy');  // сквозь чучело можно пройти
   for (const e of solids) {
     if (p.state === 'swallowed' || p.airY > 4 || Math.abs(e.z - p.z) >= 8) continue;  // в прыжке — над врагом
+    if (p.state === 'dash' && p.weapon === 'dagger') {   // с кинжалом рывок проскакивает сквозь врага (v0.82)
+      const side = Math.sign(e.x - p.x);
+      if (e.slipSide && side && side !== e.slipSide) e.slipAt = game.time;
+      e.slipSide = side;
+      continue;
+    }
+    e.slipSide = Math.sign(e.x - p.x);
     const d = e.x - p.x;
     if (Math.abs(d) < CONFIG.bodyGap) p.x = e.x - (Math.sign(d) || p.facing) * CONFIG.bodyGap;
   }
@@ -2240,7 +2254,7 @@ function useSkill() {
   callout(skill.name, 'muted');
 }
 
-const WEAPON_NEED = { rapier: 'нужна рапира', sword: 'нужен меч' };
+const WEAPON_NEED = { rapier: 'нужна рапира', sword: 'нужен меч', dagger: 'нужен кинжал' };
 // есть ли оружие такого вида (sword, rapier) — в руках или в сумке
 const ownsWeapon = kind => [...game.bag, ...Object.values(game.equip)].some(id => id && ITEMS[id]?.weapon === kind);
 
@@ -3205,7 +3219,7 @@ function render() {
   }
   for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) { if (!drawLyingWeapon(g, it.kind, it.x - cam, groundY(it.z), it.t)) drawPickup(g, it.x - cam, groundY(it.z), it.t); }
   renderChokeAura(cam);
-  const things = [...actors, ...(r.props ?? []).filter(pr => propOn(pr) && !(pr.pick && pr.type === 'letter' && game.flags[chestFlag(pr)])).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
+  const things = [...actors, ...(r.props ?? []).filter(pr => propOn(pr) && !(pr.pick && (pr.type === 'letter' || pr.type === 'weapon') && game.flags[chestFlag(pr)])).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
   things.sort((a, b) => (a.prop?.flat ? -999 : a.z) - (b.prop?.flat ? -999 : b.z));   // ковёр (flat) — под всеми
   for (const a of things) {
     if (a.prop?.type === 'puddle') {
@@ -3223,6 +3237,7 @@ function render() {
       }
       continue;
     }
+    if (a.prop?.type === 'weapon') { drawLyingWeapon(g, ITEMS[a.prop.pick].weapon, a.x - cam, groundY(a.z), game.time); continue; }   // оружие лежит на полу
     if (a.prop?.lights && !game.flags[a.prop.lights] && drawObjNamed(g, 'prop_candles_out', a.x - cam, groundY(a.z) + 1 - (a.prop.lift ?? 0))) continue;   // потухшая свеча
     if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z) - (a.prop.lift ?? 0), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? (!!game.flags[a.prop.altar] && cupOnAltar()) : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) renderPlayer(cam);
@@ -3307,8 +3322,7 @@ function render() {
   // перезарядка вихря в HUD
   const charge = game.player.spinCharge;
   ui.skillSpinBar.style.width = `${Math.round(charge * 100)}%`;
-  const rapier = game.player.weapon === 'rapier';
-  const skill = rapier ? 'восьмёрка' : 'вихрь';
+  const skill = game.player.arms.spinName ?? 'вихрь';
   if (ui.skillName.textContent !== skill) ui.skillName.textContent = skill;
   const wl = [game.bag.some(id => ITEMS[id].slot === 'weapon') ? `${game.player.arms.name} · Q` : '', game.coinsShown ? `монеты: ${game.coinsShown}` : ''].filter(Boolean).join(' · ');
   if (ui.weapon.textContent !== wl) { ui.weapon.textContent = wl; ui.weapon.hidden = !wl; }
@@ -3792,11 +3806,11 @@ function renderPlayer(cam) {
     // по ступеням: шаги сбоку, наискось вверх или вниз; оружие в ножнах
     const c = game.climb;
     drawKnight(g, { x: c.x - cam, ground: c.y, facing: c.facing, pose: POSES.sheathed, state: 'ready', walking: true, step: c.step, time: game.time,
-      alpha: c.alpha, sheathed: true, sheath: { kind: p.weapon === 'rapier' ? 'rapier' : 'sword', len: (p.arms.length ?? 17) * 2 } });
+      alpha: c.alpha, sheathed: true, sheath: { kind: p.weapon, len: (p.arms.length ?? 17) * 2 } });
     return;
   }
   // оружие за спиной (v0.69): любое, и рапира; sheath.k — сколько прошло от руки до ножен
-  const sheathKind = p.weapon === 'rapier' ? 'rapier' : 'sword', sheathLen = (p.arms.length ?? 17) * 2;
+  const sheathKind = p.weapon, sheathLen = (p.arms.length ?? 17) * 2;
   if (p.state === 'roll' && sprite) {
     const k = Math.min(1, p.t / WEAPON.roll.time);
     if (spriteAnim('knight', 'roll')) drawKnight(g, { x: px, ground: GROUND, facing: p.facing, anim: { key: 'roll', k }, sheath: p.sheathed ? { kind: sheathKind, len: sheathLen } : null });
@@ -3906,7 +3920,7 @@ function renderPlayer(cam) {
     sheath: sk != null ? { kind: sheathKind, len: sheathLen, k: sk } : null,
     anim: rapierAnim ?? (sheathing ? { key: 'sheathe', k: sk } : null) ?? (spinFrames ? { key: 'spin', k: (spinK * 2) % 1 }   // два оборота
       : p.state === 'held' && spriteAnim('knight', 'held') ? { key: 'held', k: (p.t * 0.9) % 1 } : null),   // висит, хватается за горло
-    weaponLen: p.arms.length ?? 17, rapier, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || !!rapierAnim || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
+    weaponLen: p.arms.length ?? 17, rapier, weapon: p.weapon === 'dagger' ? 'dagger' : undefined, sheathed: p.sheathed && p.state === 'ready', bladeHidden: drawing || !!spinFrames || !!rapierAnim || p.state === 'held',   // у кадров вихря свой меч с росчерком; в удушье руки у горла
     alpha: p.state === 'hurt' && p.t < 0.08 ? 0.55 : 1,
   }) ?? { tipX: px, tipY: GROUND - 20 } : drawFigureOutlined(g, {
     x: px, ground: GROUND, facing, pose: p.pose, colors, step: p.step, plume: true, airY: p.airY, gaitRun: p.walking && p.state === 'ready' ? (p.gaitRun ?? 0) : null,
