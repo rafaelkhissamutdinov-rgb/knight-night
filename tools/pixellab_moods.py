@@ -36,7 +36,10 @@ for who in sys.argv[1:] or list(MOODS):
     jobs = [(m, k) for m in MOODS[who] for k in range(2)]
     def job(a):
         m, k = a
-        return run('/edit-image-pixen', {'image': img, 'description': KEEP + MOODS[who][m], 'width': 64, 'height': 64, 'no_background': True, 'seed': 31 + k},
+        try:
+          return run('/edit-image-pixen', {'image': img, 'description': KEEP + MOODS[who][m], 'width': 64, 'height': 64, 'no_background': True, 'seed': 31 + k},
                    os.path.join(W, f'{who}_{m}_{k}'))
+        except SystemExit as e:   # сбой сервера на одном варианте — не валить остальные
+          print('сбой', m, k, str(e)[:120], flush=True); return []
     with ThreadPoolExecutor(4) as ex: paths = [q for ps in ex.map(job, jobs) for q in ps]
     sheet(paths, os.path.join(W, who + '_sheet.png'), scale=3, cols=4); print(who, len(paths), flush=True)
