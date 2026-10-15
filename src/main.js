@@ -11,9 +11,10 @@ import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
-import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic } from './audio.js';
+import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic, setMusicCalm } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogues.js';
+import { drawVibeFx, resetVibeFx } from './vibefx.js';
 import { splitDamage } from './combat.js';
 import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin } from './sprites.js';
 import { createLighting } from './lighting.js';
@@ -64,6 +65,11 @@ const g = canvas.getContext('2d');
 g.imageSmoothingEnabled = false;
 // живой свет (src/lighting.js); без WebGL — null, игра как раньше
 const light = (() => { try { return createLighting(canvas); } catch { return null; } })();
+// слой поверх живого света (v0.81): то, что светится само и не должно гаснуть в шейдере — живая картинка «вайбовать»
+const fxCanvas = Object.assign(document.createElement('canvas'), { width: canvas.width, height: canvas.height, className: 'fxlayer' });
+(canvas.parentElement.querySelector('canvas.lit') ?? canvas).after(fxCanvas);
+const fx = fxCanvas.getContext('2d');
+fx.imageSmoothingEnabled = false;
 if (light) setNormalTarget(light.normalCtx);
 const rollCanvas = document.createElement('canvas');
 rollCanvas.width = rollCanvas.height = 48;
@@ -1156,6 +1162,11 @@ function handlePress(code) {
     if (code === 'KeyE' || is(code, 'attack')) standUp();
     return;
   }
+  if (game.vibe) {   // смотрит вдаль: любое нажатие (не сразу) — вернуться
+    if (game.vibe.t > 1.2 && !code.startsWith('Wheel')) endVibe();
+    return;
+  }
+  if (code === 'KeyV' && !game.arena && !game.tutorial && nearVibe()) { startVibe(nearVibe()); return; }
   if (code === 'KeyE' && !game.arena) {
     const chest = nearChest();
     if (chest) {
@@ -1576,6 +1587,66 @@ function updateRest(dt) {
   if (r.t > 0.3 && (held('left') || held('right') || held('depthIn') || held('depthOut'))) standUp();
 }
 
+// «Вайбовать» (v0.81): в особом месте V — Найт останавливается и смотрит; интерфейс тает, кадр отъезжает,
+// сверху и снизу — полосы, как в кино, место оживает (src/vibefx.js: птицы, лунный луч, дождь, искры). Наград нет.
+function nearVibe() {
+  const p = game.player;
+  return (room().vibe ?? []).find(v => Math.abs(v.x - p.x) < 26 && (!v.needs || flagsOK(v.needs))) ?? null;
+}
+function startVibe(spot) {
+  const p = game.player;
+  game.vibe = { spot, t: 0, from: { x: p.x, z: p.z } };
+  if (game.vibeFx?.spot !== spot) resetVibeFx();
+  game.vibeFx = game.vibeFx?.spot === spot ? game.vibeFx : { spot, k: 0, t0: game.time };
+  game.flags['vibe_' + spot.id] = true;
+  p.walking = false;
+  p.guard = null;
+  if (spot.face) p.facing = spot.face;
+  let el = ui.vibe;
+  if (!el) {
+    el = ui.vibe = document.createElement('div');
+    el.className = 'vibe';
+    el.innerHTML = '<i class="vibe-bar top"></i><i class="vibe-bar bottom"></i>';
+    ui.box.appendChild(el);
+  }
+  void el.offsetWidth;
+  ui.box.classList.add('vibing');
+  setMusicCalm(true);
+  hint('');
+  save();
+}
+// живая картинка места: нарастает, пока Найт смотрит, и плавно гаснет, когда он отвернулся
+function renderVibeFx() {
+  const v = game.vibeFx;
+  if (v || fxCanvas.dataset.dirty) { fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); delete fxCanvas.dataset.dirty; }
+  if (!v || game.mode === 'title') return;
+  fxCanvas.dataset.dirty = '1';
+  fx.setTransform(S, 0, 0, S, 0, 0);
+  const cam = Math.round(game.camX);
+  const dt = 1 / 60;
+  v.k = game.vibe ? Math.min(1, v.k + dt / 2.5) : v.k - dt / 1.2;
+  if (v.k <= 0 || !(room().vibe ?? []).includes(v.spot)) { game.vibeFx = null; return; }
+  const sp = v.spot, k = v.k * v.k * (3 - 2 * v.k);
+  drawVibeFx(fx, sp.fx, { sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, winY: sp.winY, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+}
+function updateVibe(dt) {
+  const v = game.vibe, sit = v.spot.sit;
+  v.t += dt;
+  if (sit) {   // подходит и садится (у костра — напротив Илиа, в той же позе)
+    const u = Math.min(1, v.t / 0.6), e = u * u * (3 - 2 * u), p = game.player;
+    p.x = v.from.x + (sit.x - v.from.x) * e;
+    p.z = v.from.z + (sit.z - v.from.z) * e;
+    p.facing = sit.face ?? p.facing;
+  }
+  if (game.vibe.t > 1.2 && (held('left') || held('right') || held('depthIn') || held('depthOut'))) endVibe();
+}
+function endVibe() {
+  game.vibe = null;
+  ui.box.classList.remove('vibing');
+  setMusicCalm(false);
+  hint(hintWalk());
+}
+
 function nearNpc() {
   const p = game.player;
   return game.npcs.find(n => Math.abs(n.x - p.x) < 28 && Math.abs(n.z - p.z) < 12) ?? null;
@@ -1868,6 +1939,7 @@ function update(dt) {
   if (game.cutscene) { updateCutscene(dt); return; }
   if (game.transition) { updateTransition(dt); updateCamera(dt); return; }
   if (game.rest) { updateRest(dt); updateCoinFx(dt); updateCamera(dt); return; }
+  if (game.vibe) { updateVibe(dt); updateCamera(dt); return; }
   updateShield(dt);
   updateEnterTalk();
   updateArena();
@@ -1876,7 +1948,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk(), nearVibe());
   }
   updateToken();
   pickTarget();
@@ -2975,7 +3047,8 @@ function callout(text, kind) {
   el.classList.add('show');
 }
 
-function hint(text) {
+function hint(text, vibe) {
+  if (vibe) text = text ? `${text} · V — постоять, посмотреть` : 'V — постоять, посмотреть';   // место для «вайбовать»
   if (!text) { ui.hint.hidden = true; ui.hint.textContent = ''; return; }
   if (ui.hint.textContent === text && !ui.hint.hidden) return;
   ui.hint.textContent = text;
@@ -3764,6 +3837,10 @@ function renderPlayer(cam) {
     drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' });
     return;
   }
+  if (game.vibe && sprite && game.vibe.t > (game.vibe.spot.sit ? 0.6 : 0.25)) {   // «вайбовать»: сидит (sit у места) или стоит спиной к нам и смотрит вдаль
+    drawKnight(g, game.vibe.spot.sit ? { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' } : { x: px, ground: GROUND, facing: 1, frame: 'back' });
+    return;
+  }
   if (game.rest && sprite) {
     drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' });
     return;
@@ -4028,6 +4105,14 @@ function sceneLights() {
     const pw = a < 0.15 ? 2.4 * (1 - a / 0.15) + 1 : a < 0.6 ? 1 : Math.max(0, 1 - (a - 0.6) / 0.2);
     add(p.x + (game.wardSide ?? p.facing) * 15, groundY(p.z) - 22, 90, [1, 0.42, 0.45], pw, 22);
   }
+  // «вайбовать»: место оживает и светится (лунный луч, свет из пролома, костёр ярче)
+  const vf = game.vibeFx;
+  if (vf?.spot.fx) {
+    const sp = vf.spot, x = sp.fxX ?? sp.x, k = vf.k;
+    if (sp.fx === 'moon') add(x + 26, CONFIG.floorTop + 12, 90, [0.6, 0.75, 1], 0.7 * k, 20);
+    if (sp.fx === 'rain') add(x, groundY(sp.fxZ ?? 22) - 10, 100, [0.7, 0.82, 1], 0.6 * k, 30);
+    if (sp.fx === 'embers') add(x, groundY(sp.fxZ ?? 20) - 24, 140, WARM, 0.5 * k * (0.9 + 0.1 * Math.sin(t * 7)), 30);
+  }
   // ближние к центру экрана — вперёд
   return L.sort((a, b) => Math.abs(a.x - W) - Math.abs(b.x - W));
 }
@@ -4089,6 +4174,7 @@ function frame(now) {
     light?.off();
     frameError(now, err);
   }
+  try { renderVibeFx(); } catch (err) { game.vibeFx = null; frameError(now, err); }
 }
 function resetCtx(c) {
   for (let i = 0; i < 64; i++) c.restore();

@@ -33,6 +33,16 @@ ITEMS = {
     'golden_skull': 'a small golden skull with ruby eyes',
     'silver_cup': 'an ornate silver chalice cup',
     'rosary': 'a monk rosary of wooden beads with a small silver cross',
+    # v0.81
+    'helm_old': 'a worn scratched steel knight close helmet with a narrow visor slit and a red feather plume',
+    'boots_old': 'a pair of worn scratched steel plate armored boots, sabatons',
+    'dried_fish': 'a small dried salted fish hanging on a twine string',
+    'old_letter': 'an old folded letter of yellowed paper with a broken red wax seal',
+    'sun_medallion': 'a tarnished dark bronze medallion with an engraved sun symbol on a thin chain, dark stains on it',
+    'sun_medallion_pure': 'a polished shining golden medallion with an engraved sun symbol on a thin chain, soft warm glow',
+    'resin_flower': 'a small dried pink flower encased in a drop of clear golden amber resin',
+    'old_fabric': 'a scrap of antique ivory silk fabric with faded silver embroidery and frayed edges',
+    'diary': 'a single torn yellowed diary page with faded ink handwriting and ragged edges',
 }
 
 if len(sys.argv) > 1 and sys.argv[1] == 'pick':
