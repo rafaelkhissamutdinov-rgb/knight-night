@@ -71,6 +71,8 @@ def sword(name, blade_len, pal, grip_len=7, half=5, spots=(), nicks=(), fuller=T
 
 # меч Найта: старый полуторный — клинок 30, рукоять 7, пара зазубрин
 sword('wpn_sword', 30, STEEL, nicks=(11, 20), spots=((6, 1), (15, -1)))
+# кинжал (v0.82): узкий клинок 14 с долом, короткая рукоять, крестовина с загнутыми концами, кольцо-навершие
+sword('wpn_dagger', 14, STEEL, grip_len=5, half=3, nicks=(9,), spots=((4, 1),))
 # короткий ржавый меч скелетов
 sword('wpn_short', 15, RUST, half=4, fuller=False, nicks=(7,), spots=((3, -1), (5, 1), (10, 0)))
 # двуручник: длинная рукоять, широкая крестовина

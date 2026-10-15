@@ -108,6 +108,7 @@ const WEAPON_IMG = {
   short: { file: 'wpn_short' },
   great: { file: 'wpn_great' },
   rapier: { file: 'wpn_rapier' },
+  dagger: { file: 'wpn_dagger' },   // v0.82
   ghostsword: { file: 'wpn_ghostsword' },
   axe: { file: 'wpn_axe', grip: 0.12 },
   spear: { file: 'wpn_spear', grip: 0.25, reach: 1.2 },
@@ -357,7 +358,7 @@ export function drawSprite(name, g, o) {
     const by = top + fr0.back[1];
     // меч — за спиной: почти вдоль спины, рукоять над плечом. Рапира — на поясе (владелец): у бедра, эфес впереди,
     // ножны назад и чуть вниз
-    const hip = o.sheath.kind === 'rapier';
+    const hip = o.sheath.kind === 'rapier' || o.sheath.kind === 'dagger';   // рапира и кинжал — на поясе
     const BACK = hip ? 140 : 104;
     const k = Math.max(0, Math.min(1, o.sheath.k ?? 1));
     const sx = hip ? X + o.facing * 4 : X - o.facing * 3, sy = hip ? G - 29 : by - 9;

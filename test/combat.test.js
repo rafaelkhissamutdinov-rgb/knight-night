@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONFIG, WEAPON, RAPIER, ENEMY_TYPES, ROOMS } from '../src/config.js';
-import { resolveImpact, slimeZone } from '../src/combat.js';
+import { CONFIG, WEAPON, RAPIER, DAGGER, WEAPONS, ENEMY_TYPES, ROOMS } from '../src/config.js';
+import { resolveImpact, slimeZone, isBackstab } from '../src/combat.js';
 import { createEnemy } from '../src/enemy.js';
 import { chooseAttack, attackWindup, Player } from '../src/player.js';
 
@@ -646,7 +646,7 @@ test('сюжетные бои помечены story и не повторяют�
 test('предметы: свитки учат навыки, у навыков есть удар нужного оружия, у всех вещей есть описание', async () => {
   const { ITEMS } = await import('../src/config.js');
   const { ITEM_TEXTS } = await import('../src/story/dialogues.js');
-  const attacks = { sword: WEAPON.attacks, rapier: RAPIER.attacks };
+  const attacks = Object.fromEntries(Object.entries(WEAPONS).map(([k, w]) => [k, w.attacks]));
   for (const [id, it] of Object.entries(ITEMS)) {
     assert.ok(ITEM_TEXTS[id], `нет описания у ${id}`);
     if (it.learn) assert.equal(ITEMS[it.learn]?.slot, 'skill', `${id} учит не навык`);
@@ -729,4 +729,19 @@ test('босс: стойка «Оби-Ван» — затем мощный св�
   e.update(1 / 60, w);
   assert.ok(w.phased);
   assert.equal(e.phase, 2);
+});
+
+test('кинжал: удар в спину — враг отвернулся или рыцарь только что проскочил мимо', () => {
+  assert.equal(isBackstab(100, 1, 80), true);    // враг смотрит вправо, рыцарь слева — за спиной
+  assert.equal(isBackstab(100, -1, 80), false);  // смотрит на рыцаря
+  assert.equal(isBackstab(100, -1, 80, 0.3, DAGGER.slipWindow), true);   // только что проскочил рывком
+  assert.equal(isBackstab(100, -1, 80, 2, DAGGER.slipWindow), false);
+});
+
+test('кинжал: быстрее меча, приём на колесе и все удары выбора есть', () => {
+  assert.equal(WEAPONS.dagger, DAGGER);
+  for (const k of ['side', 'overhead', 'low', 'dashCut', 'leap', 'rollCut', DAGGER.spinKey]) assert.ok(DAGGER.attacks[k], k);
+  assert.ok(DAGGER.attacks.side.windup < WEAPON.attacks.side.windup);
+  assert.ok(DAGGER.attacks.side.reach < WEAPON.attacks.side.reach);
+  assert.ok(DAGGER.chainMax >= 3);
 });

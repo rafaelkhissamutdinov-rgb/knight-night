@@ -29,6 +29,11 @@ export function splitDamage(dmg, shield) {
   return { absorbed, hp: dmg - absorbed };
 }
 
+// Удар в спину (кинжал, v0.82): враг смотрит от рыцаря или рыцарь только что проскочил мимо него рывком.
+export function isBackstab(enemyX, enemyFacing, playerX, slipAgo = Infinity, slipWindow = 0.6) {
+  return enemyFacing * (playerX - enemyX) < 0 || slipAgo <= slipWindow;
+}
+
 // Высота, на которой сейчас можно достать слизня: на земле — низом, в прыжке — серединой или верхом.
 export function slimeZone(airY, inflating) {
   if (inflating) return 'any';

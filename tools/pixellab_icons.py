@@ -42,6 +42,7 @@ ITEMS = {
     'sun_medallion_pure': 'a polished shining golden medallion with an engraved sun symbol on a thin chain, soft warm glow',
     'resin_flower': 'a small dried pink flower encased in a drop of clear golden amber resin',
     'old_fabric': 'a scrap of antique ivory silk fabric with faded silver embroidery and frayed edges',
+    'dagger': 'a slim steel dagger with a short leather grip, a small curved crossguard and a ring pommel, diagonal',
     'diary': 'a single torn yellowed diary page with faded ink handwriting and ragged edges',
 }
 
