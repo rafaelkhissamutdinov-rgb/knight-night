@@ -299,3 +299,8 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 }
 .story-text { margin: 0; font-size: 2.4cqw; line-height: 1.5; color: var(--fg); min-height: 7.2cqw; text-shadow: 0 0.25cqw 0 #000; }
 .story-keys { margin-top: 1cqw; font-family: var(--pixel); font-size: 1.5cqw; color: var(--dim, #8a8296); text-align: right; opacity: 0.8; }
+
+.journal-sep { margin: 1cqw 0 0.3cqw; font-family: var(--pixel); font-size: 1.6cqw; color: var(--gold); opacity: 0.85; }
+[hidden].shop-portrait { display: none; }
+.journal-page.diary { grid-template-columns: 1fr; }
+.journal-page.diary .journal-lore { color: var(--fg); font-style: normal; font-size: 2.2cqw; line-height: 1.6; }

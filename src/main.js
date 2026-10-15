@@ -2229,7 +2229,7 @@ function renderEquip() {
     const item = ITEMS[s.id];
     const b = document.createElement('button');
     b.type = 'button';
-    const what = item.slot ? 'надеть' : item.use ? 'использовать' : item.learn ? 'прочитать' : item.journal ? 'открыть' : '';
+    const what = item.slot ? 'надеть' : item.use ? 'использовать' : item.learn || item.diary ? 'прочитать' : item.journal ? 'открыть' : '';
     b.innerHTML = `<span class="item-name">${itemIcon(s.id)}${i + 1}. ${item.name}${s.n > 1 ? ' ×' + s.n : ''}</span><span class="equip-act">${what}</span>`;
     b.addEventListener('pointerenter', () => showEquipDesc(s.id));
     b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); bagAction(s.id); });
@@ -2248,6 +2248,7 @@ function bagAction(id) {
   else if (item.use) useItem(id);
   else if (item.learn) readScroll(id);
   else if (item.journal) { closeEquip(); openJournal(); return; }
+  else if (item.diary) { closeEquip(); readPage(id); return; }   // страница дневника — прочитать
   showEquipDesc(id);
   renderEquip();
 }
@@ -2360,8 +2361,7 @@ function openJournal() {
   if (!owns('journal')) { callout('Нужен журнал — его продаёт Лика', 'muted'); return; }
   if (game.mode !== 'play' || game.transition || game.cutscene) return;
   game.mode = 'journal';
-  const types = Object.keys(BESTIARY).filter(t => game.bestiary[t]);
-  game.journalSel = types[0] ?? null;
+  game.journalSel = journalKeys()[0] ?? null;
   ui.journal.hidden = false;
   renderJournal();
 }
@@ -2373,21 +2373,38 @@ function closeJournal() {
 const journalCtx = ui.journalFig.getContext('2d');
 journalCtx.imageSmoothingEnabled = false;
 
+// записи журнала: враги (бестиарий) и найденные страницы дневника капитана (v0.81, «diary:<id>»)
+const DIARY = Object.keys(ITEMS).filter(id => ITEMS[id].diary).sort((a, b) => ITEMS[a].diary - ITEMS[b].diary);
+const journalKeys = () => [...Object.keys(BESTIARY).filter(t => game.bestiary[t]), ...DIARY.filter(id => owns(id)).map(id => 'diary:' + id)];
 function renderJournal() {
-  const types = Object.keys(BESTIARY).filter(t => game.bestiary[t]);
+  const keys = journalKeys();
   ui.journalList.innerHTML = '';
-  if (!types.length) ui.journalList.innerHTML = '<p class="equip-empty">Пока пусто — встреть врага.</p>';
-  types.forEach((t, i) => {
+  if (!keys.length) ui.journalList.innerHTML = '<p class="equip-empty">Пока пусто — встреть врага.</p>';
+  keys.forEach((t, i) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = t === game.journalSel ? 'sel' : '';
-    b.innerHTML = `<span>${i + 1}. ${ENEMY_TYPES[t].shortName ?? ENEMY_TYPES[t].name}</span><span class="equip-act">×${game.bestiary[t].kills}</span>`;
+    const diary = t.startsWith('diary:') && t.slice(6);
+    if (diary && (i === 0 || !keys[i - 1].startsWith('diary:'))) {
+      const h = document.createElement('p'); h.className = 'journal-sep'; h.textContent = `Дневник капитана · ${DIARY.filter(id => owns(id)).length}/${DIARY.length}`;
+      ui.journalList.appendChild(h);
+    }
+    b.innerHTML = diary ? `<span>${i + 1}. ${ITEMS[diary].name}</span>` : `<span>${i + 1}. ${ENEMY_TYPES[t].shortName ?? ENEMY_TYPES[t].name}</span><span class="equip-act">×${game.bestiary[t].kills}</span>`;
     b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); game.journalSel = t; renderJournal(); });
     ui.journalList.appendChild(b);
   });
   const t = game.journalSel;
   ui.journalPage.hidden = !t;
   if (!t) return;
+  const diaryId = t.startsWith('diary:') && t.slice(6);
+  for (const el of [ui.journalHow.parentElement, ui.journalWin.parentElement, ui.journalFig]) el.hidden = !!diaryId;
+  ui.journalPage.classList.toggle('diary', !!diaryId);
+  if (diaryId) {   // страница дневника — только текст
+    ui.journalName.textContent = ITEMS[diaryId].name;
+    ui.journalLore.textContent = (ITEM_TEXTS[diaryId] ?? '').replace('[черновик] ', '');
+    ui.journalKills.textContent = '';
+    return;
+  }
   const d = ENEMY_TYPES[t], page = BESTIARY[t];
   ui.journalName.textContent = d.name;
   ui.journalHow.textContent = page.how;
@@ -2408,7 +2425,7 @@ function renderJournal() {
 
 function journalPress(code) {
   if (code === 'Escape' || code === 'KeyB') { closeJournal(); return; }
-  const types = Object.keys(BESTIARY).filter(t => game.bestiary[t]);
+  const types = journalKeys();
   const m = /^Digit([1-9])$/.exec(code);
   if (m && types[Number(m[1]) - 1]) { game.journalSel = types[Number(m[1]) - 1]; renderJournal(); }
   if (code === 'ArrowDown' || code === 'ArrowUp' || code === 'KeyS' || code === 'KeyW') {
