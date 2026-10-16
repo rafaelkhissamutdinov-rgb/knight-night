@@ -11,13 +11,13 @@ import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
-import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic, setMusicCalm, musicInfo } from './audio.js';
+import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, setMusicCalm, musicInfo, volumes, setMusicVolume, setSfxVolume } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogues.js';
 import { drawVibeFx, resetVibeFx, moonSpot } from './vibefx.js';
 import { fxImpact, fxSwing, drawCombatFx, combatFxBusy } from './combatfx.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin, drawWeaponWorld } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin, drawWeaponWorld, drawFloorWeapon } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
 loadWeapons();
@@ -840,17 +840,46 @@ function askNewFromTitle() {
   game.titleConfirm = true;
 }
 
-// кнопки меню: [подпись, действие]; клик по кнопке не доходит до игры
+// кнопки меню: [подпись, действие] или { slider: подпись, get, set } — ползунок «− 70 % +»; клик по кнопке не доходит до игры
 function setMenu(items) {
   ui.overlayMenu.innerHTML = '';
-  for (const [label, go] of items) {
+  const button = (label, go, cls) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = label;
+    if (cls) b.className = cls;
     b.addEventListener('pointerdown', e => e.stopPropagation());
     b.addEventListener('click', e => { e.stopPropagation(); go(); });
-    ui.overlayMenu.appendChild(b);
+    return b;
+  };
+  for (const it of items) {
+    if (!it.slider) { ui.overlayMenu.appendChild(button(it[0], it[1])); continue; }
+    const row = document.createElement('div');
+    row.className = 'slider';
+    const text = document.createElement('span');
+    const show = () => { text.textContent = `${it.slider}: ${it.get() * 10} %`; };
+    const step = d => { it.set(Math.max(0, Math.min(10, it.get() + d))); show(); };
+    const minus = button('−', () => step(-1), 'step'), plus = button('+', () => step(1), 'step');
+    // стрелки влево / вправо на кнопке ползунка — тоже меняют
+    for (const b of [minus, plus]) b.addEventListener('keydown', e => {
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); step(e.code === 'ArrowLeft' ? -1 : 1); }
+    });
+    show();
+    row.append(minus, text, plus);
+    ui.overlayMenu.appendChild(row);
   }
+}
+
+// звук (v0.89): громкость музыки и звуков отдельно, звуки окружения
+function showSound(back) {
+  showOverlay('Звук', '', 'Esc — назад');
+  setMenu([
+    { slider: 'Музыка', get: () => volumes().music, set: setMusicVolume },
+    { slider: 'Звуки', get: () => volumes().sfx, set: v => { setSfxVolume(v); sfx.block(); } },   // слышно, как громко
+    [`Звуки окружения: ${ambientOn ? 'вкл' : 'выкл'}`, () => { setAmbient(!ambientOn); game.ambRoom = null; showSound(back); }],
+    ['Назад', back],
+  ]);
+  game.controlsBack = back;
 }
 
 const CONTROLS_TEXT = [
@@ -887,8 +916,7 @@ function showPause() {
     ['Продолжить', resumePlay],
     ...(game.arena ? [['Встреча заново', restartFight]] : []),
     ['Управление', () => showControls(showPause)],
-    [`Звуки окружения: ${ambientOn ? 'вкл' : 'выкл'}`, () => { setAmbient(!ambientOn); game.ambRoom = null; showPause(); }],
-    [`Музыка: ${musicOn ? 'вкл' : 'выкл'}`, () => { setMusic(!musicOn); showPause(); }],
+    ['Звук и музыка', () => showSound(showPause)],
     [`Передвижение: ${strollOn ? 'шагом' : 'бегом'} (Caps Lock — сменить)`, () => { setStroll(!strollOn); showPause(); }],
     [`Лёгкий режим: ${easyOn ? 'вкл' : 'выкл'}`, () => { setEasy(!easyOn); showPause(); }],
     ['Новая игра', askNewFromPause],
@@ -1336,6 +1364,18 @@ function roomBounds() {
   return [edges.left ? 8 : 16, edges.right ? L - 8 : room().limitRight ?? L - 16];
 }
 const lockedArena = () => game.arena && !game.arena.open;
+
+// место для музыки (v0.89): у каждого может быть свой трек — ZONE_TRACK в src/audio.js
+function musicZone() {
+  if (game.mode === 'title') return 'title';
+  if (game.rest || game.vibe) return 'rest';
+  if (game.arena) {
+    if (game.enemies.some(e => e.group === game.arena.index && e.kind === 'boss')) return 'boss';
+    if ((room().encounters ?? [])[game.arena.index]?.story) return 'duel';
+  }
+  if (game.mode === 'shop' || (room()?.npcs ?? []).some(n => NPC_TYPES[n.type]?.shop)) return 'shop';
+  return 'explore';
+}
 
 // Встреча начинается, когда рыцарь подходит; проход закрыт, пока группа жива.
 function updateArena() {
@@ -2023,7 +2063,7 @@ function update(dt) {
   for (const code of input.take()) {
     try { handlePress(code); } catch (err) { frameError(performance.now(), err); }   // сбой одной клавиши не глотает остальные (Esc)
   }
-  if (game.mode !== 'title') updateMusic(game.mode === 'play' && !!game.arena);  // играет и в разговорах, лавке, паузе
+  updateMusic(game.mode === 'play' && !!game.arena, musicZone(), ROOMS[game.room]?.music ?? null);  // играет и в разговорах, лавке, паузе
   if (game.mode !== 'play') return;
 
   game.time += dt;
@@ -3612,7 +3652,7 @@ function renderEnemy(e, cam) {
   if (e.state === 'dead' && e.kind !== 'slime') { renderDeath(e, ex); return; }
   // спящий скелет лежит грудой костей; проснулся — встаёт (фигура вытягивается вверх)
   const riser = e.def.skull && e.kind !== 'ghost' && !e.def.noRise && !e.noRise;
-  if (riser && e.state === 'dormant') { drawBonePile(ex, groundY(e.z), e.facing, e.def); return; }
+  if (riser && e.state === 'dormant') { drawBonePile(ex, groundY(e.z), e.facing, e.def, enemyWeapon(e)); return; }
   const riseK = riser && e.state === 'rise' ? Math.min(1, e.t / RISE_TIME) : 1;
   let alpha = e.kind === 'ghost' ? (0.55 + 0.15 * Math.sin(game.time * 5 + e.x)) * (e.ghost ?? 1) : 1;  // призрак полупрозрачный и мерцает
   if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
@@ -3866,7 +3906,7 @@ function renderSpriteDeath(e, ex, GROUND, t, f) {
   }
   if (e.def.skull) {
     if (t < 0.3) drawSprite(e.type, g, { ...o, frame: t < 0.12 ? 'pose_kneel' : 'pose_dead' });
-    if (t > 0.15) drawBonePile(ex, GROUND, f, e.def);
+    if (t > 0.15) drawBonePile(ex, GROUND, f, e.def, enemyWeapon(e));
     return;
   }
   const k = ease(Math.min(1, t / 0.35));
@@ -3875,11 +3915,14 @@ function renderSpriteDeath(e, ex, GROUND, t, f) {
   drawSprite(e.type, g, { ...o, frame: 'pose_hurt', rotate: -f * k * Math.PI / 2, ground: GROUND + Math.round(k * 10), alpha });
 }
 
-function drawBonePile(x, gy, f, def) {
+function drawBonePile(x, gy, f, def, kind = null) {
   x = Math.round(x);
   if (drawBonePileImg(g, x, gy, f)) {
-    const w = Math.min(22, def.weapon ?? 17);   // оружие на полу
-    if (def.kind !== 'archer') rect(g, x - f * 4 - (f > 0 ? w : 0), gy, w, 1, def.colors.blade ?? '#c3ccd6');
+    // оружие на полу — картинкой того, что было в руке; рукоять у костей, клинок — от рыцаря
+    if (def.kind !== 'archer' && !(kind && drawFloorWeapon(g, kind, x - f * 4, gy, -f, def.weapon ?? 17))) {
+      const w = Math.min(22, def.weapon ?? 17);
+      rect(g, x - f * 4 - (f > 0 ? w : 0), gy, w, 1, def.colors.blade ?? '#c3ccd6');
+    }
     return;
   }
   const B = '#e6e1d0', S = '#a39d8a', D = '#14101e';
@@ -4229,6 +4272,8 @@ function sceneLights() {
   for (const n of game.npcs ?? []) if (n.def?.cat && r.dark) add(n.x, groundY(n.z) - 8 - (n.lift ?? 0), 38, [0.72, 0.72, 0.95], 0.4, 12);   // Фуджин виден в темноте (v0.85)
   for (const pr of r.props ?? []) {
     if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
+    // костёр в тёмной комнате (v0.89): тёплое пятно и на стене за ним — иначе светится только пол у огня
+    if ((pr.type === 'campfire' || pr.type === 'campfire_pot') && r.dark) add(pr.x, CONFIG.floorTop - 14, 150, WARM, 0.75 + 0.1 * Math.sin(t * 7 + pr.x * 0.7), 40);
     else if (pr.type === 'candles' && !pr.lights) add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
   }
   for (const d of r.decor ?? []) if (d.type === 'fireplace') add(d.x, CONFIG.floorTop - 14, 150, WARM, 1 + 0.12 * Math.sin(t * 8 + d.x), 26);

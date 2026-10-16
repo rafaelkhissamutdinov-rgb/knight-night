@@ -134,6 +134,10 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
   background: rgba(30, 26, 43, 0.92); border: 0.3cqw solid var(--line); padding: 0.6cqw 2cqw;
 }
 .menu button:hover, .menu button:focus-visible { color: var(--gold); border-color: var(--gold); outline: none; }
+/* ползунок громкости (v0.89): «− Музыка: 70 % +» */
+.menu .slider { display: flex; align-items: center; gap: 1cqw; min-width: 30cqw; justify-content: space-between; }
+.menu .slider span { font-family: var(--pixel); font-size: 2.2cqw; color: var(--fg); }
+.menu .slider button.step { min-width: 0; width: 4.4cqw; padding: 0.6cqw 0; }
 .overlay p.controls { white-space: pre-line; text-align: left; font-size: 1.9cqw; line-height: 1.6; }
 /* титульный экран: картинка замка сверху, текст — у нижнего края на затемнении */
 .overlay.title {
