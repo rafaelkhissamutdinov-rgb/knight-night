@@ -1,5 +1,5 @@
 # Знаки путей, нарисованные кодом (v0.94; владелец просил экономить генерации PixelLab). Солнце пилигрима — из PixelLab
-# (tools/pixellab_signs.py, вариант 15). Здесь: Уроборос (призрак), корона (монарх), закрытый глаз (эгоист).
+# (tools/pixellab_signs.py, вариант 15), Уроборос — тоже оттуда. Здесь: корона (монарх), закрытый глаз (эгоист).
 # Рисуется крупно, уменьшается до 48×48, цвета приводятся к палитре знака, обводка в 1 пиксель.
 # Запуск: python3 tools/draw_signs.py [папка] → assets/ui/sign_<имя>.png
 import math, os, sys
@@ -24,43 +24,18 @@ def finish(big, pal, outline):
 
 def disc(d, cx, cy, r, c): d.ellipse([cx-r, cy-r, cx+r, cy+r], fill=c)
 
-def ouroboros():
-    pal = [(232, 244, 226), (178, 218, 184), (120, 172, 138), (74, 120, 98), (46, 78, 66), (214, 70, 60), (250, 230, 120)]
-    big = Image.new('RGBA', (N*K, N*K)); d = ImageDraw.Draw(big)
-    c, R = N*K/2, 15.5*K
-    a0, a1 = math.radians(-118), math.radians(212)          # хвост → голова (по часовой стрелке, голова слева вверху)
-    steps = 400
-    for layer in range(3):                                  # тень, тело, блик
-        for i in range(steps + 1):
-            t = i / steps; a = a0 + (a1 - a0) * t
-            w = (1.4 + 3.6 * t**0.7) * K                    # хвост тонкий, к голове толще
-            x, y = c + R*math.cos(a), c + R*math.sin(a)
-            if layer == 0: disc(d, x, y, w, pal[4])
-            elif layer == 1: disc(d, x - 0.25*K*math.cos(a), y - 0.25*K*math.sin(a), w*0.78, pal[3] if (i // 18) % 2 else pal[2])
-            else: disc(d, x - 0.9*K*math.cos(a) - 0.4*K, y - 0.9*K*math.sin(a) - 0.4*K, w*0.32, pal[1] if t > 0.15 else pal[2])
-    ha = a1; hx, hy = c + R*math.cos(ha), c + R*math.sin(ha)
-    # голова: вытянута по направлению движения, челюсть закрывает кончик хвоста
-    dx, dy = -math.sin(ha), math.cos(ha)                     # касательная (по часовой)
-    for s, rr, col in ((0, 6.2, pal[4]), (0.3, 5.0, pal[2]), (2.2, 4.4, pal[2]), (0.6, 2.2, pal[1])):
-        disc(d, hx + dx*s*K, hy + dy*s*K, rr*K, col)
-    disc(d, hx + dx*4.6*K, hy + dy*4.6*K, 3.2*K, pal[3])    # морда
-    ex, ey = hx + dx*1.2*K - 2.2*K*math.cos(ha), hy + dy*1.2*K - 2.2*K*math.sin(ha)
-    disc(d, ex, ey, 1.3*K, pal[6]); disc(d, ex, ey, 0.6*K, pal[4])   # глаз
-    return finish(big, pal, (26, 38, 34))
-
 def crown():
-    pal = [(252, 244, 178), (252, 227, 107), (251, 200, 63), (233, 167, 63), (176, 98, 40), (110, 52, 32), (226, 60, 64), (150, 28, 48), (255, 190, 190)]
+    """Минималистичная корона (владелец, 16.10): три зубца с шариками, гладкий обруч, один камень."""
+    pal = [(252, 244, 178), (252, 227, 107), (251, 200, 63), (233, 167, 63), (176, 98, 40), (226, 60, 64), (150, 28, 48)]
     big = Image.new('RGBA', (N*K, N*K)); d = ImageDraw.Draw(big)
     P = lambda pts: [(x*K, y*K) for x, y in pts]
-    body = [(7, 36), (7, 17), (15, 26), (19, 11), (24, 23), (29, 11), (33, 26), (41, 17), (41, 36)]
-    d.polygon(P(body), fill=pal[3])
-    d.polygon(P([(9, 34), (9, 21), (15, 29), (19, 15), (24, 27), (29, 15), (33, 29), (39, 21), (39, 34)]), fill=pal[2])
-    d.polygon(P([(10, 30), (10, 23), (15, 30), (19, 18), (21, 27)]), fill=pal[1])
-    d.rectangle(P([(6, 33), (42, 41)]), fill=pal[4]); d.rectangle(P([(6, 33), (42, 38)]), fill=pal[2]); d.rectangle(P([(6, 33), (42, 34.5)]), fill=pal[0])
-    for x, y, r in ((7, 15, 2.6), (19, 9, 2.6), (29, 9, 2.6), (41, 15, 2.6), (24, 21, 2.0)):
-        disc(d, x*K, y*K, r*K, pal[1]); disc(d, (x-0.7)*K, (y-0.7)*K, r*0.45*K, pal[0])
-    for x, r in ((14, 2.4), (24, 3.0), (34, 2.4)):         # камни на обруче
-        disc(d, x*K, 37*K, r*K, pal[7]); disc(d, x*K, 37*K, r*0.7*K, pal[6]); disc(d, (x-0.8)*K, 36.2*K, 0.8*K, pal[8])
+    d.polygon(P([(9, 34), (9, 16), (17, 25), (24, 12), (31, 25), (39, 16), (39, 34)]), fill=pal[3])
+    d.polygon(P([(11, 33), (11, 20), (17, 28), (24, 16), (31, 28), (37, 20), (37, 33)]), fill=pal[2])
+    d.polygon(P([(11, 31), (11, 21), (16, 28)]), fill=pal[1])
+    for x, y in ((9, 14), (24, 10), (39, 14)):
+        disc(d, x*K, y*K, 2.3*K, pal[2]); disc(d, (x-0.6)*K, (y-0.6)*K, 1.0*K, pal[0])
+    d.rectangle(P([(8, 32), (40, 38)]), fill=pal[4]); d.rectangle(P([(8, 32), (40, 36)]), fill=pal[2]); d.rectangle(P([(8, 32), (40, 33.2)]), fill=pal[1])
+    disc(d, 24*K, 34.5*K, 2.2*K, pal[6]); disc(d, 24*K, 34.2*K, 1.4*K, pal[5]); disc(d, 23.4*K, 33.6*K, 0.5*K, pal[0])
     return finish(big, pal, (68, 32, 25))
 
 def eye():
@@ -87,5 +62,5 @@ def eye():
     return finish(big, pal, (36, 26, 58))
 
 os.makedirs(OUT, exist_ok=True)
-for name, fn in (('ghost', ouroboros), ('monarch', crown), ('egoist', eye)):
+for name, fn in (('monarch', crown), ('egoist', eye)):
     fn().save(os.path.join(OUT, f'sign_{name}.png')); print(name)
