@@ -57,6 +57,11 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/backtrack'; require('f
   console.log('stroll', x1 - x0, 'sheathed', sh);
   if (x1 - x0 > 130 || x1 - x0 < 50) fail('шагом — не та скорость: ' + (x1 - x0));
   if (!sh) fail('шагом меч не убран');
+  // Caps Lock (v0.93): сама клавиша переключает шаг / бег и запоминает
+  await p.keyboard.press('CapsLock'); await p.waitForTimeout(200);
+  const after = await p.evaluate(() => localStorage.getItem('knightNight.stroll'));
+  console.log('capslock', after);
+  if (after !== 'off') fail('Caps Lock не переключил на бег');
   await p.evaluate(() => localStorage.removeItem('knightNight.stroll'));
   console.log('errors', JSON.stringify(errors));
   await b.close();

@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.92';
+export const VERSION = 'v0.93';
 
 export const CONFIG = {
   width: 320,
@@ -24,8 +24,6 @@ export const CONFIG = {
   counterWindow: 1.3,   // сколько враг ошеломлён после идеально отбитой серии
   reelTime: 0.55,       // идеальное парирование посреди серии: враг выбит из ритма, ударишь — серия прервётся
   guardBreakTime: 0.7,  // сколько нельзя защищаться после сбитой защиты
-  urgentTurn: 0.12,     // враг за спиной замахивается или рыцарь держит защиту — разворот почти сразу (v0.73)
-  autoTurn: 0.7,        // враг оказался за спиной — рыцарь сам развернётся через столько секунд (стрелкой — сразу)
 
   // Урон
   counterMult: 2,       // во сколько раз больнее бьёшь ошеломлённого врага
@@ -519,9 +517,11 @@ export const ROOMS = {
       { type: 'cracks', x: 1460, secret: 'secret_hall', look: 'look_cracks', name: 'трещины в кладке' },
     ],
     encounters: [
-      { x: 660, enemies: [{ type: 'slime', dx: 60, z: 10 }, { type: 'slime', dx: 90, z: 34 }] },
-      { x: 1020, enemies: [{ type: 'merc', dx: 70, z: 20 }, { type: 'skelShort', dx: -90, z: 30 }] },
-      { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }, { type: 'skelArcher', dx: 130, z: 8 }] },
+      // v0.93 (владелец, отзыв тестера: «вначале сразу сложновато»): первые три встречи — по одному врагу;
+      // скелет с коротким мечом и лучник ушли в Коридор, второй слизень — убран
+      { x: 660, enemies: [{ type: 'slime', dx: 70, z: 20 }] },
+      { x: 1020, enemies: [{ type: 'merc', dx: 70, z: 20 }] },
+      { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }] },
       { x: 1740, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
       { x: 2100, story: 'ilia', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
     ],
@@ -697,6 +697,7 @@ export const ROOMS = {
     ],
     encounters: [
       { x: 470, enemies: [{ type: 'merc', dx: 40, z: 16 }, { type: 'crossbow', dx: 170, z: 30 }] },
+      { x: 740, enemies: [{ type: 'skelShort', dx: 40, z: 26 }, { type: 'skelArcher', dx: 120, z: 8 }] },   // v0.93: из Темницы
     ],
   },
   dining: {

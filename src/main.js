@@ -885,6 +885,7 @@ function showSound(back) {
 const CONTROLS_TEXT = [
   'WASD — ходить вбок и вглубь (вне боя — бег) · Caps Lock — шагом / бегом',
   'Курсор выше рыцаря — верх, на груди — середина, ниже пояса — низ',
+  'Поворот — A / D или курсор по другую сторону рыцаря · с защитой (ПКМ) смотрит на курсор — можно пятиться',
   'ЛКМ — удар на этой высоте · держать ПКМ — защита',
   'Пробел — рывок (курсор внизу — кувырок, вверху — прыжок, с «назад» — отскок)',
   'Колесо вверх — приём оружия · колесо вниз — навык · Q — сменить оружие',
@@ -892,14 +893,26 @@ const CONTROLS_TEXT = [
   'I — снаряжение · H — зелье · B — журнал · M — карта · Esc — пауза',
 ].join('\n');
 
-// шагом или бегом (v0.87, владелец: «нужно и ходить медленно, и бегать»): выбор в паузе, Caps Lock — переключает
+// шрифт текста (v0.93, отзыв тестера): диалоги и описания — книжный (Philosopher), сказочный (Alice) или пиксельный (Tiny5)
+const BODY_FONTS = [['book', 'книжный', '"Philosopher", "Tiny5", system-ui, sans-serif'], ['story', 'сказочный', '"Alice", "Tiny5", serif'], ['pixel', 'пиксельный', '"Tiny5", system-ui, sans-serif']];
+let bodyFont = 'book';
+try { bodyFont = localStorage.getItem('knightNight.font') ?? 'book'; } catch { /* по умолчанию */ }
+function setBodyFont(id) {
+  const f = BODY_FONTS.find(f => f[0] === id) ?? BODY_FONTS[0];
+  bodyFont = f[0];
+  document.documentElement.style.setProperty('--body', f[2]);
+  try { localStorage.setItem('knightNight.font', bodyFont); } catch { /* ничего */ }
+}
+setBodyFont(bodyFont);
+
+// шагом или бегом (v0.87, владелец: «нужно и ходить медленно, и бегать»): выбор в паузе, Caps Lock — переключает (и запоминает)
 let strollOn = false;
 try { strollOn = localStorage.getItem('knightNight.stroll') === 'on'; } catch { /* без хранилища — бегом */ }
 function setStroll(on) {
   strollOn = on;
   try { localStorage.setItem('knightNight.stroll', on ? 'on' : 'off'); } catch { /* ничего */ }
 }
-const strolling = () => strollOn !== input.caps();
+const strolling = () => strollOn;
 
 function showControls(back) {
   showOverlay('Управление', CONTROLS_TEXT, 'Esc — назад');
@@ -918,6 +931,7 @@ function showPause() {
     ...(game.tutorial ? [['Пропустить обучение', () => { resumePlay(); endTutorialSkipped(); }]] : []),   // v0.91
     ['Управление', () => showControls(showPause)],
     ['Звук и музыка', () => showSound(showPause)],
+    [`Шрифт текста: ${BODY_FONTS.find(f => f[0] === bodyFont)[1]}`, () => { const i = BODY_FONTS.findIndex(f => f[0] === bodyFont); setBodyFont(BODY_FONTS[(i + 1) % BODY_FONTS.length][0]); showPause(); }],
     [`Передвижение: ${strollOn ? 'шагом' : 'бегом'} (Caps Lock — сменить)`, () => { setStroll(!strollOn); showPause(); }],
     [`Лёгкий режим: ${easyOn ? 'вкл' : 'выкл'}`, () => { setEasy(!easyOn); showPause(); }],
     ['Новая игра', askNewFromPause],
@@ -1152,7 +1166,7 @@ function handlePress(code) {
     else if (code === 'Escape') showTitle();
     return;
   }
-  if (code === 'Escape' || code === 'KeyP') {
+  if ((code === 'Escape' || code === 'KeyP') && game.mode !== 'talk') {   // в разговоре Esc — пропустить (ниже), не пауза
     if (game.mode === 'play') {
       game.mode = 'paused';
       showPause();
@@ -1289,6 +1303,8 @@ function handlePress(code) {
   }
   const engaged = !!game.current?.alive;
   const backKeys = p.facing > 0 ? KEYS.left : KEYS.right;
+  if (is(code, 'left') || is(code, 'right')) game.faceBy = 'keys';
+  if (code === 'CapsLock') { setStroll(!strollOn); callout(strollOn ? 'Шагом' : 'Бегом', 'muted'); }   // v0.93: сама клавиша переключает
 
   // высота — по курсору: ЛКМ бьёт, ПКМ защищает, пробел — рывок на этой высоте
   const vert = game.aim === 'high' ? 'up' : game.aim === 'low' ? 'down' : null;
@@ -1322,6 +1338,17 @@ function handlePress(code) {
   }
 }
 
+// сторона курсора относительно рыцаря (с запасом 10 px, чтобы у самого рыцаря не дёргался); пересёк — разворот
+function updateCursorSide() {
+  if (game.mouseX == null) return;
+  const dx = Math.round(game.camX) + game.mouseX - game.player.x;
+  const side = dx > 10 ? 1 : dx < -10 ? -1 : 0;
+  if (side && side !== game.cursorSide) {
+    if (game.cursorSide !== undefined) game.faceBy = 'cursor';   // первое значение — не поворот
+    game.cursorSide = side;
+  }
+}
+
 function controls() {
   const p = game.player;
   const engaged = !!game.current?.alive;
@@ -1329,7 +1356,8 @@ function controls() {
   const dz = (held('depthOut') ? 1 : 0) - (held('depthIn') ? 1 : 0);
   return {
     fwd: p.facing > 0 ? R : L,
-    back: engaged && (p.facing > 0 ? L : R) && !(p.facing > 0 ? R : L),
+    // назад — только когда взгляд держит защита (смотрит на курсор), иначе клавиша сама разворачивает
+    back: (p.facing > 0 ? L : R) && !(p.facing > 0 ? R : L),
     dz,
     guard: held('guard') ? game.aim : null,
     engaged,
@@ -1371,8 +1399,9 @@ function musicZone() {
   if (game.mode === 'title') return 'title';
   if (game.rest || game.vibe) return 'rest';
   if (game.arena) {
-    if (game.enemies.some(e => e.group === game.arena.index && e.kind === 'boss')) return 'boss';
-    if ((room().encounters ?? [])[game.arena.index]?.story) return 'duel';
+    // музыка боя — когда закончился разговор перед боем и пошла схватка (владелец, v0.93), дальше — до конца боя (и в паузе)
+    const fight = game.enemies.some(e => e.group === game.arena.index && e.kind === 'boss') ? 'boss' : (room().encounters ?? [])[game.arena.index]?.story ? 'duel' : null;
+    if (fight && (game.arena.music || game.mode === 'play')) { game.arena.music = true; return fight; }
   }
   if (game.mode === 'shop' || (room()?.npcs ?? []).some(n => NPC_TYPES[n.type]?.shop)) return 'shop';
   return 'explore';
@@ -1455,12 +1484,12 @@ function pickTarget() {
     game.current = null;
     return;
   }
+  // цель (v0.93, без автонаведения) — ближайший враг перед рыцарем; перед ним никого — ближайший вообще
   const group = game.enemies.filter(e => e.group === game.arena.index && e.alive);
-  const holder = game.token?.e;
-  let best = holder?.alive && group.includes(holder) ? holder : null;
-  if (!best) for (const e of group) {
-    if (!best || Math.hypot(e.x - p.x, (e.z - p.z) * 2) < Math.hypot(best.x - p.x, (best.z - p.z) * 2)) best = e;
-  }
+  const dist = e => Math.hypot(e.x - p.x, (e.z - p.z) * 2);
+  const ahead = group.filter(e => (e.x - p.x) * p.facing > -6);
+  let best = null;
+  for (const e of ahead.length ? ahead : group) if (!best || dist(e) < dist(best)) best = e;
   if (best !== game.current) {
     game.current = best ?? game.enemies.find(e => e.group === game.arena.index && e.state === 'yield') ?? null;
     renderFoe();
@@ -2098,8 +2127,6 @@ function update(dt) {
   if (game.rest) { updateRest(dt); updateCoinFx(dt); updateCamera(dt); return; }
   if (game.vibe) { updateVibe(dt); updateCamera(dt); return; }
   updateShield(dt);
-  if (strolling() !== (game.strollShown ?? strollOn)) callout(strolling() ? 'Шагом' : 'Бегом', 'muted');   // переключил Caps Lock
-  game.strollShown = strolling();
   updateEnterTalk();
   updateArena();
   updateTrainerMeet();
@@ -2116,26 +2143,16 @@ function update(dt) {
   pickTarget();
   const cur = game.current?.alive ? game.current : null;
 
-  // куда смотрит рыцарь: в бою — на врага, иначе — куда идёт
+  // куда смотрит рыцарь (v0.93, решение владельца — без автонаведения): куда идёт (A / D) или где курсор.
+  // Курсор перешёл на другую сторону рыцаря — разворот; держит защиту (ПКМ) — смотрит на курсор, можно пятиться,
+  // прикрываясь; иначе — по клавишам. Действует последнее: нажал клавишу — она, сдвинул курсор за спину — курсор.
   const free = p.state === 'ready';
-  if (cur && free) {
-    // враг за спиной: стрелка в его сторону разворачивает сразу, иначе — с задержкой
-    const want = Math.sign(cur.x - p.x) || p.facing;
-    if (want === p.facing) game.turnT = 0;
-    else {
-      game.turnT = (game.turnT ?? 0) + dt;
-      // враг за спиной замахивается или рыцарь держит защиту — разворот почти сразу (v0.73): иначе правильный блок
-      // не засчитывался — удар «в спину» (босс перелетает за спину и бьёт быстрее, чем рыцарь сам разворачивался)
-      const urgent = held('guard') || cur.state === 'windup' || cur.state === 'swapIn';
-      if (held(want > 0 ? 'right' : 'left') || game.turnT >= (urgent ? CONFIG.urgentTurn : CONFIG.autoTurn)) {
-        p.facing = want;
-        game.turnT = 0;
-      }
-    }
-  }
-  else if (!cur && free) {
-    if (held('left') && !held('right')) p.facing = -1;
-    else if (held('right') && !held('left')) p.facing = 1;
+  updateCursorSide();
+  if (free) {
+    const L = held('left'), R = held('right');
+    if (held('guard') && game.cursorSide) p.facing = game.cursorSide;
+    else if (L !== R) p.facing = L ? -1 : 1;
+    else if (game.faceBy === 'cursor' && game.cursorSide) p.facing = game.cursorSide;
   }
   updateView(dt, !!cur);
 
@@ -2556,37 +2573,93 @@ function mapPress(code) {
 }
 const PARCHMENT = new Image();
 PARCHMENT.src = 'assets/ui/parchment.png';
+// карта (v0.93, владелец: «улучшить визуально, PixelLab проработать»): пергамент с рамкой и значки-жетоны из PixelLab
+// (tools/pixellab_map.py → assets/ui/map_<имя>.png); нет картинки — прежний рисунок кодом
+const MAP_IMG = {};
+for (const n of ['parchment', 'rest', 'shop', 'boss', 'quest', 'stairs', 'lock', 'you', 'compass']) {
+  const im = new Image();
+  im.onload = () => { MAP_IMG[n] = im; };
+  im.src = `assets/ui/map_${n}.png`;
+}
+const MAP_LEGEND = [['you', 'ты здесь'], ['rest', 'отдых'], ['shop', 'лавка'], ['boss', 'опасность'], ['quest', 'персонаж'], ['stairs', 'лестница'], ['lock', 'заперто']];
+const INK = '#4a3622', INK_SOFT = '#8a7a58';
+
+// значок карты: картинка 32×32 в экранных пикселях (s — размер в мире), иначе — простая метка кодом
+function mapIcon(name, cx, cy, s = 8) {
+  const im = MAP_IMG[name];
+  if (im) {
+    const t = g.getTransform(), k = t.a;
+    g.save();
+    g.setTransform(1, 0, 0, 1, t.e, t.f);
+    g.imageSmoothingEnabled = false;
+    g.drawImage(im, Math.round((cx - s / 2) * k), Math.round((cy - s / 2) * k), s * k, s * k);
+    g.restore();
+    return;
+  }
+  const c = { rest: '#e06030', shop: PAL.gold, chest: '#6b4532', boss: '#3a2a2a', quest: '#c8303f', stairs: INK, lock: '#5a5a6a', you: '#c8303f' }[name] ?? INK;
+  rect(g, Math.round(cx - 1), Math.round(cy - 1), 3, 3, c);
+}
+
+// что отметить в комнате: отдых, лавка, сундуки, опасность (сюжетный бой / босс не побеждён), персонаж с делом, лестница, запертые двери
+function mapMarks(id) {
+  const r = ROOMS[id], f = game.flags, out = [];
+  const at = x => x / r.length;
+  for (const s of [...(r.props ?? []), ...(r.decor ?? [])]) if (s.rest) out.push(['rest', at(s.x)]);
+  if (r.npcs?.some(n => NPC_TYPES[n.type]?.shop)) out.push(['shop', 0.5]);
+  // сундуки на карте не отмечаются (владелец, v0.93: «пусть сами находят»)
+  (r.encounters ?? []).forEach((e, i) => { if (e.story && !f['done_' + e.story] && !game.cleared.has(encKey(id, i))) out.push(['boss', at(e.x)]); });
+  for (const n of r.npcs ?? []) {
+    if (NPC_TYPES[n.type]?.shop || NPC_TYPES[n.type]?.cat || !flagsOK(n.needs) || [].concat(n.ifNot ?? []).some(k => f[k])) continue;
+    const pending = n.type === 'alkima' ? !f.alkima_done : n.type === 'ilia' ? !f.ilia_healed : true;
+    if (pending) out.push(['quest', at(n.x)]);
+  }
+  for (const d of r.doors ?? []) {
+    if (d.needs && !f[d.needs]) continue;
+    const other = d.to && ROOMS[d.to];
+    if (d.stairs || (other && (other.floor ?? 1) !== (r.floor ?? 1))) out.push(['stairs', at(d.x)]);
+    else if ((d.locked || d.requires) && !f['opened_' + d.id] && !(d.requires && f[d.requires]) && !(d.key && hasItem(d.key))) out.push(['lock', at(d.x)]);
+  }
+  return out;
+}
 
 function renderMap() {
-  const f = game.mapFloor, U = 6, X0 = 11, Y0 = 28;
-  // пергамент: картинка PixelLab (v0.68) в разрешении экрана; нет — кодом
-  if (PARCHMENT.complete && PARCHMENT.naturalWidth) {
+  const f = game.mapFloor, U = 6, X0 = 11, Y0 = 30;
+  // пергамент: рамка PixelLab (v0.93) или прежний лист, или кодом
+  const parch = MAP_IMG.parchment ?? (PARCHMENT.complete && PARCHMENT.naturalWidth ? PARCHMENT : null);
+  if (parch) {
     g.save();
     g.imageSmoothingEnabled = false;
-    g.drawImage(PARCHMENT, 8, 12, 304, 156);
+    g.drawImage(parch, 0, 4, 320, 176);
     g.restore();
   } else {
     rect(g, 8, 12, 304, 156, '#5a4632');
     rect(g, 10, 14, 300, 152, '#d8c8a0');
     rect(g, 12, 16, 296, 148, '#e0d2ac');
-    for (let i = 0; i < 40; i++) rect(g, 14 + (i * 73) % 290, 18 + (i * 37) % 140, 2, 1, '#cbb98e');  // пятна
   }
-  g.fillStyle = '#5a4632';
+  g.fillStyle = INK;
   g.font = '8px "Tiny5", monospace';
   g.textBaseline = 'top';
-  g.fillText(`Этаж ${f}${(room().floor ?? 1) === f ? ' · ' + room().name : ''}`, 26, 21);
-  g.fillText('M — закрыть · A / D — этаж', 180, 150);
+  g.fillText(`${FLOOR_NAMES[f] ?? 'Первый этаж'}${(room().floor ?? 1) === f ? ' · ' + room().name : ''}`, 24, 18);
+  g.fillText('M — закрыть · A / D — этаж', 196, 18);
+  if (MAP_IMG.compass) mapIcon('compass', 292, 40, 18);
   const seen = id => game.flags['map_' + id];
   const box = id => { const [ff, x, y, w] = MAP[id]; return ff === f ? { x: X0 + x * U, y: Y0 + y * U, w: w * U } : null; };
+  // соседние комнаты, где ещё не был: дверь или край из знакомой комнаты ведёт туда
+  const known = new Set();
+  for (const [id, r] of Object.entries(ROOMS)) {
+    if (!seen(id)) continue;
+    for (const d of r.doors ?? []) if (d.to && !(d.needs && !game.flags[d.needs]) && !d.locked) known.add(d.to);
+    for (const e of Object.values(r.edges ?? {})) known.add(e.to);
+  }
   // переходы: края — рядом, двери — линия вверх к комнате
   for (const [id, r] of Object.entries(ROOMS)) {
     const a = MAP[id] && box(id);
     if (!a || !seen(id)) continue;
     for (const d of r.doors ?? []) {
       const b = d.to && MAP[d.to] && box(d.to);
-      if (!b || !seen(d.to) || b.w >= a.w) continue;  // линию рисует коридор — к боковой комнате, один раз
+      if (!b || !(seen(d.to) || known.has(d.to)) || b.w >= a.w) continue;  // линию рисует коридор — к боковой комнате, один раз
       const dx = a.x + (d.x / r.length) * a.w;
-      rect(g, Math.round(dx), Math.min(a.y, b.y + U), 1, Math.abs(a.y - (b.y + U)) || 1, '#8a7a58');
+      rect(g, Math.round(dx), Math.min(a.y, b.y + U), 1, Math.abs(a.y - (b.y + U)) || 1, INK_SOFT);
     }
   }
   // края на разной высоте — лестница: ступеньки от конца одной комнаты к началу другой
@@ -2595,32 +2668,46 @@ function renderMap() {
     const b = e && MAP[e.to] && box(e.to);
     if (!a || !b || !seen(id) || !seen(e.to) || a.y === b.y) continue;
     const x = Math.round(a.x + a.w), top = Math.min(a.y, b.y) + U, bot = Math.max(a.y, b.y);
-    for (let y = top; y < bot; y += 2) rect(g, x - 1 + ((y - top) % 4 ? 1 : 0), y, 2, 1, '#8a7a58');
+    for (let y = top; y < bot; y += 2) rect(g, x - 1 + ((y - top) % 4 ? 1 : 0), y, 2, 1, INK_SOFT);
   }
+  // комнаты: где был — залиты, текущая — золотом; неизвестные соседи — пунктир и «?»
+  for (const id of Object.keys(MAP)) {
+    const b = box(id);
+    if (!b) continue;
+    const x = Math.round(b.x), w = Math.round(b.w);
+    if (!seen(id)) {
+      if (!known.has(id)) continue;
+      for (let i = 0; i < w; i += 2) { rect(g, x + i, b.y, 1, 1, INK_SOFT); rect(g, x + i, b.y + U - 1, 1, 1, INK_SOFT); }
+      for (let j = 0; j < U; j += 2) { rect(g, x, b.y + j, 1, 1, INK_SOFT); rect(g, x + w - 1, b.y + j, 1, 1, INK_SOFT); }
+      g.fillStyle = INK_SOFT;
+      g.fillText('?', x + w / 2 - 2, b.y - 1);
+      continue;
+    }
+    rect(g, x, b.y, w, U, INK);
+    rect(g, x + 1, b.y + 1, w - 2, U - 2, id === game.room ? '#d8b860' : '#b8a478');
+  }
+  // значки поверх комнат
   for (const id of Object.keys(MAP)) {
     const b = box(id);
     if (!b || !seen(id)) continue;
-    rect(g, Math.round(b.x), b.y, Math.round(b.w), U, '#5a4632');
-    rect(g, Math.round(b.x) + 1, b.y + 1, Math.round(b.w) - 2, U - 2, id === game.room ? '#c8b07a' : '#b8a478');
-    const r = ROOMS[id];
-    // отметки: место отдыха — огонёк, лавка — монета
-    for (const s of [...(r.props ?? []), ...(r.decor ?? [])]) if (s.rest) {
-      const sx = Math.round(b.x + (s.x / r.length) * b.w);
-      rect(g, sx, b.y + 1, 2, 3, '#e06030'); rect(g, sx, b.y + 1, 1, 1, '#ffd070');
-    }
-    if (r.npcs?.some(n => NPC_TYPES[n.type]?.shop)) rect(g, Math.round(b.x + b.w / 2), b.y + 2, 2, 2, PAL.gold);
-    // неоткрытый сундук — коричневый квадратик с золотой точкой
-    for (const pr of r.props ?? []) if (pr.type === 'chest' && !game.flags[`chest_${id}_${pr.id}`]) {
-      const cx = Math.round(b.x + (pr.x / r.length) * b.w) - 1;
-      rect(g, cx, b.y + 2, 3, 2, '#6b4532'); rect(g, cx + 1, b.y + 2, 1, 1, PAL.gold);
+    const used = [];
+    for (const [n, k] of mapMarks(id)) {
+      let cx = b.x + Math.min(Math.max(k, 0.08), 0.92) * b.w;
+      while (used.some(u => Math.abs(u - cx) < 7)) cx += 7;   // значки не налезают друг на друга
+      used.push(cx);
+      mapIcon(n, cx, b.y + U / 2);
     }
   }
-  // Найт — красная точка, мигает
+  // Найт — шлем с плюмажем, мигает
   const me = box(game.room);
-  if (me && Math.floor(game.time * 0 + performance.now() / 300) % 2 === 0) {
-    const px = Math.round(me.x + (game.player.x / room().length) * me.w);
-    rect(g, px - 1, me.y + 1, 3, U - 2, '#c8303f');
-  }
+  if (me && Math.floor(performance.now() / 400) % 3 !== 0) mapIcon('you', me.x + (game.player.x / room().length) * me.w, me.y - 4, 9);
+  // легенда — два ряда по четыре
+  g.fillStyle = INK;
+  MAP_LEGEND.forEach(([n, label], i) => {
+    const lx = 26 + (i % 4) * 70, ly = 146 + Math.floor(i / 4) * 11;
+    mapIcon(n, lx + 3, ly + 4, 8);
+    g.fillText(label, lx + 9, ly);
+  });
 }
 
 function openJournal() {
@@ -4468,6 +4555,7 @@ window.addEventListener('pointerup', e => {
 ui.box.addEventListener('pointermove', e => {
   const r = canvas.getBoundingClientRect();
   game.mouseY = (e.clientY - r.top) / r.height * H;
+  game.mouseX = (e.clientX - r.left) / r.width * W;
 });
 ui.box.addEventListener('contextmenu', e => e.preventDefault());
 let wheelAt = 0;

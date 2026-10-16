@@ -7,7 +7,8 @@
   --gold: #f2c14e;
   --red: #e8454f;
   --pixel: "Tiny5", ui-monospace, monospace;   /* v0.67: кириллица читается, пиксельный под графику (бесплатный, OFL) */
-  --body: "Tiny5", system-ui, sans-serif;     /* запасной для диалогов — "Handjet" (тоньше, длиннее строки) */
+  --body: "Philosopher", "Tiny5", system-ui, sans-serif;   /* v0.93 (отзыв тестера: пиксельный текст тяжело читать): диалоги и описания — книжный
+                                                            Philosopher; Tiny5 — заголовки, имена, меню, интерфейс. Пауза → «Шрифт текста» */
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
