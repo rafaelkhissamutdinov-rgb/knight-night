@@ -54,8 +54,10 @@ const SPECIAL = new Set(['rollCut', 'dashCut', 'leap', 'spin', 'figure8', 'vault
 const HINT_WALK = 'WASD — ходить · курсор выше / ниже рыцаря — высота · ЛКМ удар · ПКМ защита · пробел рывок';
 const HINT_FIGHT = 'курсор — высота ▲ ━ ▼ · ЛКМ удар · держать ПКМ — защита · пробел рывок';
 // подсказки управления — только поначалу: дальше они мешают, а управление есть в меню (Esc → Управление)
-const hintFight = () => game.cleared?.size >= 3 ? '' : HINT_FIGHT;
-const hintWalk = () => game.visited?.includes('gallery') || game.flags?.done_ilia || game.cleared?.size >= 3 ? '' : HINT_WALK;
+// сколько встреч побеждено хоть раз (cleared после отдыха пустеет, а опыт остаётся)
+const beatCount = () => Math.max(game.cleared?.size ?? 0, Object.keys(game.flags ?? {}).filter(k => k.startsWith('beat_')).length);
+const hintFight = () => beatCount() >= 3 ? '' : HINT_FIGHT;
+const hintWalk = () => game.visited?.includes('gallery') || game.flags?.done_ilia || beatCount() >= 3 ? '' : HINT_WALK;
 
 // Холст вдвое больше игрового мира (640×360): код рисует в координатах мира с масштабом S,
 // спрайты из PixelLab — в родных пикселях (src/sprites.js). Логика и баланс — в прежних единицах.
@@ -145,7 +147,8 @@ function spawnRoom(roomId) {
 }
 
 // Перейти в комнату: враги, персонажи, камера. at — { x, z, facing } прибытия.
-// Обычные встречи (не боссы и не встречи с диалогом) возвращаются, если долго не заходил: монеты не кончаются.
+// Обычные встречи (не боссы и не встречи с диалогом) возвращаются после отдыха (v0.86): монеты не кончаются,
+// а зачищенная комната остаётся пустой, пока не сядешь отдыхать — обратный путь быстрый.
 const MARAUDERS = new Set(['merc', 'axe', 'spear', 'crossbow', 'captain']);
 const BOSSES = new Set(['duelist', 'captain', 'commander', 'mage']);
 // сюжетные бои (story — имя) не возвращаются никогда: победа помнится флагом done_<имя>, а не номером встречи
@@ -175,9 +178,8 @@ function loadRoom(id, at) {
   }
   (ROOMS[id].encounters ?? []).forEach((enc, i) => {
     const key = encKey(id, i);
-    if (admin.peace && !enc.story) { game.cleared.add(key); game.clearedAt[key] = 1e9; }   // админка: без обычных боёв
+    if (admin.peace && !enc.story) game.cleared.add(key);   // админка: без обычных боёв
     if (enc.story && game.flags['done_' + enc.story]) game.cleared.add(key);
-    if (game.cleared.has(key) && respawnable(enc) && game.time - (game.clearedAt[key] ?? 0) >= CONFIG.respawnTime) game.cleared.delete(key);
   });
   game.room = id;
   game.visited.push(id);
@@ -223,7 +225,6 @@ function newGame() {
     room: START.room,
     arena: null,
     cleared: new Set(),
-    clearedAt: {},
     token: null,
     tokenFreeAt: 0,
     current: null,
@@ -294,7 +295,7 @@ function continueGame(data) {
   newGame();
   game.unlocked = new Set(data.unlocked ?? ['sword']);
   game.cleared = new Set(data.cleared ?? []);
-  for (const k of game.cleared) game.clearedAt[k] = 0;  // после загрузки обычные враги вернутся через respawnTime
+  for (const k of game.cleared) game.flags['beat_' + k] = true;  // старые сохранения: побеждённые раньше — повторный бой без запирания
   game.flags = data.flags ?? {};
   game.pickups = data.pickups ?? [];
   game.coins = data.coins ?? 0;
@@ -335,7 +336,7 @@ const world = {
   // сколько места у врага в сторону dir до края арены
   roomBehind(e, dir) {
     if (!game.arena) return 999;
-    const [lo, hi] = arenaBounds();
+    const [lo, hi] = game.arena.open ? roomBounds() : arenaBounds();
     return dir > 0 ? hi - e.x : e.x - lo;
   },
   dropWeapon(e, kind) {
@@ -998,7 +999,6 @@ function adminClearRoom() {
   (ROOMS[game.room].encounters ?? []).forEach((enc, i) => {
     const key = encKey(game.room, i);
     game.cleared.add(key);
-    game.clearedAt[key] = 1e9;
     if (enc.story) game.flags['done_' + enc.story] = true;
   });
   if (game.flags.done_ilia && !owns('rapier')) adminGive(['rapier']);
@@ -1319,6 +1319,13 @@ function arenaBounds() {
   return [Math.max(16, game.arena.x - 150), Math.min(room().limitRight ?? L - 16, game.arena.x + 150)];
 }
 
+// Обычные границы: где нет прохода, стена.
+function roomBounds() {
+  const L = room().length, edges = room().edges ?? {};
+  return [edges.left ? 8 : 16, edges.right ? L - 8 : room().limitRight ?? L - 16];
+}
+const lockedArena = () => game.arena && !game.arena.open;
+
 // Встреча начинается, когда рыцарь подходит; проход закрыт, пока группа жива.
 function updateArena() {
   const p = game.player;
@@ -1327,7 +1334,9 @@ function updateArena() {
     if (game.tutorial) return;
     const i = encs.findIndex((enc, i) => !game.cleared.has(encKey(game.room, i)) && flagsOK(enc.needs) && p.x > enc.x - 140 && p.x < enc.x + 150);
     if (i < 0) return;
-    game.arena = { index: i, x: encs[i].x, key: encKey(game.room, i) };
+    // повторный бой с уже побеждёнными обычными врагами не запирает: хочешь — дерись, хочешь — пробеги мимо
+    const key = encKey(game.room, i);
+    game.arena = { index: i, x: encs[i].x, key, t0: game.time, open: !!game.flags['beat_' + key] && respawnable(encs[i]) };
     game.checkpoint = Math.max(40, encs[i].x - 140);
     for (const e of game.enemies) if (e.group === i) { e.awake = true; seen(e.type); }
     ui.foe.hidden = false;
@@ -1339,7 +1348,7 @@ function updateArena() {
   const alive = game.enemies.some(e => e.group === game.arena.index && (e.alive || e.state === 'yield'));
   if (!alive) {
     game.cleared.add(game.arena.key);
-    game.clearedAt[game.arena.key] = game.time;
+    game.flags['beat_' + game.arena.key] = true;
     const enc = encs[game.arena.index];
     if (enc.story) game.flags['done_' + enc.story] = true;
     if (enc.after) setTimeout(() => startTalk(enc.after, () => {
@@ -1578,6 +1587,8 @@ function startRest(spot) {
   p.guard = null;
   game.flags.restAt = { room: game.room, x: p.x, z: p.z };
   game.checkpoint = p.x;
+  // отдых возвращает обычных врагов по всему замку (появятся при следующем входе в комнату)
+  for (const { key, enc } of ALL_ENCOUNTERS) if (respawnable(enc)) game.cleared.delete(key);
   save();
   callout(`Отдых ${spot.rest.name} · сохранено`, 'perfect');
   sfx.ward();
@@ -1727,7 +1738,7 @@ function nearNpc() {
 // Вход в дверь: прижался к стене у двери и держит W.
 function updateDoors(dt) {
   const p = game.player;
-  const d = p.ready && !game.arena && !game.tutorial ? doorAt(p) : null;
+  const d = p.ready && !lockedArena() && !game.tutorial ? doorAt(p) : null;
   game.doorNear = d;
   if (game.doorLock && !held('depthIn')) game.doorLock = false;  // вышел из двери — сначала отпусти W
   if (!d || !held('depthIn') || p.z > 1 || game.doorLock) { game.doorPush = 0; return; }
@@ -1765,7 +1776,7 @@ function updateDoors(dt) {
 // Выход за край комнаты (там, где есть проход).
 function updateEdges() {
   const p = game.player;
-  if (game.arena || game.tutorial || !p.ready) return;
+  if (lockedArena() || game.tutorial || !p.ready) return;
   const edges = room().edges ?? {};
   const L = room().length;
   if (edges.left && p.x <= 10 && held('left')) game.transition = { kind: 'edge', edge: edges.left, dir: -1, phase: 'out', t: 0 };
@@ -2021,6 +2032,9 @@ function update(dt) {
     const d = game.doorNear;
     const near = nearChest();
     hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk(), nearVibe());
+  } else if (game.arena?.open) {
+    const d = game.doorNear;
+    hint(d ? (d.locked ? d.locked : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : game.time - game.arena.t0 < 4 ? 'Можно не драться — проскочи рывком (пробел) сквозь врагов' : '');
   }
   updateToken();
   pickTarget();
@@ -2093,7 +2107,9 @@ function update(dt) {
   const solids = game.enemies.filter(e => e.solid && e.type !== 'dummy');  // сквозь чучело можно пройти
   for (const e of solids) {
     if (p.state === 'swallowed' || p.airY > 4 || Math.abs(e.z - p.z) >= 8) continue;  // в прыжке — над врагом
-    if (p.state === 'dash' && p.weapon === 'dagger') {   // с кинжалом рывок проскакивает сквозь врага (v0.82)
+    // с кинжалом рывок проскакивает сквозь врага (v0.82); в повторном бою — любой рывок и кувырок: пробежать мимо (v0.86)
+    const slip = (p.state === 'dash' && p.weapon === 'dagger') || ((p.state === 'dash' || p.state === 'roll') && game.arena?.open && e.group === game.arena.index);
+    if (slip) {
       const side = Math.sign(e.x - p.x);
       if (e.slipSide && side && side !== e.slipSide) e.slipAt = game.time;
       e.slipSide = side;
@@ -2114,19 +2130,14 @@ function update(dt) {
   }
   const L = room().length;
   let lo = 8, hi = L - 8;
-  if (game.arena) [lo, hi] = arenaBounds();
+  if (lockedArena()) [lo, hi] = arenaBounds();
   else if (game.tutorial) {
     // на обучении от наставницы далеко не уйти
     const t = trainer();
     if (t) [lo, hi] = [Math.max(16, t.homeX - 170), Math.min(L - 16, t.homeX + 170)];
-  } else {
-    // где нет прохода, стена
-    const edges = room().edges ?? {};
-    if (!edges.left) lo = 16;
-    if (!edges.right) hi = room().limitRight ?? L - 16;
-  }
+  } else [lo, hi] = roomBounds();
   p.x = Math.max(lo, Math.min(hi, p.x));
-  if (game.arena) for (const e of game.enemies) {
+  if (lockedArena()) for (const e of game.enemies) {
     if (e.group === game.arena.index && e.state !== 'flee' && e.state !== 'yield') e.x = Math.max(lo - 10, Math.min(hi + 10, e.x));
   }
   updateDoors(dt);
@@ -2142,7 +2153,7 @@ function update(dt) {
 function updateCamera(dt) {
   const p = game.player;
   const L = room().length;
-  const target = game.arena ? game.arena.x - W / 2 : p.x - (p.facing > 0 ? 120 : 200);
+  const target = lockedArena() ? game.arena.x - W / 2 : p.x - (p.facing > 0 ? 120 : 200);
   const clamped = Math.max(0, Math.min(L - W, target));
   game.camX += (clamped - game.camX) * Math.min(1, dt * 5);
 }
