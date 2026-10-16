@@ -34,7 +34,12 @@ EDITS = {'erinnerland': {
        'boats on the river, remove the small knight on the cliff',
     6: 'the same castle on the same rocky crag and the same valley, at night under siege: the castle walls and towers on fire, red and orange glow, smoke, '
        'an enemy army with torches and siege engines camped in the valley, burning arrows in the sky, remove the small knight on the cliff',
-}}
+},
+    # конец главы 1 (v0.95, владелец): рыцарь телепортировался к замку с титульного экрана — тот же вид, но днём
+    'ending': {0: 'the same castle on the same rocky crag and the same valley, but now in bright clear daylight around noon: blue sky with soft white clouds, '
+                  'warm sunlight on the stone, green grass and pine trees on the slopes, the castle still old and abandoned, weathered, ivy, the broken bridge, '
+                  'keep the small lone knight standing on the cliff in the foreground, peaceful calm mood'},
+}
 if sys.argv[1] == 'edit':   # python3 tools/pixellab_story.py edit <рассказ> <n> → <рассказ>_<n>e_NN.png
     story, n = sys.argv[2], int(sys.argv[3])
     t = Image.open(TITLE).convert('RGB').resize((320, 180), Image.NEAREST); tp = os.path.join(WORK, 'title_small.png'); t.save(tp)
@@ -44,7 +49,7 @@ if sys.argv[1] == 'edit':   # python3 tools/pixellab_story.py edit <расска
         return run('/edit-images-v2', {'method': 'edit_with_text', 'description': EDITS[story][n] + '. ' + STYLE, 'seed': 11 + k,
                                        'edit_images': [{'image': img, 'width': 320, 'height': 180}], 'image_size': {'width': 320, 'height': 180}},
                    os.path.join(WORK, f'{story}_{n}e{k}'))
-    with ThreadPoolExecutor(3) as ex: paths = [p for ps in ex.map(job, range(3)) for p in ps]
+    with ThreadPoolExecutor(3) as ex: paths = [p for ps in ex.map(job, range(int(os.environ.get('VARIANTS', 3)))) for p in ps]   # VARIANTS=1 — экономия
     print(story, n, 'edit', len(paths), flush=True)
     sys.exit()
 # Картины с героями по канону (docs/art-canon.md): эталоны капитана и принцессы — reference images.
