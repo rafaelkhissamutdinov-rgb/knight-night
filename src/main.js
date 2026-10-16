@@ -6,7 +6,7 @@ import { Player, FLURRY_TOSS } from './player.js';
 import { resolveImpact, isBackstab } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
 import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
-import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, decorBounds, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
+import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, decorBounds, objImage, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
@@ -1631,15 +1631,56 @@ function startVibe(spot) {
   save();
 }
 // живая картинка места: нарастает, пока Найт смотрит, и плавно гаснет, когда он отвернулся
+// Фуджин в темноте (v0.85, владелец: «его плохо видно»): чёрный кот в тёмной библиотеке гаснет под живым светом.
+// Поверх света — тонкий лунный ободок по силуэту и горящие жёлтые глаза (как у настоящего кота в темноте).
+const catLook = new Map();
+function catLookOf(name) {
+  if (catLook.has(name)) return catLook.get(name);
+  const im = objImage(name);
+  if (!im) return null;
+  const w = im.width, h = im.height, c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, w, h), a = i => d.data[i * 4 + 3] > 100, eyes = [];
+  const rim = x.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) {
+    const i = y * w + xx, r = d.data[i * 4], g2 = d.data[i * 4 + 1], b = d.data[i * 4 + 2];
+    if (a(i) && r > 170 && g2 > 130 && b < 110) eyes.push([xx, y]);
+    // ободок — край силуэта сверху и с боков (свет сверху), снизу не нужен
+    if (a(i) && ((y > 0 && !a(i - w)) || (xx > 0 && !a(i - 1)) || (xx < w - 1 && !a(i + 1)))) { rim.data.set([150, 140, 190, 255], i * 4); }
+  }
+  x.clearRect(0, 0, w, h); x.putImageData(rim, 0, 0);
+  const look = { rim: c, eyes, w, h };
+  catLook.set(name, look);
+  return look;
+}
+function catGlow(name, x, gy, flip) { (game.catGlow ??= []).push({ name, x: x + Math.round(game.camX), gy, flip }); }
+function drawCatGlow(cam) {
+  for (const c of game.catGlow ?? []) {
+    const L = catLookOf(c.name);
+    if (!L) continue;
+    fx.save();
+    fx.translate(Math.round(c.x - cam), 0);
+    if (c.flip) fx.scale(-1, 1);
+    const left = -L.w / 4, top = c.gy - L.h / 2;
+    fx.globalAlpha = 0.45; fx.drawImage(L.rim, left, top, L.w / 2, L.h / 2);
+    const pulse = 0.85 + 0.15 * Math.sin(game.time * 1.7);
+    for (const [ex, ey] of L.eyes) {
+      fx.globalAlpha = 0.18 * pulse; fx.fillStyle = '#ffd84a'; fx.fillRect(left + ex / 2 - 0.25, top + ey / 2 - 0.25, 1, 1);   // лёгкое свечение — глаза остаются двумя огоньками
+      fx.globalAlpha = pulse; fx.fillStyle = '#fff0a0'; fx.fillRect(left + ex / 2, top + ey / 2, 0.5, 0.5);
+    }
+    fx.restore();
+  }
+}
 // слой поверх живого света: живая картинка вайба и эффекты боя (src/combatfx.js) — светятся сами
 function renderOverlayFx() {
-  const busy = !!game.vibeFx || combatFxBusy();
+  const busy = !!game.vibeFx || combatFxBusy() || !!game.catGlow?.length;
   if (busy || fxCanvas.dataset.dirty) { fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); delete fxCanvas.dataset.dirty; }
   if (!busy || game.mode === 'title') return;
   fxCanvas.dataset.dirty = '1';
   fx.setTransform(S, 0, 0, S, 0, 0);
   const cam = Math.round(game.camX);
   if (game.vibeFx) renderVibeFx(cam);
+  drawCatGlow(cam);
   drawCombatFx(fx, cam);
 }
 function renderVibeFx(cam) {
@@ -3089,7 +3130,7 @@ function callout(text, kind) {
 }
 
 function hint(text, vibe) {
-  if (vibe) text = text ? `${text} · V — постоять, посмотреть` : 'V — постоять, посмотреть';   // место для «вайбовать»
+  if (vibe) text = text ? `${text} · V — вайбовать` : 'V — вайбовать';   // место для «вайбовать»
   if (!text) { ui.hint.hidden = true; ui.hint.textContent = ''; return; }
   if (ui.hint.textContent === text && !ui.hint.hidden) return;
   ui.hint.textContent = text;
@@ -3176,6 +3217,7 @@ function renderFoe() {
 // ---------- отрисовка ----------
 
 function render() {
+  game.catGlow = [];   // кот в темноте: заново каждый кадр (рисует drawCatGlow поверх света)
   const sx = game.shake ? Math.round((Math.random() * 2 - 1) * game.shake) : 0;
   const sy = game.shake ? Math.round((Math.random() * 2 - 1) * game.shake) : 0;
   g.setTransform(S, 0, 0, S, sx * S, sy * S);
@@ -4026,10 +4068,10 @@ function renderNpc(n, cam) {
   if (n.def.sitImgs) {
     // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой
     const near = Math.abs(game.player.x - n.x) < 50;
-    if (n.def.cat && n.img && n.img !== 'cat_sit' && drawObjNamed(g, n.img, x, gy, n.flip ? n.facing < 0 : n.facing > 0)) return;   // другая поза (flip — картинка смотрит вправо)
+    if (n.def.cat && n.img && n.img !== 'cat_sit' && drawObjNamed(g, n.img, x, gy, n.flip ? n.facing < 0 : n.facing > 0)) { catGlow(n.img, x, gy, n.flip ? n.facing < 0 : n.facing > 0); return; }   // другая поза (flip — картинка смотрит вправо)
     const name = n.def.cat ? ((game.time + n.x) % 4.3 < 0.16 ? 'cat_sit_1' : 'cat_sit')   // кот моргает
       : near ? n.def.sitImgs.wave : n.def.sitImgs.idle[Math.floor(game.time / 3.2) % n.def.sitImgs.idle.length];
-    if (drawObjNamed(g, name, x, gy, n.def.cat ? n.facing > 0 : n.facing < 0)) return;   // кот на картинке смотрит влево
+    if (drawObjNamed(g, name, x, gy, n.def.cat ? n.facing > 0 : n.facing < 0)) { if (n.def.cat) catGlow(name, x, gy, n.facing > 0); return; }   // кот на картинке смотрит влево
   }
   if (n.def.cat) {   // без картинки — силуэт кота кодом: тело, голова, уши, хвост, жёлтые глаза
     const f = n.facing < 0 ? -1 : 1, X = v => Math.round(x + v * f);
@@ -4160,6 +4202,7 @@ function sceneLights() {
   const flare = fireFlare();
   for (const x of r.torches ?? []) if (!torchUnderStairs(r, x)) add(x, 69, 150 * (1 + flare * 0.35), blueFire ? [0.45, 0.7, 1] : WARM, ((blueFire ? 1.05 : 0.85) + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3)) * (1 + flare * 0.9));
   for (const n of game.npcs ?? []) if (n.def?.ghost) add(n.x, groundY(n.z) - 14, 90, [0.55, 0.8, 1], 0.7 + 0.1 * Math.sin(t * 2.3 + n.x), 16);   // душа светится
+  for (const n of game.npcs ?? []) if (n.def?.cat && r.dark) add(n.x, groundY(n.z) - 8 - (n.lift ?? 0), 38, [0.72, 0.72, 0.95], 0.4, 12);   // Фуджин виден в темноте (v0.85)
   for (const pr of r.props ?? []) {
     if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
     else if (pr.type === 'candles' && !pr.lights) add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
