@@ -5,7 +5,7 @@ import { createEnemy, RISE_TIME } from './enemy.js';
 import { Player, FLURRY_TOSS } from './player.js';
 import { resolveImpact, isBackstab } from './combat.js';
 import { drawFigure, drawFigureOutlined, drawFigureFrontOutlined, drawSlimeOutlined, drawFigureFront, drawSlime, drawArrow, drawPickup, flashColors, rect } from './draw.js';
-import { POSES, approachPose, ease, gaitCycle, gaitFoot } from './poses.js';
+import { POSES, approachPose, ease, strideCycle, gaitFoot } from './poses.js';
 import { buildRoom, buildImageRoom, drawTorches, drawFlames, drawPortal, drawProp, drawCobweb, drawDarkness, drawGatePanel, drawDoorOpen, DOOR_W, objectsReady, pairNormals, stairsGeom, decorBounds, objImage, drawBonePileImg, drawSlimeImg, drawObjNamed, hasObj } from './background.js';
 import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
@@ -854,7 +854,7 @@ function setMenu(items) {
 }
 
 const CONTROLS_TEXT = [
-  'WASD — ходить вбок и вглубь (вне боя — бег)',
+  'WASD — ходить вбок и вглубь (вне боя — бег) · Caps Lock — шагом / бегом',
   'Курсор выше рыцаря — верх, на груди — середина, ниже пояса — низ',
   'ЛКМ — удар на этой высоте · держать ПКМ — защита',
   'Пробел — рывок (курсор внизу — кувырок, вверху — прыжок, с «назад» — отскок)',
@@ -862,6 +862,15 @@ const CONTROLS_TEXT = [
   'E — говорить, лавка, сундук, осмотреть, отдохнуть · W у двери или лестницы — пройти',
   'I — снаряжение · H — зелье · B — журнал · M — карта · Esc — пауза',
 ].join('\n');
+
+// шагом или бегом (v0.87, владелец: «нужно и ходить медленно, и бегать»): выбор в паузе, Caps Lock — переключает
+let strollOn = false;
+try { strollOn = localStorage.getItem('knightNight.stroll') === 'on'; } catch { /* без хранилища — бегом */ }
+function setStroll(on) {
+  strollOn = on;
+  try { localStorage.setItem('knightNight.stroll', on ? 'on' : 'off'); } catch { /* ничего */ }
+}
+const strolling = () => strollOn !== input.caps();
 
 function showControls(back) {
   showOverlay('Управление', CONTROLS_TEXT, 'Esc — назад');
@@ -880,6 +889,7 @@ function showPause() {
     ['Управление', () => showControls(showPause)],
     [`Звуки окружения: ${ambientOn ? 'вкл' : 'выкл'}`, () => { setAmbient(!ambientOn); game.ambRoom = null; showPause(); }],
     [`Музыка: ${musicOn ? 'вкл' : 'выкл'}`, () => { setMusic(!musicOn); showPause(); }],
+    [`Передвижение: ${strollOn ? 'шагом' : 'бегом'} (Caps Lock — сменить)`, () => { setStroll(!strollOn); showPause(); }],
     [`Лёгкий режим: ${easyOn ? 'вкл' : 'выкл'}`, () => { setEasy(!easyOn); showPause(); }],
     ['Новая игра', askNewFromPause],
     ['Главное меню', toTitle],
@@ -1294,6 +1304,7 @@ function controls() {
     dz,
     guard: held('guard') ? game.aim : null,
     engaged,
+    stroll: strolling(),
     anyInput: L || R || dz !== 0,
   };
 }
@@ -1849,7 +1860,7 @@ function updateTransition(dt) {
       p.x += Math.sign(dx) * Math.min(Math.abs(dx), v * dt);
       p.z = Math.max(0, p.z - CONFIG.exploreDepthSpeed * dt);
       p.walking = true;
-      p.step += dt * v / gaitCycle(0);
+      p.step += dt * v / strideCycle(0);
       if ((Math.abs(dx) < 1 && p.z <= 0.5) || tr.t > 1.4) { tr.phase = 'climb'; tr.t = 0; }
       return;
     }
@@ -1874,7 +1885,7 @@ function updateTransition(dt) {
     if (tr.phase === 'out') {
       p.facing = tr.dir;
       p.x += tr.dir * CONFIG.exploreSpeed * 0.6 * dt;
-      p.step += dt * CONFIG.exploreSpeed * 0.6 / gaitCycle(0);
+      p.step += dt * CONFIG.exploreSpeed * 0.6 / strideCycle(0);
       p.walking = true;
       if (tr.t >= STAIR_PHASES.out) {
         const to = ROOMS[tr.door.to];
@@ -1901,7 +1912,7 @@ function updateTransition(dt) {
     const v = Math.max(CONFIG.exploreSpeed, p.speedNow ?? 0);
     p.x += tr.dir * v * dt;
     p.facing = tr.dir;
-    p.step += dt * v / gaitCycle(p.gaitRun ?? 0);
+    p.step += dt * v / strideCycle(p.gaitRun ?? 0);
     p.walking = true;
     if (tr.phase === 'out' && tr.t >= EDGE_PHASES.out) {
       loadRoom(tr.edge.to, { x: tr.edge.x - tr.dir * 18, z: p.z, facing: tr.dir });
@@ -2024,6 +2035,8 @@ function update(dt) {
   if (game.rest) { updateRest(dt); updateCoinFx(dt); updateCamera(dt); return; }
   if (game.vibe) { updateVibe(dt); updateCamera(dt); return; }
   updateShield(dt);
+  if (strolling() !== (game.strollShown ?? strollOn)) callout(strolling() ? 'Шагом' : 'Бегом', 'muted');   // переключил Caps Lock
+  game.strollShown = strolling();
   updateEnterTalk();
   updateArena();
   updateTrainerMeet();

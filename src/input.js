@@ -5,7 +5,11 @@ export function createInput(target = window) {
   const order = [];   // зажатые клавиши, последняя — самая свежая
   const queue = [];   // новые нажатия с прошлого кадра
 
+  let caps = false;   // Caps Lock включён (браузер сообщает его с каждой клавишей и кнопкой мыши)
+  const readCaps = e => { if (e.getModifierState) caps = e.getModifierState('CapsLock'); };
+  target.addEventListener('mousedown', readCaps);
   target.addEventListener('keydown', e => {
+    readCaps(e);
     if (BLOCKED.has(e.code)) e.preventDefault();
     if (e.repeat) return;
     const i = order.indexOf(e.code);
@@ -14,6 +18,7 @@ export function createInput(target = window) {
     queue.push(e.code);
   });
   target.addEventListener('keyup', e => {
+    readCaps(e);
     const i = order.indexOf(e.code);
     if (i >= 0) order.splice(i, 1);
   });
@@ -21,6 +26,7 @@ export function createInput(target = window) {
 
   return {
     isDown: code => order.includes(code),
+    caps: () => caps,
     // самая свежая зажатая клавиша из map → её значение
     latest(map) {
       for (let i = order.length - 1; i >= 0; i--) if (order[i] in map) return map[order[i]];

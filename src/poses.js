@@ -7,6 +7,10 @@
 // на бегу опора короче, шаг длиннее, есть полёт и колено выше.
 export const gait = run => ({ duty: 0.62 - 0.27 * run, amp: 5 + 4 * run, lift: 2 + 4 * run });
 export const gaitCycle = run => { const g = gait(run); return 2 * g.amp / g.duty; };  // пикселей за цикл
+// кадры спрайта (v0.87): цикл ходьбы рыцаря из PixelLab проходит ≈ 26 px мира (два шага), бега — как gaitCycle(1);
+// ноги идут в такт скорости — шагом он не «семенит» и не скользит
+export const WALK_STRIDE = 26;
+export const strideCycle = run => WALK_STRIDE + (gaitCycle(1) - WALK_STRIDE) * run;
 export function gaitFoot(u, run) {
   const { duty, amp, lift } = gait(run);
   u = ((u % 1) + 1) % 1;
