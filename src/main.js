@@ -11,7 +11,7 @@ import { Tutorial } from './tutorial.js';
 import { drawDecorLive, drawCracks, drawSlab, drawStainedGlass, drawShelfDoor, DECOR_LIVE } from './decor.js';
 import { drawTitle } from './title.js';
 import { loadSave, writeSave, clearSave } from './save.js';
-import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, musicOn, setMusic, setMusicCalm, musicInfo } from './audio.js';
+import { unlockAudio, sfx, setWind, drip, crackle, ambientOn, setAmbient, updateMusic, setMusicCalm, musicInfo, volumes, setMusicVolume, setSfxVolume } from './audio.js';
 import { DialogueRunner } from './dialogue.js';
 import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogues.js';
 import { drawVibeFx, resetVibeFx, moonSpot } from './vibefx.js';
@@ -840,17 +840,46 @@ function askNewFromTitle() {
   game.titleConfirm = true;
 }
 
-// кнопки меню: [подпись, действие]; клик по кнопке не доходит до игры
+// кнопки меню: [подпись, действие] или { slider: подпись, get, set } — ползунок «− 70 % +»; клик по кнопке не доходит до игры
 function setMenu(items) {
   ui.overlayMenu.innerHTML = '';
-  for (const [label, go] of items) {
+  const button = (label, go, cls) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = label;
+    if (cls) b.className = cls;
     b.addEventListener('pointerdown', e => e.stopPropagation());
     b.addEventListener('click', e => { e.stopPropagation(); go(); });
-    ui.overlayMenu.appendChild(b);
+    return b;
+  };
+  for (const it of items) {
+    if (!it.slider) { ui.overlayMenu.appendChild(button(it[0], it[1])); continue; }
+    const row = document.createElement('div');
+    row.className = 'slider';
+    const text = document.createElement('span');
+    const show = () => { text.textContent = `${it.slider}: ${it.get() * 10} %`; };
+    const step = d => { it.set(Math.max(0, Math.min(10, it.get() + d))); show(); };
+    const minus = button('−', () => step(-1), 'step'), plus = button('+', () => step(1), 'step');
+    // стрелки влево / вправо на кнопке ползунка — тоже меняют
+    for (const b of [minus, plus]) b.addEventListener('keydown', e => {
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); step(e.code === 'ArrowLeft' ? -1 : 1); }
+    });
+    show();
+    row.append(minus, text, plus);
+    ui.overlayMenu.appendChild(row);
   }
+}
+
+// звук (v0.89): громкость музыки и звуков отдельно, звуки окружения
+function showSound(back) {
+  showOverlay('Звук', '', 'Esc — назад');
+  setMenu([
+    { slider: 'Музыка', get: () => volumes().music, set: setMusicVolume },
+    { slider: 'Звуки', get: () => volumes().sfx, set: v => { setSfxVolume(v); sfx.block(); } },   // слышно, как громко
+    [`Звуки окружения: ${ambientOn ? 'вкл' : 'выкл'}`, () => { setAmbient(!ambientOn); game.ambRoom = null; showSound(back); }],
+    ['Назад', back],
+  ]);
+  game.controlsBack = back;
 }
 
 const CONTROLS_TEXT = [
@@ -887,8 +916,7 @@ function showPause() {
     ['Продолжить', resumePlay],
     ...(game.arena ? [['Встреча заново', restartFight]] : []),
     ['Управление', () => showControls(showPause)],
-    [`Звуки окружения: ${ambientOn ? 'вкл' : 'выкл'}`, () => { setAmbient(!ambientOn); game.ambRoom = null; showPause(); }],
-    [`Музыка: ${musicOn ? 'вкл' : 'выкл'}`, () => { setMusic(!musicOn); showPause(); }],
+    ['Звук и музыка', () => showSound(showPause)],
     [`Передвижение: ${strollOn ? 'шагом' : 'бегом'} (Caps Lock — сменить)`, () => { setStroll(!strollOn); showPause(); }],
     [`Лёгкий режим: ${easyOn ? 'вкл' : 'выкл'}`, () => { setEasy(!easyOn); showPause(); }],
     ['Новая игра', askNewFromPause],
@@ -1336,6 +1364,18 @@ function roomBounds() {
   return [edges.left ? 8 : 16, edges.right ? L - 8 : room().limitRight ?? L - 16];
 }
 const lockedArena = () => game.arena && !game.arena.open;
+
+// место для музыки (v0.89): у каждого может быть свой трек — ZONE_TRACK в src/audio.js
+function musicZone() {
+  if (game.mode === 'title') return 'title';
+  if (game.rest || game.vibe) return 'rest';
+  if (game.arena) {
+    if (game.enemies.some(e => e.group === game.arena.index && e.kind === 'boss')) return 'boss';
+    if ((room().encounters ?? [])[game.arena.index]?.story) return 'duel';
+  }
+  if (game.mode === 'shop' || (room()?.npcs ?? []).some(n => NPC_TYPES[n.type]?.shop)) return 'shop';
+  return 'explore';
+}
 
 // Встреча начинается, когда рыцарь подходит; проход закрыт, пока группа жива.
 function updateArena() {
@@ -2023,7 +2063,7 @@ function update(dt) {
   for (const code of input.take()) {
     try { handlePress(code); } catch (err) { frameError(performance.now(), err); }   // сбой одной клавиши не глотает остальные (Esc)
   }
-  if (game.mode !== 'title') updateMusic(game.mode === 'play' && !!game.arena);  // играет и в разговорах, лавке, паузе
+  updateMusic(game.mode === 'play' && !!game.arena, musicZone(), ROOMS[game.room]?.music ?? null);  // играет и в разговорах, лавке, паузе
   if (game.mode !== 'play') return;
 
   game.time += dt;

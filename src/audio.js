@@ -1,15 +1,19 @@
 // Звуки синтезируются на лету, без файлов. Браузер разрешает звук только после первого нажатия.
 let ctx = null;
-let master = null;
+let master = null;   // звуки (ползунок «Звуки»)
+let top = null;      // общий выход: звуки и музыка
 
 export function unlockAudio() {
   if (ctx) { ctx.resume?.(); return; }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   ctx = new AC();
+  top = ctx.createGain();
+  top.gain.value = 0.45;
+  top.connect(ctx.destination);
   master = ctx.createGain();
-  master.gain.value = 0.45;
-  master.connect(ctx.destination);
+  master.gain.value = sfxVol / 10;
+  master.connect(top);
 }
 
 function tone(freq, dur, type = 'sine', vol = 0.3, slideTo = null) {
@@ -142,54 +146,61 @@ export function crackle(vol = 1) {
 }
 
 // ---------- музыка: тихий эмбиент ----------
-// Музыка владельца (v0.88): «Abandoned Castle» — файл assets/music/. Вступление (19,2 с) звучит один раз, дальше по
-// кругу — часть с басом. Бой — глухой ритм поверх, точно в долю трека (0,8 с). Пока файл не загрузился или если
-// не загрузится — прежняя заглушка синтезом: медленные аккорды (Dm — B♭ — C — Am), редкие колокольчики.
-export let musicOn = true;
-try { musicOn = localStorage.getItem('knightNight.music') !== 'off'; } catch { /* включена */ }
+// Музыка (v0.88–v0.89). Треки — файлы assets/music/ (TRACKS), у каждого места игры — свой (ZONE_TRACK; пока у всех
+// мест — «Abandoned Castle» владельца). Вступление трека звучит один раз, дальше по кругу — часть после него. Смена места
+// с другим треком — плавный переход (старый гаснет, новый входит со вступления). Бой — глухой ритм поверх, точно в долю
+// трека. Пока файл не загрузился или если не загрузится — прежняя заглушка синтезом: аккорды Dm — B♭ — C — Am, колокольчики.
 let mus = null;
 const CHORDS = [[146.8, 174.6, 220.0], [116.5, 146.8, 174.6], [130.8, 164.8, 196.0], [110.0, 130.8, 164.8]];
 const BELL = [293.7, 349.2, 392.0, 440.0, 523.3, 587.3];
-// длина трека и вступления — по сетке трека (8 фраз по 6,4 с), доля — 0,8 с; vol — громкость файла рядом со звуками боя
-// reverb — отзвук под сводами (v0.88): только на всём выше 300 Гц, то есть на мелодии, бас сухой. Сейчас 0 —
-// владелец добавил реверб в самом треке (вторая версия), двойное эхо не нужно
-export const TRACK = { url: 'assets/music/abandoned_castle.mp3', intro: 19.2, length: 51.2, beat: 0.8, vol: 0.32, reverb: 0, reverbTime: 2.4 };
-let track = null;   // { buf, t0 } — t0: где в файле начинается музыка (mp3 добавляет в начало тишину кодировщика)
-let trackLoading = false;
-function loadTrack() {
-  if (trackLoading || !ctx) return;
-  trackLoading = true;
-  fetch(TRACK.url).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
+// intro / length — по сетке трека, с; beat — доля для барабана в бою; vol — громкость файла рядом со звуками боя;
+// reverb — отзвук под сводами в игре (только выше 300 Гц, бас сухой); у «Abandoned Castle» 0 — реверб уже в треке
+export const TRACKS = {
+  castle: { url: 'assets/music/abandoned_castle.mp3', intro: 19.2, length: 51.2, beat: 0.8, vol: 0.32, reverb: 0, reverbTime: 2.4 },
+};
+// места: title — заставка, explore — замок, shop — лавка, rest — отдых и «вайб», duel — сюжетный бой, boss — босс главы.
+// Новый трек владельца: добавить в TRACKS и указать здесь; у комнаты можно задать свой (music в ROOMS)
+export const ZONE_TRACK = { title: 'castle', explore: 'castle', shop: 'castle', rest: 'castle', duel: 'castle', boss: 'castle' };
+export const TRACK = TRACKS.castle;   // прежнее имя
+const loaded = {};    // имя → { buf, t0 } (t0 — где в файле начинается музыка: mp3 добавляет в начало тишину кодировщика)
+const loading = {};   // имя → true | 'failed'
+function loadTrack(name) {
+  const T = TRACKS[name];
+  if (!T || loading[name] || !ctx) return;
+  loading[name] = true;
+  fetch(T.url).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
     .then(data => new Promise((ok, bad) => ctx.decodeAudioData(data, ok, bad)))
     .then(buf => {
       const d = buf.getChannelData(0);
       let i = 0;
       while (i < d.length && Math.abs(d[i]) < 0.01) i++;
       const t0 = Math.min(i / buf.sampleRate, 0.1);
-      // стык повтора: последние 30 мс плавно переходят в то, что звучит перед началом повтора, — без щелчка баса
-      const A = Math.round((t0 + TRACK.intro) * buf.sampleRate), E = Math.min(buf.length, Math.round((t0 + TRACK.length) * buf.sampleRate));
+      // стык повтора: последние 30 мс плавно переходят в то, что звучит перед началом повтора, — без щелчка
+      const A = Math.round((t0 + T.intro) * buf.sampleRate), E = Math.min(buf.length, Math.round((t0 + T.length) * buf.sampleRate));
       const N = Math.round(0.03 * buf.sampleRate);
-      for (let c = 0; c < buf.numberOfChannels; c++) {
+      if (A > N) for (let c = 0; c < buf.numberOfChannels; c++) {
         const ch = buf.getChannelData(c);
         for (let j = 0; j < N; j++) { const w = j / N; ch[E - N + j] = ch[E - N + j] * (1 - w) + ch[A - N + j] * w; }
       }
-      track = { buf, t0 };
+      loaded[name] = { buf, t0 };
     })
-    .catch(() => { /* нет файла — играет заглушка */ });
+    .catch(() => { loading[name] = 'failed'; });
 }
-function startTrack() {
+function startTrack(name) {
+  const T = TRACKS[name], tr = loaded[name];
   const src = ctx.createBufferSource();
-  src.buffer = track.buf;
+  src.buffer = tr.buf;
   src.loop = true;
-  src.loopStart = track.t0 + TRACK.intro;
-  src.loopEnd = Math.min(track.buf.duration, track.t0 + TRACK.length);
+  src.loopStart = tr.t0 + T.intro;
+  src.loopEnd = Math.min(tr.buf.duration, tr.t0 + T.length);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, ctx.currentTime);
-  g.gain.linearRampToValueAtTime(TRACK.vol, ctx.currentTime + 1.5);   // мягкий вход вместо щелчка
-  src.connect(g).connect(mus.tlp);
-  if (TRACK.reverb > 0) {
+  g.gain.linearRampToValueAtTime(T.vol, ctx.currentTime + 1.5);   // мягкий вход вместо щелчка
+  g.connect(mus.tlp);
+  src.connect(g);
+  if (T.reverb > 0) {
     // зал: импульс — шум, затухающий за reverbTime, у каждого канала свой (объём); на вход — только верхи
-    const len = Math.round(TRACK.reverbTime * ctx.sampleRate);
+    const len = Math.round(T.reverbTime * ctx.sampleRate);
     const ir = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let c = 0; c < 2; c++) {
       const d = ir.getChannelData(c);
@@ -201,20 +212,49 @@ function startTrack() {
     const conv = ctx.createConvolver();
     conv.buffer = ir;
     const wet = ctx.createGain();
-    wet.gain.value = TRACK.reverb;
+    wet.gain.value = T.reverb;
     g.connect(hp).connect(conv).connect(wet).connect(mus.tlp);
   }
   src.start();
-  mus.track = { src, start: ctx.currentTime + track.t0 };   // от start доли идут ровно через beat — и после повтора
+  mus.track = { name, src, g, beat: T.beat, start: ctx.currentTime + tr.t0 };   // доли идут ровно через beat — и после повтора
   mus.nextDrum = 0;
+}
+function stopTrack(fade = 1.2) {
+  const tr = mus.track;
+  if (!tr) return;
+  const t = ctx.currentTime;
+  tr.g.gain.cancelScheduledValues(t);
+  tr.g.gain.setValueAtTime(Math.max(0.0001, tr.g.gain.value), t);
+  tr.g.gain.exponentialRampToValueAtTime(0.0001, t + fade);
+  tr.src.stop(t + fade + 0.05);
+  mus.track = null;
+}
+
+// громкость (v0.89): музыка и звуки отдельно, шагами по 10 % (пауза → Звук); 0 — выключено
+const readVol = (key, def) => { try { const v = localStorage.getItem(key); return v === null ? def : Math.max(0, Math.min(10, +v || 0)); } catch { return def; } };
+let musicVol = readVol('knightNight.musicVol', (() => { try { return localStorage.getItem('knightNight.music') === 'off' ? 0 : 7; } catch { return 7; } })());
+let sfxVol = readVol('knightNight.sfxVol', 10);
+export let musicOn = musicVol > 0;
+export const volumes = () => ({ music: musicVol, sfx: sfxVol });
+const busLevel = () => (musicVol / 10) * (calm ? 0.6 : 1);
+export function setMusicVolume(v) {
+  musicVol = Math.max(0, Math.min(10, Math.round(v)));
+  musicOn = musicVol > 0;
+  try { localStorage.setItem('knightNight.musicVol', String(musicVol)); } catch { /* ничего */ }
+  if (mus) mus.bus.gain.setTargetAtTime(busLevel(), ctx.currentTime, 0.15);
+}
+export function setSfxVolume(v) {
+  sfxVol = Math.max(0, Math.min(10, Math.round(v)));
+  try { localStorage.setItem('knightNight.sfxVol', String(sfxVol)); } catch { /* ничего */ }
+  if (master) master.gain.setTargetAtTime(sfxVol / 10, ctx.currentTime, 0.05);
 }
 
 function ensureMusic() {
   if (mus || !ctx) return;
-  // bus — общая громкость музыки (вкл/выкл, тише при «вайбе»); out — заглушка синтезом (с отзвуком), tlp — трек
+  // bus — общая громкость музыки (ползунок, тише при «вайбе»); out — заглушка синтезом (с отзвуком), tlp — треки
   const bus = ctx.createGain();
-  bus.gain.value = musicOn ? 1 : 0;
-  bus.connect(master);
+  bus.gain.value = busLevel();
+  bus.connect(top);
   const out = ctx.createGain();
   const tlp = ctx.createBiquadFilter();
   tlp.type = 'lowpass';
@@ -232,8 +272,7 @@ function ensureMusic() {
   out.connect(delay);
   delay.connect(lp).connect(fb).connect(delay);
   lp.connect(bus);
-  mus = { bus, out, lp, tlp, chord: -1, nextChord: 0, nextBell: 2, nextDrum: 0 };
-  loadTrack();
+  mus = { bus, out, lp, tlp, chord: -1, nextChord: 0, nextBell: 2, nextDrum: 0, zone: null };
 }
 
 function pad(freq, t0, dur) {
@@ -272,22 +311,30 @@ function drum(t0, accent) {
   osc.stop(t0 + 0.4);
 }
 
-// вызывать каждый кадр: combat — идёт бой
-export function updateMusic(combat) {
+// вызывать каждый кадр: combat — идёт бой; zone — место (title, explore, shop, rest, duel, boss); room — свой трек комнаты
+export function updateMusic(combat, zone = 'explore', room = null) {
   if (!ctx) return;
   ensureMusic();
   const t = ctx.currentTime;
-  if (track && !mus.track) startTrack();
+  const want = (zone === 'explore' && room) || ZONE_TRACK[zone] || ZONE_TRACK.explore;
+  mus.zone = zone;
+  if (mus.track && mus.track.name !== want) stopTrack();   // другое место — другой трек: старый гаснет
+  if (!mus.track && want) {
+    if (loaded[want]) startTrack(want);
+    else loadTrack(want);
+  }
   if (mus.track) {
     // бой — удары в долю трека, сильная — раз в четыре доли
+    const beat = mus.track.beat;
     if (combat && t >= mus.nextDrum - 0.05) {
-      const k = Math.max(0, Math.ceil((t - mus.track.start) / TRACK.beat - 0.02));
-      const at = mus.track.start + k * TRACK.beat;
+      const k = Math.max(0, Math.ceil((t - mus.track.start) / beat - 0.02));
+      const at = mus.track.start + k * beat;
       if (at > (mus.lastDrumAt ?? -1) + 0.1) { drum(Math.max(at, t), k % 4 === 0); mus.lastDrumAt = at; }
-      mus.nextDrum = at + TRACK.beat;
+      mus.nextDrum = at + beat;
     }
     return;
   }
+  if (want && loading[want] !== 'failed') return;   // трек ещё грузится — тишина, а не заглушка поверх
   if (t >= mus.nextChord) {
     mus.chord = (mus.chord + 1) % CHORDS.length;
     for (const f of CHORDS[mus.chord]) pad(f, t, 6);
@@ -309,17 +356,15 @@ let calm = false;
 export function setMusicCalm(on) {
   calm = on;
   if (!mus) return;
-  mus.bus.gain.setTargetAtTime(musicOn ? (on ? 0.6 : 1) : 0, ctx.currentTime, 0.8);
+  mus.bus.gain.setTargetAtTime(busLevel(), ctx.currentTime, 0.8);
   mus.lp?.frequency.setTargetAtTime(on ? 700 : 1800, ctx.currentTime, 0.8);
   mus.tlp.frequency.setTargetAtTime(on ? 1200 : 20000, ctx.currentTime, 0.8);   // трек при «вайбе» — глуше, как издалека
   if (on) mus.nextBell = Math.min(mus.nextBell, ctx.currentTime + 0.8);
 }
 
-// для ботов: загрузился ли трек и играет ли он
-export const musicInfo = () => ({ loaded: !!track, playing: !!mus?.track, t0: track?.t0, duration: track?.buf.duration });
+// для ботов: загрузился ли трек, какой играет, место
+export const musicInfo = () => ({ loaded: !!loaded.castle, playing: !!mus?.track, track: mus?.track?.name ?? null, zone: mus?.zone ?? null,
+  t0: loaded.castle?.t0, duration: loaded.castle?.buf.duration, volumes: volumes() });
 
-export function setMusic(on) {
-  musicOn = on;
-  try { localStorage.setItem('knightNight.music', on ? 'on' : 'off'); } catch { /* ничего */ }
-  if (mus) mus.bus.gain.setTargetAtTime(on ? (calm ? 0.6 : 1) : 0, ctx.currentTime, 0.3);
-}
+// вкл/выкл (прежний пункт): выключить — громкость 0, включить — 7
+export function setMusic(on) { setMusicVolume(on ? (musicVol || 7) : 0); }
