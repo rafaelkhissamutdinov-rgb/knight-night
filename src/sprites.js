@@ -177,6 +177,22 @@ function drawWeaponImage(g, im, wx, wy, angleDeg, facing, len, scab = false) {
   return { tipX: wx + Math.cos(a) * facing * f, tipY: wy + Math.sin(a) * f };
 }
 
+// Оружие павшего врага на полу (v0.89, вместо серой полоски): та же картинка, что была в руке, лежит плашмя,
+// рукоять — в x, клинок — в сторону facing, без блика. len — weaponLen врага (px мира). false — картинки нет.
+export function drawFloorWeapon(g, kind, x, ground, facing, len) {
+  const tr = g.getTransform(), S = tr.a;
+  const im = kind !== 'bow' && weaponImage(kind, len * S);
+  if (!im) return false;
+  g.save();
+  g.setTransform(1, 0, 0, 1, tr.e, tr.f);
+  g.imageSmoothingEnabled = false;
+  const X = Math.round(x * S), Y = Math.round(ground * S - im.c.height / 2);
+  if (facing < 0) { g.translate(X, 0); g.scale(-1, 1); g.drawImage(im.c, 0, Y); }
+  else g.drawImage(im.c, X, Y);
+  g.restore();
+  return true;
+}
+
 // Оружие на полу (подобрать): картинка лежит, по клинку пробегает блик. false — картинки нет, рисовать кодом.
 export function drawLyingWeapon(g, kind, x, ground, t) {
   const im = wpn[kind];

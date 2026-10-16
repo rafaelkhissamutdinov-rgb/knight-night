@@ -2,6 +2,9 @@ import { CONFIG, ENEMY_TYPES, STRIKES } from './config.js';
 import { POSES, lerpPose, approachPose, ease } from './poses.js';
 import { slimeZone } from './combat.js';
 
+// длина цикла ходьбы врага (два шага), px мира: по росту фигуры (≈ 55 px спрайта = 27 px мира), как у рыцаря (WALK_STRIDE)
+export const ENEMY_STRIDE = 23;
+
 // world — то, что враг знает о мире: world.player (x, …), world.engage(e), world.impact(e, strikeType) → результат,
 // world.spawnArrow(e, height), world.swallow(e) → получилось ли, world.cue(height), world.staggered(e),
 // world.heavySwing(e) — эффект тяжёлого взмаха, world.defeated(e) — мини-босс отступил,
@@ -63,9 +66,11 @@ class Enemy {
 
   dist(w) { return Math.abs(w.player.x - this.x); }
   faceTo(w) { this.facing = w.player.x < this.x ? -1 : 1; }
+  // шаги в такт скорости (v0.89): цикл ходьбы спрайта (6 кадров) — ≈ ENEMY_STRIDE px мира, рисуется step / 6.3;
+  // раньше ноги шли с одной частотой при любой скорости — быстрые враги скользили по полу
   walk(dt, speed, dir) {
     this.x += dir * speed * dt;
-    this.step += dt * 10;
+    this.step += dt * speed * 6.3 / ENEMY_STRIDE;
   }
 
   // скорость шага: у кого-то задана диапазоном — тогда каждый раз своя

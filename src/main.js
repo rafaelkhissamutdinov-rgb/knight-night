@@ -17,7 +17,7 @@ import { DIALOGUES, SPEAKERS, SHOPS, ITEM_TEXTS, STORIES } from './story/dialogu
 import { drawVibeFx, resetVibeFx, moonSpot } from './vibefx.js';
 import { fxImpact, fxSwing, drawCombatFx, combatFxBusy } from './combatfx.js';
 import { splitDamage } from './combat.js';
-import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin, drawWeaponWorld } from './sprites.js';
+import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin, drawWeaponWorld, drawFloorWeapon } from './sprites.js';
 import { createLighting } from './lighting.js';
 loadKnightSprites();
 loadWeapons();
@@ -3652,7 +3652,7 @@ function renderEnemy(e, cam) {
   if (e.state === 'dead' && e.kind !== 'slime') { renderDeath(e, ex); return; }
   // спящий скелет лежит грудой костей; проснулся — встаёт (фигура вытягивается вверх)
   const riser = e.def.skull && e.kind !== 'ghost' && !e.def.noRise && !e.noRise;
-  if (riser && e.state === 'dormant') { drawBonePile(ex, groundY(e.z), e.facing, e.def); return; }
+  if (riser && e.state === 'dormant') { drawBonePile(ex, groundY(e.z), e.facing, e.def, enemyWeapon(e)); return; }
   const riseK = riser && e.state === 'rise' ? Math.min(1, e.t / RISE_TIME) : 1;
   let alpha = e.kind === 'ghost' ? (0.55 + 0.15 * Math.sin(game.time * 5 + e.x)) * (e.ghost ?? 1) : 1;  // призрак полупрозрачный и мерцает
   if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
@@ -3906,7 +3906,7 @@ function renderSpriteDeath(e, ex, GROUND, t, f) {
   }
   if (e.def.skull) {
     if (t < 0.3) drawSprite(e.type, g, { ...o, frame: t < 0.12 ? 'pose_kneel' : 'pose_dead' });
-    if (t > 0.15) drawBonePile(ex, GROUND, f, e.def);
+    if (t > 0.15) drawBonePile(ex, GROUND, f, e.def, enemyWeapon(e));
     return;
   }
   const k = ease(Math.min(1, t / 0.35));
@@ -3915,11 +3915,14 @@ function renderSpriteDeath(e, ex, GROUND, t, f) {
   drawSprite(e.type, g, { ...o, frame: 'pose_hurt', rotate: -f * k * Math.PI / 2, ground: GROUND + Math.round(k * 10), alpha });
 }
 
-function drawBonePile(x, gy, f, def) {
+function drawBonePile(x, gy, f, def, kind = null) {
   x = Math.round(x);
   if (drawBonePileImg(g, x, gy, f)) {
-    const w = Math.min(22, def.weapon ?? 17);   // оружие на полу
-    if (def.kind !== 'archer') rect(g, x - f * 4 - (f > 0 ? w : 0), gy, w, 1, def.colors.blade ?? '#c3ccd6');
+    // оружие на полу — картинкой того, что было в руке; рукоять у костей, клинок — от рыцаря
+    if (def.kind !== 'archer' && !(kind && drawFloorWeapon(g, kind, x - f * 4, gy, -f, def.weapon ?? 17))) {
+      const w = Math.min(22, def.weapon ?? 17);
+      rect(g, x - f * 4 - (f > 0 ? w : 0), gy, w, 1, def.colors.blade ?? '#c3ccd6');
+    }
     return;
   }
   const B = '#e6e1d0', S = '#a39d8a', D = '#14101e';
@@ -4269,6 +4272,8 @@ function sceneLights() {
   for (const n of game.npcs ?? []) if (n.def?.cat && r.dark) add(n.x, groundY(n.z) - 8 - (n.lift ?? 0), 38, [0.72, 0.72, 0.95], 0.4, 12);   // Фуджин виден в темноте (v0.85)
   for (const pr of r.props ?? []) {
     if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
+    // костёр в тёмной комнате (v0.89): тёплое пятно и на стене за ним — иначе светится только пол у огня
+    if ((pr.type === 'campfire' || pr.type === 'campfire_pot') && r.dark) add(pr.x, CONFIG.floorTop - 14, 150, WARM, 0.75 + 0.1 * Math.sin(t * 7 + pr.x * 0.7), 40);
     else if (pr.type === 'candles' && !pr.lights) add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
   }
   for (const d of r.decor ?? []) if (d.type === 'fireplace') add(d.x, CONFIG.floorTop - 14, 150, WARM, 1 + 0.12 * Math.sin(t * 8 + d.x), 26);
