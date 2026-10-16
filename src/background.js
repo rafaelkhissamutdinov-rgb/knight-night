@@ -690,7 +690,8 @@ export function drawGatePanel(g, x, floorTop, H, dir, wall = false) {
 // PixelLab — другая, двустворчатая дверь: казалось, что поверх появляется вторая дверь). За створкой — тёмный проём,
 // створка поворачивается на петле слева внутрь: сжимается к петле, темнеет, у свободного края виден торец.
 // Арка проёма в пикселях картинки: L, R — края, T — верх свода, S — где кончается скругление
-const DOOR_LEAF = { wood: { L: 10, R: 52, T: 11, S: 30 }, iron: { L: 10, R: 60, T: 11, S: 30 } };
+// v0.90: и решётка камеры (дверь в Келью) — раньше вместо неё проём просто заливался чёрным прямоугольником
+const DOOR_LEAF = { wood: { L: 10, R: 52, T: 11, S: 30 }, iron: { L: 10, R: 60, T: 11, S: 30 }, bars: { L: 7, R: 38, T: 8, S: 20 } };
 const doorParts = {};
 function doorPart(kind) {
   if (doorParts[kind]) return doorParts[kind];
@@ -721,7 +722,7 @@ function doorPart(kind) {
 
 // k: 0 — закрыта, 1 — распахнута
 export function drawDoorOpen(g, d, floorTop, cam, k) {
-  const kind = d.kind === 'iron' ? 'iron' : d.kind === 'wood' || !d.kind ? 'wood' : null;
+  const kind = d.kind === 'iron' || d.kind === 'bars' ? d.kind : d.kind === 'wood' || !d.kind ? 'wood' : null;
   const part = kind && doorPart(kind);
   if (part) {
     if (k <= 0.02) return;

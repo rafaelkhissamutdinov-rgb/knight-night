@@ -756,7 +756,7 @@ function buildReport() {
   const pct = total ? Math.round(s.perfect / total * 100) : 0;
   return [
     `Knight Night ${VERSION} — отчёт тестера${easyOn ? ' (лёгкий режим)' : ''}`,
-    `Время: ${mins}:${String(secs).padStart(2, '0')} · пройдено встреч: ${game.cleared.size} из ${ALL_ENCOUNTERS.length}`,
+    `Время: ${mins}:${String(secs).padStart(2, '0')} · пройдено встреч: ${ALL_ENCOUNTERS.filter(({ key, enc }) => game.cleared.has(key) || game.flags['beat_' + key] || (enc.story && game.flags['done_' + enc.story])).length} из ${ALL_ENCOUNTERS.length}`,   // v0.90: после отдыха cleared пустеет — считать и побеждённые раньше
     `Обучение: ${game.flags.tutorial_done ? 'пройдено' : game.flags.tutorial_skipped ? 'пропущено' : game.tutorial ? `остановился на шаге ${game.tutorial.i + 1}` : 'не начато'} · комнаты: ${[...new Set(game.visited ?? [])].map(id => ROOMS[id].name).join(', ')}`,
     `Смерти по встречам:`,
     deaths,
