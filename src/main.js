@@ -3957,7 +3957,10 @@ function renderPlayer(cam) {
     const lt = p.t - p.atk.windup;
     if (p.atk.key === 'flurry' && lt >= 0) {
       if (lt >= FLURRY_TOSS[0] && lt < FLURRY_TOSS[1]) toss = (lt - FLURRY_TOSS[0]) / (FLURRY_TOSS[1] - FLURRY_TOSS[0]);
-      else if (lt >= FLURRY_TOSS[1]) weaponAngle = 180 - p.pose.angle;   // поймал обратным хватом: клинок вдоль предплечья
+      else if (lt >= FLURRY_TOSS[1]) {
+        weaponAngle = 180 - p.pose.angle;   // поймал обратным хватом: клинок вдоль предплечья
+        if (!p.atk.caught) { p.atk.caught = true; sfx.clink(); sfx.deflected(); }   // звон ловли
+      }
     } else if (p.atk.key === 'overhead') weaponAngle = p.phase === 'windup' ? 100 : 62;   // как ледоруб: клинок вниз
     else if (p.atk.chain) weaponAngle = p.pose.angle + [0, -16, 12, -6][p.atk.chainIdx ?? 0];   // тык-тык: каждый укол — свой угол
   }   // кадры «рука за спину» — только для меча
@@ -3983,6 +3986,7 @@ function renderPlayer(cam) {
     const h = 17 * 4 * toss * (1 - toss), hx = tip.handX + p.facing * 2, hy = tip.handY - h;
     drawWeaponWorld(g, 'dagger', hx, hy, -90 + toss * 720, p.facing, p.arms.length ?? 10);
     if (toss > 0.45 && !p.atk.glinted) { p.atk.glinted = true; fxImpact('glint', hx + cam, hy - 4, { color: '#ffffff' }); }
+    if (!p.atk.tossed) { p.atk.tossed = true; sfx.whip(); }   // свист подброса
   }
   // росчерк клинка (v0.83): от конца замаха через удар — светлая дуга по следу острия
   if (p.state === 'attack' && p.atk && toss == null && !spinning && !rapierAnim && !p.atk.weave && (active || (p.phase === 'windup' && p.t > p.atk.windup - 0.05))) {
