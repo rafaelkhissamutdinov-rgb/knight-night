@@ -90,7 +90,7 @@ const ui = {
   floorcard: $('floorcard'), floorcardTitle: $('floorcard-title'), floorcardRoom: $('floorcard-room'),
   journal: $('journal'), journalList: $('journal-list'), journalPage: $('journal-page'), journalFig: $('journal-fig'),
   journalName: $('journal-name'), journalHow: $('journal-how'), journalWin: $('journal-win'), journalLore: $('journal-lore'), journalKills: $('journal-kills'),
-  equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'),
+  equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'), equipDo: $('equip-do'), equipClose: $('equip-close'), journalClose: $('journal-close'),
   skillWard: $('skill-ward'), skillWardBar: $('skill-ward-bar'), skillG: $('skill-g'), skillGBar: $('skill-g-bar'),
   shop: $('shop'), shopScene: $('shop-scene'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
   shopText: $('shop-text'), shopMenu: $('shop-menu'),
@@ -915,6 +915,7 @@ function showPause() {
   setMenu([
     ['Продолжить', resumePlay],
     ...(game.arena ? [['Встреча заново', restartFight]] : []),
+    ...(game.tutorial ? [['Пропустить обучение', () => { resumePlay(); endTutorialSkipped(); }]] : []),   // v0.91
     ['Управление', () => showControls(showPause)],
     ['Звук и музыка', () => showSound(showPause)],
     [`Передвижение: ${strollOn ? 'шагом' : 'бегом'} (Caps Lock — сменить)`, () => { setStroll(!strollOn); showPause(); }],
@@ -1508,8 +1509,31 @@ function tutorialEvent(ev) {
     }
     callout('Получилось!', 'perfect');
     trainer()?.setPlan(tut.step.plan);
+  } else if (tut.stuck) {
+    // шаг долго не даётся — наставница отпускает дальше (отзыв тестера: «пока серию не выполнишь — не пройти»)
+    callout('Ладно, это придёт с опытом. Дальше!', 'muted');
+    tutorialSkipStep();
+    return;
   }
   if (tut.text !== before) hint(tut.text);
+}
+
+// следующий шаг без выполнения; на последнем — обучение закончено
+function tutorialSkipStep() {
+  const tut = game.tutorial;
+  if (!tut) return;
+  tut.skip();
+  if (tut.done) { endTutorialSkipped(); return; }
+  trainer()?.setPlan(tut.step.plan);
+  hint(tut.text);
+}
+// пропустить обучение целиком (пауза → «Пропустить обучение»)
+function endTutorialSkipped() {
+  game.tutorial = null;
+  game.flags.tutorial_skipped = true;
+  trainer()?.setPlan(null);
+  hint('');
+  setTimeout(() => startTalk('trainer_skip', trainerLeave), 400);
 }
 
 function trainerLeave() {
@@ -2403,6 +2427,7 @@ function openEquip() {
   if (game.mode !== 'play' || game.transition || game.cutscene) return;
   game.mode = 'equip';
   game.equipSel = null;
+  hint('');   // подсказка управления не просвечивает поверх сумки
   ui.equip.hidden = false;
   renderEquip();
 }
@@ -2425,15 +2450,34 @@ function bagStacks() {
 // иконка предмета (v0.74, assets/items/<id>.png из tools/pixellab_icons.py); нет картинки — просто текст
 const itemIcon = id => (id ? `<img class="item-icon" src="assets/items/${id}.png" alt="" onerror="this.remove()">` : '');
 
+// v0.91 (отзыв тестера: «нажала посмотреть — а бинт сразу использовался»): клик выбирает вещь и показывает
+// описание с кнопкой действия; действие — этой кнопкой или повторным кликом по той же вещи
+const bagVerb = item => item.slot ? 'Надеть' : item.use ? 'Использовать' : item.learn || item.diary ? 'Прочитать' : item.journal ? 'Открыть' : '';
+function equipPick(sel) {
+  const same = game.equipSel && game.equipSel.id === sel.id && game.equipSel.slot === sel.slot;
+  if (same) { equipDo(); return; }
+  game.equipSel = sel;
+  renderEquip();
+}
+function equipDo() {
+  const sel = game.equipSel;
+  if (!sel) return;
+  game.equipSel = null;
+  if (sel.slot) { unequip(sel.slot); renderEquip(); showEquipDesc(null); return; }
+  bagAction(sel.id);
+}
+
 function renderEquip() {
+  const sel = game.equipSel;
   ui.equipSlots.innerHTML = '';
   for (const [slot, label] of SLOTS) {
     const id = game.equip[slot];
     const b = document.createElement('button');
     b.type = 'button';
+    if (sel?.slot === slot) b.className = 'sel';
     b.innerHTML = `<span class="equip-slot">${label}</span><span class="item-name">${itemIcon(id)}${id ? ITEMS[id].name : '—'}</span>`;
-    b.addEventListener('pointerenter', () => showEquipDesc(id));
-    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); unequip(slot); renderEquip(); });
+    b.addEventListener('pointerenter', () => { if (!game.equipSel) showEquipDesc(id); });
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (id) equipPick({ slot, id }); });
     ui.equipSlots.appendChild(b);
   }
   ui.equipBag.innerHTML = '';
@@ -2443,13 +2487,19 @@ function renderEquip() {
     const item = ITEMS[s.id];
     const b = document.createElement('button');
     b.type = 'button';
-    const what = item.slot ? 'надеть' : item.use ? 'использовать' : item.learn || item.diary ? 'прочитать' : item.journal ? 'открыть' : '';
+    const what = bagVerb(item).toLowerCase();
+    if (!sel?.slot && sel?.id === s.id) b.className = 'sel';
     b.innerHTML = `<span class="item-name">${itemIcon(s.id)}${i + 1}. ${item.name}${s.n > 1 ? ' ×' + s.n : ''}</span><span class="equip-act">${what}</span>`;
-    b.addEventListener('pointerenter', () => showEquipDesc(s.id));
-    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); bagAction(s.id); });
+    b.addEventListener('pointerenter', () => { if (!game.equipSel) showEquipDesc(s.id); });
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); equipPick({ id: s.id }); });
     ui.equipBag.appendChild(b);
   });
   ui.equipCoins.textContent = `Монеты: ${game.coins}`;
+  // выбранная вещь: описание и кнопка действия
+  if (sel) showEquipDesc(sel.id);
+  const verb = sel ? (sel.slot ? 'Снять' : bagVerb(ITEMS[sel.id])) : '';
+  ui.equipDo.hidden = !verb;
+  ui.equipDo.textContent = verb;
 }
 
 function showEquipDesc(id) {
@@ -2468,10 +2518,12 @@ function bagAction(id) {
 }
 
 function equipPress(code) {
+  if (code === 'Escape' && game.equipSel) { game.equipSel = null; renderEquip(); showEquipDesc(null); return; }   // сначала снять выбор
   if (code === 'Escape' || code === 'KeyI') { closeEquip(); return; }
+  if ((code === 'Enter' || code === 'KeyE') && game.equipSel) { equipDo(); return; }
   const m = /^Digit([1-9])$/.exec(code);
   const s = m && bagStacks()[Number(m[1]) - 1];
-  if (s) bagAction(s.id);
+  if (s) equipPick({ id: s.id });   // цифра — выбрать, та же цифра ещё раз — действие
 }
 
 // ---------- журнал (бестиарий) ----------
@@ -2929,6 +2981,10 @@ function skipTalk() {
 }
 ui.talkSkip.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); skipTalk(); });
 ui.shopClose.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (game.shop) closeShop(); });
+// ✕ у снаряжения и журнала (v0.91): выйти можно не только клавишей
+ui.equipClose.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (game.mode === 'equip') closeEquip(); });
+ui.journalClose.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (game.mode === 'journal') closeJournal(); });
+ui.equipDo.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (game.mode === 'equip') equipDo(); });
 
 // ---------- режим рассказа (v0.78) ----------
 // Сюжетная вставка: картина во весь экран, текст снизу печатается; ЛКМ / Enter — дальше, Esc — пропустить.
@@ -3063,6 +3119,7 @@ function shopSay(text, mood = null, knight = false) {
 
 function shopView(view) {
   game.shop.view = view;
+  game.shop.sel = null;
   game.shop.queue = null;
   shopSay(game.shop.data.menu);
   renderShop();
@@ -3120,10 +3177,13 @@ function renderShop() {
   shopOptions().forEach((o, i) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = o.muted ? 'muted' : '';
-    b.innerHTML = `<span class="item-name">${itemIcon(o.icon)}${i + 1}. ${o.label}</span>${o.right ? `<span>${o.right}</span>` : ''}`;
-    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); o.go(); });
-    if (o.hover) b.addEventListener('pointerenter', () => shopSay(o.hover, o.mood));
+    const picked = o.hover && game.shop.sel === i;
+    b.className = (o.muted ? 'muted' : '') + (picked ? ' sel' : '');
+    const right = picked && !o.muted ? `купить · ${o.right}` : o.right;
+    b.innerHTML = `<span class="item-name">${itemIcon(o.icon)}${i + 1}. ${o.label}</span>${right ? `<span>${right}</span>` : ''}`;
+    // v0.91 (отзыв тестера: «нажала — сразу купилось»): товар — первый клик выбирает и показывает описание, второй — покупка
+    b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); shopPick(o, i); });
+    if (o.hover) b.addEventListener('pointerenter', () => { if (game.shop.sel == null) shopSay(o.hover, o.mood); });
     ui.shopMenu.appendChild(b);
   });
 }
@@ -3143,10 +3203,18 @@ function shopPress(code) {
   }
   const m = /^Digit([1-9])$/.exec(code);
   if (!m) return;
-  const o = shopOptions()[Number(m[1]) - 1];
-  if (!o) return;
-  if (o.hover && game.shop.text !== o.hover) shopSay(o.hover, o.mood);  // с клавиатуры: сначала описание, потом покупка
-  else o.go();
+  const i = Number(m[1]) - 1, o = shopOptions()[i];
+  if (o) shopPick(o, i);   // с клавиатуры так же: сначала описание, потом покупка
+}
+function shopPick(o, i) {
+  if (o.hover && game.shop.sel !== i) {
+    game.shop.sel = i;
+    shopSay(o.hover, o.mood);
+    renderShop();
+    return;
+  }
+  game.shop.sel = null;
+  o.go();
 }
 
 // реплика печатается по буквам
@@ -4404,8 +4472,8 @@ ui.box.addEventListener('pointermove', e => {
 ui.box.addEventListener('contextmenu', e => e.preventDefault());
 let wheelAt = 0;
 ui.box.addEventListener('wheel', e => {
+  if (game.mode !== 'play') return;   // в лавке, сумке, журнале колесо листает списки (v0.91)
   e.preventDefault();
-  if (game.mode !== 'play') return;
   // прокрутка колеса — вихрь; серия щелчков одной прокрутки — одно нажатие
   // вверх — приём оружия, вниз — навык из слота
   const now = performance.now();

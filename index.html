@@ -46,7 +46,7 @@
       </div>
       <div class="shop equip journal" id="journal" hidden>
         <div class="equip-col">
-          <div class="shop-name">Журнал</div>
+          <div class="shop-head"><div class="shop-name">Журнал</div><button type="button" class="close-btn" id="journal-close" title="Закрыть (B или Esc)">✕ Закрыть</button></div>
           <div class="shop-menu" id="journal-list"></div>
         </div>
         <div class="journal-page" id="journal-page">
@@ -59,7 +59,7 @@
             <p class="shop-coins" id="journal-kills"></p>
           </div>
         </div>
-        <div class="shop-keys">клик или 1–9 — страница · B или Esc — закрыть</div>
+        <div class="shop-keys">клик или 1–9 — страница · колесо — листать · B, Esc или ✕ — закрыть</div>
       </div>
       <div class="shop equip" id="equip" hidden>
         <div class="equip-col">
@@ -68,11 +68,11 @@
           <div class="shop-coins" id="equip-coins"></div>
         </div>
         <div class="equip-col">
-          <div class="shop-name">Сумка</div>
+          <div class="shop-head"><div class="shop-name">Сумка</div><button type="button" class="close-btn" id="equip-close" title="Закрыть (I или Esc)">✕ Закрыть</button></div>
           <div class="shop-menu" id="equip-bag"></div>
         </div>
-        <p class="shop-text equip-desc" id="equip-desc"></p>
-        <div class="shop-keys">клик или 1–9 — надеть / использовать · клик по слоту — снять · I или Esc — закрыть</div>
+        <div class="equip-info"><p class="shop-text equip-desc" id="equip-desc"></p><button type="button" class="equip-do" id="equip-do" hidden></button></div>
+        <div class="shop-keys">клик — выбрать, ещё клик или кнопка — надеть / использовать · колесо — листать · I, Esc или ✕ — закрыть</div>
       </div>
       <div class="shop" id="shop" hidden>
         <!-- слева — живая сцена лавки с Ликой за прилавком, справа — разговор и меню -->
@@ -84,7 +84,7 @@
         </div>
         <p class="shop-text" id="shop-text"></p>
         <div class="shop-menu" id="shop-menu"></div>
-        <div class="shop-keys">1–9 или клик — выбрать · Esc — назад · ✕ — уйти</div>
+        <div class="shop-keys">клик или 1–9 — выбрать, ещё раз — купить · колесо — листать · Esc — назад · ✕ — уйти</div>
       </div>
       <div class="overlay" id="overlay">
         <h1 id="overlay-title">Knight Night</h1>

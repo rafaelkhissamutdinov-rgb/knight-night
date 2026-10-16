@@ -252,15 +252,25 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 .skill[hidden] { display: none; }
 .skill.ward.ready { color: #e8454f; }
 .skill.ward.ready i { background: #e8454f; }
-.shop.equip { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto auto; }
-.equip-col { display: grid; gap: 0.8cqw; align-content: start; }
-.equip-desc { grid-column: 1 / -1; min-height: 3cqw; font-size: 2.1cqw; color: var(--muted); }
+.shop.equip { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) auto auto; }
+/* v0.91 (отзыв тестера): списки листаются колесом, длинные названия переносятся, описание — с кнопкой действия */
+.equip-col { display: grid; gap: 0.8cqw; grid-template-rows: auto minmax(0, 1fr) auto; align-content: start; min-height: 0; }
+.equip-col .shop-menu { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; padding-right: 0.6cqw; }
+.shop.journal .equip-col { grid-template-rows: auto minmax(0, 1fr); }
+.journal-page { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.equip-info { grid-column: 1 / -1; display: flex; gap: 1.5cqw; align-items: flex-start; max-height: 12cqw; overflow-y: auto; }
+.equip-desc { flex: 1; min-height: 3cqw; font-size: 2.1cqw; color: var(--muted); }
+.equip-do { flex: none; font: inherit; font-family: var(--pixel); font-size: 2cqw; color: var(--gold); cursor: pointer; background: var(--panel); border: 0.3cqw solid var(--gold); padding: 0.6cqw 1.6cqw; }
+.equip-do[hidden] { display: none; }
+.equip-do:hover { background: #2a2338; }
+.shop-menu button { white-space: normal; }
+.shop-menu button > span:last-child:not(.item-name) { flex: none; white-space: nowrap; }
 .equip-slot { color: var(--muted); min-width: 11cqw; }
 .equip-act { color: var(--muted); font-size: 1.7cqw; }
 .equip-empty { color: var(--muted); margin: 0; font-size: 2cqw; }
 
 /* журнал: список врагов и страница */
-.shop.journal { grid-template-columns: 28cqw 1fr; grid-template-rows: 1fr auto; }
+.shop.journal { grid-template-columns: 28cqw 1fr; grid-template-rows: minmax(0, 1fr) auto; }
 .journal-page { display: grid; grid-template-columns: 15cqw 1fr; gap: 2cqw; align-content: start; }
 .journal-page[hidden] { display: none; }
 .journal-text p { margin: 0 0 1cqw; font-size: 2cqw; line-height: 1.45; color: var(--fg); }
