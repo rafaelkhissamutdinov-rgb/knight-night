@@ -49,11 +49,23 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/music'; require('fs').
   await p.keyboard.press('Enter'); await p.waitForTimeout(800);
   await p.keyboard.down('KeyD');
   for (let i = 0; i < 40 && !(await p.evaluate(() => !!window.knightNight.arena)); i++) {
-    if (await p.evaluate(() => window.knightNight.mode) === 'talk') { await p.keyboard.up('KeyD'); await p.keyboard.press('Escape'); await p.keyboard.down('KeyD'); }
+    if (await p.evaluate(() => window.knightNight.mode) === 'talk') {
+      await p.waitForTimeout(500);
+      const z = await info();
+      if (z.zone === 'boss') fail('музыка босса началась ещё в разговоре');
+      await p.keyboard.up('KeyD');
+      if (await p.locator('#talk-choices button').count()) await p.locator('#talk-choices button').first().click(); else await p.keyboard.press('Escape');
+      await p.keyboard.down('KeyD');
+    }
     await p.waitForTimeout(150);
   }
   await p.keyboard.up('KeyD');
-  for (let i = 0; i < 6; i++) { if (await p.evaluate(() => window.knightNight.mode) === 'talk') await p.keyboard.press('Escape'); await p.waitForTimeout(200); }
+  for (let i = 0; i < 12; i++) {
+    if (await p.evaluate(() => window.knightNight.mode) === 'talk') {
+      if (await p.locator('#talk-choices button').count()) await p.locator('#talk-choices button').first().click(); else await p.keyboard.press('Escape');
+    }
+    await p.waitForTimeout(250);
+  }
   await p.evaluate(() => { window.knightNight.player.hp = 99; });
   await p.waitForTimeout(4000);
   m = await info(); console.log('boss', JSON.stringify(m));
