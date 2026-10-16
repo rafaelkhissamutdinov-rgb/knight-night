@@ -1,5 +1,5 @@
 # Знаки путей, нарисованные кодом (v0.94; владелец просил экономить генерации PixelLab). Солнце пилигрима — из PixelLab
-# (tools/pixellab_signs.py, вариант 15), Уроборос — тоже оттуда. Здесь: корона (монарх), закрытый глаз (эгоист).
+# (tools/pixellab_signs.py: солнце — 15, Уроборос — 0, корона — 4). Здесь только закрытый глаз (эгоист).
 # Рисуется крупно, уменьшается до 48×48, цвета приводятся к палитре знака, обводка в 1 пиксель.
 # Запуск: python3 tools/draw_signs.py [папка] → assets/ui/sign_<имя>.png
 import math, os, sys
@@ -23,20 +23,6 @@ def finish(big, pal, outline):
     return res
 
 def disc(d, cx, cy, r, c): d.ellipse([cx-r, cy-r, cx+r, cy+r], fill=c)
-
-def crown():
-    """Минималистичная корона (владелец, 16.10): три зубца с шариками, гладкий обруч, один камень."""
-    pal = [(252, 244, 178), (252, 227, 107), (251, 200, 63), (233, 167, 63), (176, 98, 40), (226, 60, 64), (150, 28, 48)]
-    big = Image.new('RGBA', (N*K, N*K)); d = ImageDraw.Draw(big)
-    P = lambda pts: [(x*K, y*K) for x, y in pts]
-    d.polygon(P([(9, 34), (9, 16), (17, 25), (24, 12), (31, 25), (39, 16), (39, 34)]), fill=pal[3])
-    d.polygon(P([(11, 33), (11, 20), (17, 28), (24, 16), (31, 28), (37, 20), (37, 33)]), fill=pal[2])
-    d.polygon(P([(11, 31), (11, 21), (16, 28)]), fill=pal[1])
-    for x, y in ((9, 14), (24, 10), (39, 14)):
-        disc(d, x*K, y*K, 2.3*K, pal[2]); disc(d, (x-0.6)*K, (y-0.6)*K, 1.0*K, pal[0])
-    d.rectangle(P([(8, 32), (40, 38)]), fill=pal[4]); d.rectangle(P([(8, 32), (40, 36)]), fill=pal[2]); d.rectangle(P([(8, 32), (40, 33.2)]), fill=pal[1])
-    disc(d, 24*K, 34.5*K, 2.2*K, pal[6]); disc(d, 24*K, 34.2*K, 1.4*K, pal[5]); disc(d, 23.4*K, 33.6*K, 0.5*K, pal[0])
-    return finish(big, pal, (68, 32, 25))
 
 def eye():
     pal = [(244, 240, 252), (212, 204, 236), (170, 158, 210), (124, 108, 176), (84, 68, 130), (52, 40, 86)]
@@ -62,5 +48,5 @@ def eye():
     return finish(big, pal, (36, 26, 58))
 
 os.makedirs(OUT, exist_ok=True)
-for name, fn in (('monarch', crown), ('egoist', eye)):
+for name, fn in (('egoist', eye),):
     fn().save(os.path.join(OUT, f'sign_{name}.png')); print(name)

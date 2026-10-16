@@ -85,7 +85,7 @@ const ui = {
   callout: $('callout'), hint: $('hint'), debug: $('debug'), overlay: $('overlay'), version: $('version'),
   overlayTitle: $('overlay-title'), overlayText: $('overlay-text'), overlayPress: $('overlay-press'),
   talk: $('talk'), talkPortrait: $('talk-portrait'), talkFace: $('talk-face'), talkName: $('talk-name'), talkText: $('talk-text'),
-  talkChoices: $('talk-choices'), talkNext: $('talk-next'), talkSkip: $('talk-skip'), shopClose: $('shop-close'),
+  talkChoices: $('talk-choices'), talkNext: $('talk-next'), talkSkip: $('talk-skip'), pathSign: $('path-sign'), shopClose: $('shop-close'),
   reportBtn: $('report-btn'), reportText: $('report-text'), overlayMenu: $('overlay-menu'),
   floorcard: $('floorcard'), floorcardTitle: $('floorcard-title'), floorcardRoom: $('floorcard-room'),
   journal: $('journal'), journalList: $('journal-list'), journalPage: $('journal-page'), journalFig: $('journal-fig'),
@@ -3056,7 +3056,23 @@ function chooseTalk(i) {
   if (path) game.flags['path_' + path] = (game.flags['path_' + path] ?? 0) + 1;
   game.talk.choose(i);
   showLine();
+  if (path) showPathSign(path);
 }
+
+// знак пути (v0.94, владелец): только после выбора — в вариантах ответа его нет, игрок выбирает сам
+const PATH_SIGNS = ['pilgrim', 'ghost', 'monarch', 'egoist'];
+function showPathSign(path) {
+  if (!PATH_SIGNS.includes(path)) return;
+  const el = ui.pathSign;
+  el.src = `assets/ui/sign_${path}.png`;
+  el.className = 'path-sign ' + path;
+  el.hidden = false;
+  void el.offsetWidth;            // перезапуск анимации, если знаки идут подряд
+  el.classList.add('show');
+  game.pathSign = { path, t: performance.now() };
+  sfx.sign(path);
+}
+ui.pathSign.addEventListener('animationend', () => { ui.pathSign.hidden = true; ui.pathSign.classList.remove('show'); });
 
 // пропустить разговор (кнопка ✕ или Esc): реплики проматываются до выбора или до конца — флаги реплик
 // ставятся как обычно, сюжет не ломается; на выборе — остановка (выбор за игроком)
@@ -4576,4 +4592,4 @@ requestAnimationFrame(frame);
 
 // для автотестов в браузере
 window.knightNight = game;
-window.knightNightDebug = { groundY, input, ROOMS, bgFor, musicInfo };   // для ботов-тестеров
+window.knightNightDebug = { groundY, input, ROOMS, bgFor, musicInfo, startTalk };   // для ботов-тестеров

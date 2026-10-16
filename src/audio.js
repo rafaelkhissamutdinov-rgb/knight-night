@@ -88,6 +88,11 @@ export const sfx = {
   coin(k = 0) { tone(1500 + k * 90, 0.07, 'square', 0.035); tone(2250 + k * 120, 0.09, 'triangle', 0.04); },
   thud() { burst(0.25, 'lowpass', 160, 0.35); tone(55, 0.3, 'sine', 0.2, 40); },
   clink() { tone(2600, 0.03, 'triangle', 0.03); },
+  // знак пути (v0.94): тихий звон — у каждого пути свой
+  sign(path) {
+    const f = { pilgrim: [660, 990], ghost: [392, 587], monarch: [523, 784], egoist: [466, 554] }[path] ?? [660, 990];
+    tone(f[0], 1.1, 'sine', 0.09); tone(f[1], 0.9, 'triangle', 0.05); tone(f[1] * 2, 0.5, 'sine', 0.02);
+  },
   cue(height) { tone({ high: 990, mid: 660, low: 440 }[height], 0.06, 'triangle', 0.07); },
 };
 

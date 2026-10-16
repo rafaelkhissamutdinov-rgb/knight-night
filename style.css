@@ -187,6 +187,24 @@ kbd {
 .talk-next { font-family: var(--pixel); font-size: 1.6cqw; color: var(--muted); justify-self: end; }
 .talk-foot { display: flex; justify-content: space-between; align-items: center; gap: 2cqw; }
 .talk-foot .talk-next { margin-left: auto; }
+/* знак пути (v0.94, владелец): после выбора, влияющего на путь, в правом верхнем углу проявляется знак — мягко светится и гаснет */
+.path-sign {
+  position: absolute; top: 2.5cqw; right: 3cqw; width: 9cqw; height: 9cqw;
+  image-rendering: pixelated; pointer-events: none; opacity: 0; z-index: 5;
+  --glow: rgba(255, 210, 110, 0.85);
+}
+.path-sign[hidden] { display: none; }
+.path-sign.ghost { --glow: rgba(170, 230, 190, 0.8); }
+.path-sign.monarch { --glow: rgba(255, 120, 90, 0.8); }
+.path-sign.egoist { --glow: rgba(190, 160, 255, 0.8); }
+.path-sign.show { animation: path-sign 1.7s ease-out forwards; }
+@keyframes path-sign {
+  0% { opacity: 0; transform: translateY(1cqw) scale(0.7); filter: drop-shadow(0 0 0 transparent) brightness(1.6); }
+  22% { opacity: 1; transform: translateY(0) scale(1.08); filter: drop-shadow(0 0 1.6cqw var(--glow)) brightness(1.25); }
+  40% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 1cqw var(--glow)) brightness(1); }
+  72% { opacity: 1; transform: translateY(-0.6cqw) scale(1); }
+  100% { opacity: 0; transform: translateY(-2cqw) scale(1.02); filter: drop-shadow(0 0 0.4cqw var(--glow)); }
+}
 /* кнопка выхода (v0.71): лавка и разговор закрываются мышью, не только Esc */
 .close-btn {
   font-family: var(--pixel); font-size: 1.7cqw; color: var(--muted); cursor: pointer;
