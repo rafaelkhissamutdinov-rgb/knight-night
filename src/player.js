@@ -13,6 +13,22 @@ export function chooseAttack({ vert, spin, state, t, sinceRoll }) {
 }
 
 // Замах с учётом ножен: сбоку из ножен — быстрее, верх и низ — медленнее.
+// «Шквал» кинжала (v0.84): ключевые позы по времени удара (с начала active), между ними — плавно.
+// Подброс — 0.26…0.55: рука вверх, кинжал летает отдельно (рисует main.js), ловля обратным хватом.
+export const FLURRY = [
+  [0, 'windup_thrust'], [0.06, 'strike_thrust'], [0.11, 'windup_thrust'], [0.18, 'strike_high'],
+  [0.26, 'guard_high'], [0.55, 'guard_high'],
+  [0.62, 'strike_high'], [0.68, 'windup_mid'], [0.74, 'strike_mid'], [0.8, 'windup_low'], [0.86, 'strike_low'],
+  [0.93, 'windup_mid'], [1.0, 'strike_mid'], [1.1, 'strike_mid'],
+];
+export const FLURRY_TOSS = [0.26, 0.55];
+function flurryPose(lt) {
+  let i = 0;
+  while (i < FLURRY.length - 2 && lt >= FLURRY[i + 1][0]) i++;
+  const [t0, a] = FLURRY[i], [t1, b] = FLURRY[i + 1];
+  return lerpPose(POSES[a], POSES[b], Math.max(0, Math.min(1, (lt - t0) / Math.max(0.001, t1 - t0))));
+}
+
 export function attackWindup(key, sheathed, arms = WEAPON) {
   const a = arms.attacks[key];
   if (!sheathed) return a.windup;
@@ -288,11 +304,12 @@ export class Player {
         }
         if (t < a.windup) {
           target = a.key === 'spin' ? POSES.windup_low : a.vault && t < a.vault ? POSES.vault
-            : a.draw && a.key === 'side' ? POSES.draw : POSES['windup_' + (a.pose === 'eight' ? 'mid' : a.pose)];
+            : a.draw && a.key === 'side' ? POSES.draw : POSES['windup_' + (a.pose === 'eight' ? 'mid' : a.pose === 'flurry' ? 'thrust' : a.pose)];
         } else if (t < a.windup + a.active) {
           const lt = t - a.windup;
           if (a.hits) {
-            if (a.pose === 'thrust') {
+            if (a.pose === 'flurry') this.pose = flurryPose(lt);
+            else if (a.pose === 'thrust') {
               // серия уколов: рука ходит взад-вперёд, удар — в каждой точке hits
               const k = (lt % 0.1) / 0.1;
               this.pose = k < 0.5 ? lerpPose(POSES.windup_thrust, POSES.strike_thrust, k * 2) : lerpPose(POSES.strike_thrust, POSES.windup_thrust, (k - 0.5) * 2);

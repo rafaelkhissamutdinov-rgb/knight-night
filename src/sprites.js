@@ -401,7 +401,7 @@ export function drawSprite(name, g, o) {
     const wy = Math.round(top + hand[1]);
     const len = (o.weaponLen ?? 17) * S;
     const kind = o.weapon ?? (o.rapier ? 'rapier' : 'sword');
-    const tp = drawWeapon(g, kind, wx, wy, o.pose.angle, o.facing, len, o.bowDraw ?? 0);
+    const tp = drawWeapon(g, kind, wx, wy, o.weaponAngle ?? o.pose.angle, o.facing, len, o.bowDraw ?? 0);   // weaponAngle — свой угол (обратный хват кинжала)
     tip = { tipX: (tp.tipX - t.e) / S, tipY: (tp.tipY - t.f) / S };
     if (fr.fist && kind !== 'bow') {
       // пальцы обхватывают рукоять: кулак из кадра — поверх рукояти (крестовина и клинок остаются видны)
@@ -411,8 +411,25 @@ export function drawSprite(name, g, o) {
       g.restore();
     }
   }
+  if (fr?.wrist) {   // где кулак (мир) — для оружия, которое летает отдельно от руки (подброшенный кинжал)
+    const hand = fr.fist ?? fr.wrist;
+    tip ??= { tipX: (left + (right ? hand[0] : size - hand[0]) - t.e) / S, tipY: (top + hand[1] - t.f) / S };
+    tip.handX = (left + (right ? hand[0] : size - hand[0]) - t.e) / S;
+    tip.handY = (top + hand[1] - t.f) / S;
+  }
   g.restore();
   return tip;
+}
+
+// оружие само по себе (мир): подброшенный кинжал крутится в воздухе
+export function drawWeaponWorld(g, kind, x, y, angleDeg, facing, len) {
+  const t = g.getTransform(), S = t.a;
+  g.save();
+  g.setTransform(1, 0, 0, 1, t.e, t.f);
+  g.imageSmoothingEnabled = false;
+  const tp = drawWeapon(g, kind, Math.round(x * S), Math.round(y * S), angleDeg, facing, len * S);
+  g.restore();
+  return { tipX: (tp.tipX) / S, tipY: (tp.tipY) / S };
 }
 
 // облик Найта по броне (v0.80): лист knight_<броня> с теми же кадрами; пока не загружен — обычный
