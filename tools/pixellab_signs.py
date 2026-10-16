@@ -15,7 +15,9 @@ STYLE = ('mystical sigil emblem, pixel art for a dark fantasy RPG, single symbol
 SIGNS = {
     'pilgrim': 'a radiant golden sun with straight rays, warm light, hope',
     'ghost': 'an ouroboros, a pale silver-green serpent biting its own tail forming a perfect circle, an endless loop',
-    'monarch': 'a royal golden crown with red gems, regal and imposing',
+    # v0.94: минималистичнее (владелец: «вдохновись Cult of the Lamb») — плоский знак культа, без камней
+    'monarch': ('a minimalist crown sigil, flat bold shapes, three simple tall points, smooth plain band, no gems, '
+                'gold and deep crimson only, thick dark outline, occult cult emblem like a tarot symbol, cute-dark hand-drawn style'),
     'egoist': 'a single closed eye with lashes, a calm indifferent closed eyelid, pale grey and violet',
 }
 if len(sys.argv) > 1 and sys.argv[1] == 'pick':
