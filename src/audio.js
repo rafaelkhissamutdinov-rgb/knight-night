@@ -142,18 +142,84 @@ export function crackle(vol = 1) {
 }
 
 // ---------- музыка: тихий эмбиент ----------
-// Медленные аккорды (Dm — B♭ — C — Am) мягким треугольником, редкие колокольные ноты с отзвуком под сводами;
-// в бою — глухой ритм, как литавры. Всё синтезом, без файлов.
+// Музыка владельца (v0.88): «Abandoned Castle» — файл assets/music/. Вступление (19,2 с) звучит один раз, дальше по
+// кругу — часть с басом. Бой — глухой ритм поверх, точно в долю трека (0,8 с). Пока файл не загрузился или если
+// не загрузится — прежняя заглушка синтезом: медленные аккорды (Dm — B♭ — C — Am), редкие колокольчики.
 export let musicOn = true;
 try { musicOn = localStorage.getItem('knightNight.music') !== 'off'; } catch { /* включена */ }
 let mus = null;
 const CHORDS = [[146.8, 174.6, 220.0], [116.5, 146.8, 174.6], [130.8, 164.8, 196.0], [110.0, 130.8, 164.8]];
 const BELL = [293.7, 349.2, 392.0, 440.0, 523.3, 587.3];
+// длина трека и вступления — по сетке трека (8 фраз по 6,4 с), доля — 0,8 с; vol — громкость файла рядом со звуками боя
+// reverb — отзвук под сводами (v0.88, совет друга владельца): только на всём выше 300 Гц, то есть на мелодии —
+// бас остаётся сухим, не гудит. Если владелец добавит реверб в самом треке — поставить reverb: 0
+export const TRACK = { url: 'assets/music/abandoned_castle.mp3', intro: 19.2, length: 51.2, beat: 0.8, vol: 0.32, reverb: 0.45, reverbTime: 2.4 };
+let track = null;   // { buf, t0 } — t0: где в файле начинается музыка (mp3 добавляет в начало тишину кодировщика)
+let trackLoading = false;
+function loadTrack() {
+  if (trackLoading || !ctx) return;
+  trackLoading = true;
+  fetch(TRACK.url).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
+    .then(data => new Promise((ok, bad) => ctx.decodeAudioData(data, ok, bad)))
+    .then(buf => {
+      const d = buf.getChannelData(0);
+      let i = 0;
+      while (i < d.length && Math.abs(d[i]) < 0.01) i++;
+      const t0 = Math.min(i / buf.sampleRate, 0.1);
+      // стык повтора: последние 30 мс плавно переходят в то, что звучит перед началом повтора, — без щелчка баса
+      const A = Math.round((t0 + TRACK.intro) * buf.sampleRate), E = Math.min(buf.length, Math.round((t0 + TRACK.length) * buf.sampleRate));
+      const N = Math.round(0.03 * buf.sampleRate);
+      for (let c = 0; c < buf.numberOfChannels; c++) {
+        const ch = buf.getChannelData(c);
+        for (let j = 0; j < N; j++) { const w = j / N; ch[E - N + j] = ch[E - N + j] * (1 - w) + ch[A - N + j] * w; }
+      }
+      track = { buf, t0 };
+    })
+    .catch(() => { /* нет файла — играет заглушка */ });
+}
+function startTrack() {
+  const src = ctx.createBufferSource();
+  src.buffer = track.buf;
+  src.loop = true;
+  src.loopStart = track.t0 + TRACK.intro;
+  src.loopEnd = Math.min(track.buf.duration, track.t0 + TRACK.length);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, ctx.currentTime);
+  g.gain.linearRampToValueAtTime(TRACK.vol, ctx.currentTime + 1.5);   // мягкий вход вместо щелчка
+  src.connect(g).connect(mus.tlp);
+  if (TRACK.reverb > 0) {
+    // зал: импульс — шум, затухающий за reverbTime, у каждого канала свой (объём); на вход — только верхи
+    const len = Math.round(TRACK.reverbTime * ctx.sampleRate);
+    const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    }
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 300;
+    const conv = ctx.createConvolver();
+    conv.buffer = ir;
+    const wet = ctx.createGain();
+    wet.gain.value = TRACK.reverb;
+    g.connect(hp).connect(conv).connect(wet).connect(mus.tlp);
+  }
+  src.start();
+  mus.track = { src, start: ctx.currentTime + track.t0 };   // от start доли идут ровно через beat — и после повтора
+  mus.nextDrum = 0;
+}
 
 function ensureMusic() {
   if (mus || !ctx) return;
+  // bus — общая громкость музыки (вкл/выкл, тише при «вайбе»); out — заглушка синтезом (с отзвуком), tlp — трек
+  const bus = ctx.createGain();
+  bus.gain.value = musicOn ? 1 : 0;
+  bus.connect(master);
   const out = ctx.createGain();
-  out.gain.value = musicOn ? 1 : 0;
+  const tlp = ctx.createBiquadFilter();
+  tlp.type = 'lowpass';
+  tlp.frequency.value = 20000;
+  tlp.connect(bus);
   // отзвук: задержка с обратной связью через фильтр
   const delay = ctx.createDelay(1);
   delay.delayTime.value = 0.38;
@@ -162,11 +228,12 @@ function ensureMusic() {
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
   lp.frequency.value = 1800;
-  out.connect(master);
+  out.connect(bus);
   out.connect(delay);
   delay.connect(lp).connect(fb).connect(delay);
-  lp.connect(master);
-  mus = { out, lp, chord: -1, nextChord: 0, nextBell: 2, nextDrum: 0 };
+  lp.connect(bus);
+  mus = { bus, out, lp, tlp, chord: -1, nextChord: 0, nextBell: 2, nextDrum: 0 };
+  loadTrack();
 }
 
 function pad(freq, t0, dur) {
@@ -210,6 +277,17 @@ export function updateMusic(combat) {
   if (!ctx) return;
   ensureMusic();
   const t = ctx.currentTime;
+  if (track && !mus.track) startTrack();
+  if (mus.track) {
+    // бой — удары в долю трека, сильная — раз в четыре доли
+    if (combat && t >= mus.nextDrum - 0.05) {
+      const k = Math.max(0, Math.ceil((t - mus.track.start) / TRACK.beat - 0.02));
+      const at = mus.track.start + k * TRACK.beat;
+      if (at > (mus.lastDrumAt ?? -1) + 0.1) { drum(Math.max(at, t), k % 4 === 0); mus.lastDrumAt = at; }
+      mus.nextDrum = at + TRACK.beat;
+    }
+    return;
+  }
   if (t >= mus.nextChord) {
     mus.chord = (mus.chord + 1) % CHORDS.length;
     for (const f of CHORDS[mus.chord]) pad(f, t, 6);
@@ -231,13 +309,17 @@ let calm = false;
 export function setMusicCalm(on) {
   calm = on;
   if (!mus) return;
-  mus.out.gain.setTargetAtTime(musicOn ? (on ? 0.6 : 1) : 0, ctx.currentTime, 0.8);
+  mus.bus.gain.setTargetAtTime(musicOn ? (on ? 0.6 : 1) : 0, ctx.currentTime, 0.8);
   mus.lp?.frequency.setTargetAtTime(on ? 700 : 1800, ctx.currentTime, 0.8);
+  mus.tlp.frequency.setTargetAtTime(on ? 1200 : 20000, ctx.currentTime, 0.8);   // трек при «вайбе» — глуше, как издалека
   if (on) mus.nextBell = Math.min(mus.nextBell, ctx.currentTime + 0.8);
 }
+
+// для ботов: загрузился ли трек и играет ли он
+export const musicInfo = () => ({ loaded: !!track, playing: !!mus?.track, t0: track?.t0, duration: track?.buf.duration });
 
 export function setMusic(on) {
   musicOn = on;
   try { localStorage.setItem('knightNight.music', on ? 'on' : 'off'); } catch { /* ничего */ }
-  if (mus) mus.out.gain.setTargetAtTime(on ? (calm ? 0.6 : 1) : 0, ctx.currentTime, 0.3);
+  if (mus) mus.bus.gain.setTargetAtTime(on ? (calm ? 0.6 : 1) : 0, ctx.currentTime, 0.3);
 }
