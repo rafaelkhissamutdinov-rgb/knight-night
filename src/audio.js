@@ -157,10 +157,13 @@ const BELL = [293.7, 349.2, 392.0, 440.0, 523.3, 587.3];
 // reverb — отзвук под сводами в игре (только выше 300 Гц, бас сухой); у «Abandoned Castle» 0 — реверб уже в треке
 export const TRACKS = {
   castle: { url: 'assets/music/abandoned_castle.mp3', intro: 19.2, length: 51.2, beat: 0.8, vol: 0.32, reverb: 0, reverbTime: 2.4 },
+  // «Captive of Love» (владелец, v0.91) — босс главы. 17 тактов по 3,2 с: первый — вступление, дальше по кругу такты
+  // 2–17 (последний, тихий, похож на вступление — сам подводит к повтору). Свои ударные — барабан игры не добавляем
+  boss: { url: 'assets/music/captive_of_love.mp3', intro: 3.2, length: 54.4, beat: 0.8, vol: 0.28, reverb: 0, drums: false },
 };
 // места: title — заставка, explore — замок, shop — лавка, rest — отдых и «вайб», duel — сюжетный бой, boss — босс главы.
 // Новый трек владельца: добавить в TRACKS и указать здесь; у комнаты можно задать свой (music в ROOMS)
-export const ZONE_TRACK = { title: 'castle', explore: 'castle', shop: 'castle', rest: 'castle', duel: 'castle', boss: 'castle' };
+export const ZONE_TRACK = { title: 'castle', explore: 'castle', shop: 'castle', rest: 'castle', duel: 'castle', boss: 'boss' };
 export const TRACK = TRACKS.castle;   // прежнее имя
 const loaded = {};    // имя → { buf, t0 } (t0 — где в файле начинается музыка: mp3 добавляет в начало тишину кодировщика)
 const loading = {};   // имя → true | 'failed'
@@ -216,7 +219,7 @@ function startTrack(name) {
     g.connect(hp).connect(conv).connect(wet).connect(mus.tlp);
   }
   src.start();
-  mus.track = { name, src, g, beat: T.beat, start: ctx.currentTime + tr.t0 };   // доли идут ровно через beat — и после повтора
+  mus.track = { name, src, g, beat: T.beat, drums: T.drums !== false, start: ctx.currentTime + tr.t0 };   // доли идут ровно через beat — и после повтора
   mus.nextDrum = 0;
 }
 function stopTrack(fade = 1.2) {
@@ -326,7 +329,7 @@ export function updateMusic(combat, zone = 'explore', room = null) {
   if (mus.track) {
     // бой — удары в долю трека, сильная — раз в четыре доли
     const beat = mus.track.beat;
-    if (combat && t >= mus.nextDrum - 0.05) {
+    if (combat && mus.track.drums && t >= mus.nextDrum - 0.05) {
       const k = Math.max(0, Math.ceil((t - mus.track.start) / beat - 0.02));
       const at = mus.track.start + k * beat;
       if (at > (mus.lastDrumAt ?? -1) + 0.1) { drum(Math.max(at, t), k % 4 === 0); mus.lastDrumAt = at; }

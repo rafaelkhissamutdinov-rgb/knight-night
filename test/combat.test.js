@@ -745,3 +745,17 @@ test('кинжал: быстрее меча, приём на колесе и в�
   assert.ok(DAGGER.attacks.side.reach < WEAPON.attacks.side.reach);
   assert.ok(DAGGER.chainMax >= 3);
 });
+
+test('обучение: трудный шаг не держит вечно — после giveUp её ударов можно дальше (v0.91)', async () => {
+  const { Tutorial } = await import('../src/tutorial.js');
+  const t = new Tutorial();
+  t.skip(); t.skip(); t.skip();
+  assert.equal(t.step.id, 'counter');
+  for (let i = 0; i < t.step.giveUp - 1; i++) t.note({ type: 'impact', result: 'block' });
+  assert.equal(t.stuck, false);
+  t.note({ type: 'impact', result: 'hit' });
+  assert.equal(t.stuck, true);
+  t.skip();
+  assert.equal(t.step.id, 'dodge');
+  assert.equal(t.stuck, false, 'счётчик попыток — заново');
+});

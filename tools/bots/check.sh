@@ -25,6 +25,7 @@ run vibe tools/bots/vibe.cjs
 run dagger tools/bots/dagger.cjs
 run backtrack tools/bots/backtrack.cjs
 run music tools/bots/music.cjs
+run ui tools/bots/ui.cjs
 grep -q 'diary_4' "$KN_OUT/souls.log" && grep -q 'sun_medallion_pure' "$KN_OUT/souls.log" || { echo "   задания душ не пройдены"; fail=1; }
 if [ -z "$BOTS_QUICK" ]; then
   run boss tools/bots/boss.cjs 0.2 turn 60

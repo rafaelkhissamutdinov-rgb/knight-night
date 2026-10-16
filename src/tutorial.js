@@ -24,6 +24,7 @@ export const TUTORIAL = [
     text: 'Теперь защищайся: держи ПКМ, курсор — на высоте значка над моей головой.',
     plan: { combos: [['high'], ['mid'], ['low']], windup: 1.1, wait: [1.0, 1.4] },
     need: { block: 3 },
+    giveUp: 14,   // v0.91 (отзыв тестера): столько её ударов без успеха — наставница отпускает дальше
     count: ev => ev.type === 'impact' && (ev.result === 'block' || ev.result === 'perfect') ? 'block' : null,
   },
   {
@@ -31,6 +32,7 @@ export const TUTORIAL = [
     text: 'Нажми ПКМ прямо перед ударом — когда блеснёт клинок. Это идеальное парирование.',
     plan: { combos: [['high'], ['mid'], ['low']], windup: 1.0, wait: [1.0, 1.4] },
     need: { perfect: 2 },
+    giveUp: 14,
     count: ev => ev.type === 'impact' && ev.result === 'perfect' ? 'perfect' : null,
   },
   {
@@ -38,6 +40,7 @@ export const TUTORIAL = [
     text: 'Отбей всю серию идеально — я открыта. Тогда бей: удар вдвое сильнее.',
     plan: { combos: [['mid', 'high'], ['low', 'mid'], ['high', 'low']], windup: 1.0, comboWindup: 0.85, wait: [1.0, 1.4] },
     need: { counter: 1 },
+    giveUp: 12,   // серия идеально — самый трудный шаг
     count: ev => ev.type === 'counter' ? 'counter' : null,
   },
   {
@@ -45,6 +48,7 @@ export const TUTORIAL = [
     text: 'Тяжёлый удар (оранжевый значок) сбивает блок. Уходи: пробел с курсором внизу — кувырок, пробел с шагом назад — отскок.',
     plan: { combos: [['heavyMid'], ['heavyHigh']], windup: 1.2, wait: [1.2, 1.6] },
     need: { dodge: 1 },
+    giveUp: 8,
     count: ev => ev.type === 'impact' && (ev.result === 'dodged' || ev.result === 'warded') ? 'dodge' : null,
   },
   {
@@ -77,15 +81,25 @@ export class Tutorial {
   note(ev) {
     const s = this.step;
     if (!s) return false;
+    if (ev.type === 'impact') this.tries = (this.tries ?? 0) + 1;
     const k = s.count(ev);
     if (!k || !(k in s.need)) return false;
     this.have[k] = Math.min(s.need[k], (this.have[k] ?? 0) + 1);
     if (Object.entries(s.need).every(([key, n]) => (this.have[key] ?? 0) >= n)) {
-      this.i++;
-      this.have = {};
+      this.skip();
       return true;
     }
     return false;
+  }
+
+  // шаг не даётся: после giveUp её ударов можно идти дальше (v0.91)
+  get stuck() { const s = this.step; return !!(s?.giveUp && (this.tries ?? 0) >= s.giveUp); }
+
+  // следующий шаг (выполнен, не даётся или пропущен)
+  skip() {
+    this.i++;
+    this.have = {};
+    this.tries = 0;
   }
 
   // «Обучение 2/7 · задание · отбито 1/3»
@@ -95,6 +109,6 @@ export class Tutorial {
     const progress = Object.entries(s.need)
       .map(([k, n]) => n > 1 ? `${LABEL[k]} ${this.have[k] ?? 0}/${n}` : `${(this.have[k] ?? 0) >= n ? '✓' : '·'} ${LABEL[k]}`)
       .join('  ');
-    return `Обучение ${this.i + 1}/${this.steps.length} · ${s.text}  [${progress}]`;
+    return `Обучение ${this.i + 1}/${this.steps.length} · ${s.text}  [${progress}]  · Esc — пропустить`;
   }
 }
