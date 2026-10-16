@@ -43,7 +43,7 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/music'; require('fs').
   await load('shop', 160);
   await p.keyboard.press('Enter'); await p.waitForTimeout(1500);
   m = await info(); console.log('shop', JSON.stringify(m));
-  if (m.zone !== 'shop') fail('в лавке не то место: ' + m.zone);
+  if (m.zone !== 'shop' || m.track !== 'shop') fail('в лавке не тот трек: ' + m.zone + ' / ' + m.track);
   // босс главы — свой трек (v0.91, «Captive of Love»)
   await load('mage', 120);
   await p.keyboard.press('Enter'); await p.waitForTimeout(800);
