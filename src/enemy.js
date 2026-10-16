@@ -668,7 +668,7 @@ class Boss extends Ghost {
       return;
     }
     super.damage(dmg);
-    if (!this.alive) { this.pat = null; this.eyes = 0; }
+    if (!this.alive) { this.pat = null; this.eyes = 0; this.enter('defeated'); this.endFrame = 'pose_kneel'; }   // v0.95: на колене до сцены конца главы
   }
 
   // рыцарь прячется в блоке — чаще приёмы, которые пробивают защиту (тяжёлые, вихрь)
@@ -733,6 +733,7 @@ class Boss extends Ghost {
   }
 
   update(dt, w) {
+    if (this.state === 'defeated') { this.flashT = Math.max(0, this.flashT - dt); return; }   // сценой управляет main.js (game.ending)
     const d = this.def;
     const dist = Math.abs(w.player.x - this.x);
     // сколько рыцарь уже стоит в защите рядом — по этому босс выбирает, чем ломать

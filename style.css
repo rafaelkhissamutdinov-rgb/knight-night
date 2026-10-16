@@ -187,6 +187,11 @@ kbd {
 .talk-next { font-family: var(--pixel); font-size: 1.6cqw; color: var(--muted); justify-self: end; }
 .talk-foot { display: flex; justify-content: space-between; align-items: center; gap: 2cqw; }
 .talk-foot .talk-next { margin-left: auto; }
+/* кат-сцена кадрами (v0.95): своя картина поверх игры */
+.cine { position: absolute; inset: 0; z-index: 30; background: #05040a; opacity: 1; transition: opacity 0.7s; }
+.cine[hidden] { display: none; }
+.cine.out { opacity: 0; }
+.cine canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
 /* знак пути (v0.94, владелец): после выбора, влияющего на путь, в правом верхнем углу проявляется знак — мягко светится и гаснет */
 .path-sign {
   position: absolute; top: 2.5cqw; right: 3cqw; width: 9cqw; height: 9cqw;

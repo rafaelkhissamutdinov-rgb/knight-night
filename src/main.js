@@ -91,7 +91,7 @@ const ui = {
   journal: $('journal'), journalList: $('journal-list'), journalPage: $('journal-page'), journalFig: $('journal-fig'),
   journalName: $('journal-name'), journalHow: $('journal-how'), journalWin: $('journal-win'), journalLore: $('journal-lore'), journalKills: $('journal-kills'),
   equip: $('equip'), equipSlots: $('equip-slots'), equipBag: $('equip-bag'), equipDesc: $('equip-desc'), equipCoins: $('equip-coins'), equipDo: $('equip-do'), equipClose: $('equip-close'), journalClose: $('journal-close'),
-  skillWard: $('skill-ward'), skillWardBar: $('skill-ward-bar'), skillG: $('skill-g'), skillGBar: $('skill-g-bar'),
+  skillWard: $('skill-ward'), skillWardBar: $('skill-ward-bar'), skillMask: $('skill-mask'), skillMaskBar: $('skill-mask-bar'), skillG: $('skill-g'), skillGBar: $('skill-g-bar'),
   shop: $('shop'), shopScene: $('shop-scene'), shopName: $('shop-name'), shopCoins: $('shop-coins'),
   shopText: $('shop-text'), shopMenu: $('shop-menu'),
   skillSpin: $('skill-spin'), skillSpinBar: $('skill-spin-bar'), skillName: $('skill-name'), weapon: $('weapon'),
@@ -786,6 +786,341 @@ async function copyReport() {
   }
 }
 
+// ---------- маска: шаг призрака (v0.95, владелец) ----------
+// F — раствориться и проявиться за спиной ближайшего врага (сначала — перед рыцарем); во время шага неуязвим.
+// Враг после шага «проскочен» (slipAt) — с кинжалом следующий удар в спину (×3, как после рывка сквозь врага).
+function useMask() {
+  const p = game.player, bl = ITEMS[game.equip.amulet]?.blink;
+  if (!bl || game.mode !== 'play') return;
+  if (game.time < (game.blinkReadyAt ?? 0)) { callout('Маска ещё не готова', 'muted'); return; }
+  if (!(p.ready || p.state === 'dash' || (p.state === 'attack' && p.phase !== 'active'))) return;
+  const foes = game.enemies.filter(e => e.alive && e.solid !== false && e.state !== 'dormant' && Math.abs(e.x - p.x) < bl.reach);
+  const dist = e => Math.hypot(e.x - p.x, (e.z - p.z) * 2);
+  const ahead = foes.filter(e => Math.sign(e.x - p.x) === p.facing);
+  const e = (ahead.length ? ahead : foes).sort((a, b) => dist(a) - dist(b))[0];
+  if (!e) { callout('Некого обойти', 'muted'); return; }
+  const side = Math.sign(e.x - p.x) || p.facing;
+  const [L, R] = roomBounds();
+  const to = Math.max(L + 6, Math.min(R - 6, e.x + side * bl.behind));
+  if (Math.abs(to - e.x) < bl.behind * 0.6) { callout('За спиной нет места', 'muted'); return; }
+  game.blink = { to, z: e.z, e, side, done: false };
+  p.atk = null;
+  p.buffer = null;
+  p.blinkTime = bl.time;
+  p.enter('blink');
+  game.blinkReadyAt = game.time + bl.cooldown;
+  blinkPuff(p.x, p.z, -side);
+  sfx.blink();
+}
+function blinkPuff(x, z, dir) {
+  const y = groundY(z);
+  for (let i = 0; i < 12; i++) game.puffs.push({
+    x: x + (Math.random() - 0.5) * 12, y: y - 4 - Math.random() * 28, r: 2 + Math.random() * 4,
+    vx: dir * (6 + Math.random() * 16), vy: -8 - Math.random() * 10, life: 0.5 + Math.random() * 0.4, max: 0.9,
+  });
+}
+function updateBlink() {
+  const b = game.blink, p = game.player;
+  if (!b) return;
+  if (p.state !== 'blink') { game.blink = null; return; }
+  if (!b.done && p.t >= p.blinkTime / 2) {
+    b.done = true;
+    p.x = b.to;
+    p.z = b.z;
+    p.facing = -b.side;          // лицом к врагу, он — спиной
+    game.faceBy = 'keys';
+    b.e.slipAt = game.time;
+    blinkPuff(p.x, p.z, b.side);
+  }
+}
+// прозрачность рыцаря: тает и проявляется в шаге призрака, уходит в портал в сцене конца главы
+function playerAlpha() {
+  const p = game.player;
+  let a = 1;
+  if (p.state === 'blink') { const k = Math.min(1, p.t / (p.blinkTime ?? 0.34)); a = Math.abs(1 - 2 * k) * 0.85 + 0.05; }
+  if (game.ending?.knightAlpha != null) a *= game.ending.knightAlpha;
+  return a;
+}
+
+// ---------- конец главы 1: сцена (v0.95, владелец) ----------
+// Всё собрано (вся история капитана) — разговор boss_peace, призрак склоняется, встаёт, смотрит на нас и растворяется.
+// Иначе — казнь: рыцарь заносит меч над коленопреклонённым призраком, удар — маска раскалывается, призрак рассыпается.
+// Дальше у всех одинаково: портал в Камере — цветок в янтаре, волны, второй круг рун, свет; телепорт к замку днём.
+const PEACE_ITEMS = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_flower', 'heart_half'];
+const peaceReady = () => PEACE_ITEMS.every(id => owns(id));
+const STILL = { fwd: false, back: false, dz: 0, guard: null, engaged: false, stroll: true, anyInput: false };
+function letterbox(on) {
+  let el = ui.vibe;
+  if (!el) {
+    el = ui.vibe = document.createElement('div');
+    el.className = 'vibe';
+    el.innerHTML = '<i class="vibe-bar top"></i><i class="vibe-bar bottom"></i>';
+    ui.box.appendChild(el);
+    void el.offsetWidth;
+  }
+  ui.box.classList.toggle('vibing', on);
+}
+function startEnding(d, peace) {
+  const boss = game.enemies.find(e => e.kind === 'boss');
+  if (!boss) { finish(d); return; }
+  // крупное событие пути: +5 пилигриму за мирный исход; казнь — +5 лидеру среди остальных (никого — эгоисту)
+  const path = peace ? 'pilgrim' : pathLeader(['ghost', 'monarch', 'egoist']) ?? 'egoist';
+  addPath(path, 5);
+  game.flags.ending = peace ? 'peace' : 'execution';
+  const p = game.player;
+  p.atk = null; p.buffer = null; p.guard = null; p.enter('ready');
+  game.charge = null;
+  game.ending = { phase: 'cine', t: 0, d, peace, boss, done: {}, black: 0, white: 0, glow: 0, frames: cineFrames(peace), i: 0, ft: 0, fx: [] };
+  ui.foe.hidden = true;
+  hint('');
+  openCine();
+  save();
+  setTimeout(() => showPathSign(path), 300);
+}
+const once = (E, key, at) => E.t >= at && !E.done[key] && (E.done[key] = true);
+function updateEnding(dt) {
+  const E = game.ending, p = game.player;
+  E.t += dt;
+  tickStory(dt);
+  if (E.phase === 'cine') updateCine(E, dt);
+  else if (E.phase === 'leave') {   // от окна покоев — в темноту и к порталу
+    E.black = Math.min(1, E.t / 0.9);
+    if (E.t > 1.1) toPortalScene(E);
+  } else if (E.phase === 'portal') endingPortal(E, p, dt);
+}
+
+// ---------- кат-сцена кадрами (v0.95, владелец): картина стоит, меняются только позы героев — как раскадровка ----------
+// Мирный исход: призрак на коленях — склоняется — встаёт — смотрит на нас — растворяется. Казнь: на коленях — рыцарь
+// заносит меч — удар (маска раскалывается, призрак рассыпается дымом, без крови) — маска на полу.
+function cineFrames(peace) {
+  return peace ? [
+    { d: 1.6, boss: 'pose_kneel', knight: 'idle' },
+    { d: 1.5, boss: 'pose_dead', knight: 'idle' },
+    { d: 1.0, boss: 'pose_kneel', knight: 'idle' },
+    { d: 1.4, boss: 'pose_idle', knight: 'idle' },
+    { d: 2.0, boss: 'front', knight: 'idle' },
+    { d: 2.2, boss: 'front', knight: 'idle', fade: true },
+    { d: 1.8, knight: 'idle', mask: true },
+  ] : [
+    { d: 1.6, boss: 'pose_kneel', knight: 'idle' },
+    { d: 1.6, boss: 'pose_kneel', knight: 'windup' },
+    { d: 1.8, knight: 'strike', shatter: true },
+    { d: 1.8, knight: 'idle', mask: true },
+  ];
+}
+const CINE = { W: 640, H: 360, kx: 250, bx: 410, ground: 318, scale: 2 };
+let cineBg = null, cineSpr = null;
+function openCine() {
+  let el = ui.cine;
+  if (!el) {
+    el = ui.cine = document.createElement('div');
+    el.className = 'cine';
+    el.innerHTML = `<canvas width="${CINE.W}" height="${CINE.H}"></canvas>`;
+    ui.box.appendChild(el);
+  }
+  if (!cineBg) { cineBg = new Image(); cineBg.src = 'assets/story/ending_hall.png'; }
+  el.hidden = false;
+  el.classList.remove('out');
+}
+function closeCine() {
+  if (!ui.cine) return;
+  ui.cine.classList.add('out');
+  setTimeout(() => { if (ui.cine.classList.contains('out')) ui.cine.hidden = true; }, 700);
+}
+function updateCine(E, dt) {
+  E.ft += dt;
+  if (E.ft >= E.frames[E.i].d) {
+    E.i++;
+    E.ft = 0;
+    const nx = E.frames[E.i];
+    if (!nx) { endCine(E); return; }
+    if (nx.shatter) { sfx.counter(); sfx.flame(); cineShatter(E); }
+    else if (nx.fade) sfx.portal();
+    else if (nx.knight === 'windup') sfx.whoosh();
+  }
+  for (const f of E.fx) { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += (f.g ?? 0) * dt; f.life -= dt; }
+  E.fx = E.fx.filter(f => f.life > 0);
+  if (E.frames[E.i].fade && Math.random() < 0.7) E.fx.push({ x: CINE.bx + (Math.random() - 0.5) * 50, y: CINE.ground - Math.random() * 110, vx: (Math.random() - 0.5) * 12, vy: -30 - Math.random() * 40, life: 1.2, max: 1.2, c: Math.random() < 0.5 ? '#fff3c4' : '#bfe8ff', r: 2 });
+  drawCine(E);
+}
+function cineShatter(E) {
+  for (let i = 0; i < 22; i++) E.fx.push({   // осколки маски
+    x: CINE.bx + (Math.random() - 0.5) * 8, y: CINE.ground - 100, vx: (Math.random() - 0.5) * 260, vy: -120 - Math.random() * 160, g: 600,
+    life: 0.9 + Math.random() * 0.4, max: 1.3, c: i % 3 ? '#f2efe6' : '#c9a24a', r: 3,
+  });
+  for (let i = 0; i < 18; i++) E.fx.push({   // призрак рассыпается дымом
+    x: CINE.bx + (Math.random() - 0.5) * 50, y: CINE.ground - Math.random() * 100, vx: (Math.random() - 0.5) * 60, vy: -20 - Math.random() * 30,
+    life: 1.2 + Math.random() * 0.5, max: 1.7, c: '#9fd6ff', r: 6 + Math.random() * 8, mist: true,
+  });
+  E.flash = 1;
+}
+// персонаж — в маленький холст в родном размере, потом на кадр увеличенным (пиксели героев — как у картины)
+function cineSprite(c, draw) {
+  const o = cineSpr ??= document.createElement('canvas');
+  o.width = 120; o.height = 120;
+  const x = o.getContext('2d');
+  x.imageSmoothingEnabled = false;
+  draw(x);
+  c.drawImage(o, 0, 0, 120, 120, 0, 0, 120 * CINE.scale, 120 * CINE.scale);
+}
+function drawCine(E) {
+  const c = ui.cine.querySelector('canvas').getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.fillStyle = '#05040a';
+  c.fillRect(0, 0, CINE.W, CINE.H);
+  if (cineBg?.complete && cineBg.naturalWidth) c.drawImage(cineBg, 0, 0, CINE.W, CINE.H);
+  const fr = E.frames[E.i], p = game.player, k = Math.min(1, E.ft / fr.d);
+  setNormalTarget(null);   // свой холст — карте нормалей игры это не нужно (игра вернёт её в следующем кадре)
+  const at = (cx, f) => { c.save(); c.translate(cx - 60 * CINE.scale, CINE.ground - 110 * CINE.scale); f(); c.restore(); };
+  c.fillStyle = 'rgba(0,0,0,0.35)';   // тени под героями
+  c.fillRect(CINE.kx - 34, CINE.ground - 4, 68, 6);
+  if (fr.boss) c.fillRect(CINE.bx - 34, CINE.ground - 4, 68, 6);
+  if (fr.boss) at(CINE.bx, () => {
+    c.globalAlpha = fr.fade ? Math.max(0, 1 - k) * 0.9 : 0.9;
+    cineSprite(c, x => drawSprite('boss', x, { x: 60, ground: 110, facing: -1, frame: fr.boss, state: 'ready', time: game.time, weaponLen: 17, bladeHidden: fr.boss !== 'pose_kneel' && fr.boss !== 'pose_dead' }));
+    c.globalAlpha = 1;
+  });
+  const kp = fr.knight === 'windup' ? POSES.windup_high : fr.knight === 'strike' ? POSES.strike_high : POSES.idle;
+  at(CINE.kx, () => cineSprite(c, x => drawKnight(x, { x: 60, ground: 110, facing: 1, pose: kp, state: fr.knight === 'idle' ? 'ready' : 'attack', time: game.time,
+    weaponLen: p.arms.length ?? 17, rapier: p.weapon === 'rapier', weapon: p.weapon === 'dagger' ? 'dagger' : undefined })));
+  if (light) setNormalTarget(light.normalCtx);
+  if (fr.mask) {   // расколотая маска на полу: две белые половинки с золотом
+    const mx = CINE.bx - 6, my = CINE.ground - 8;
+    for (const [dx, rot] of [[-7, -0.3], [7, 0.4]]) {
+      c.save(); c.translate(mx + dx, my); c.rotate(rot);
+      c.fillStyle = '#f2efe6'; c.fillRect(-6, -4, 12, 8);
+      c.fillStyle = '#c9a24a'; c.fillRect(-6, -4, 12, 2);
+      c.fillStyle = '#14101e'; c.fillRect(dx < 0 ? -3 : 1, -1, 3, 2);
+      c.restore();
+    }
+  }
+  for (const f of E.fx) {
+    c.globalAlpha = Math.max(0, f.life / f.max) * (f.mist ? 0.35 : 1);
+    c.fillStyle = f.c;
+    if (f.mist) { c.beginPath(); c.arc(f.x, f.y, f.r + (1 - f.life / f.max) * 10, 0, Math.PI * 2); c.fill(); }
+    else c.fillRect(Math.round(f.x), Math.round(f.y), f.r, f.r);
+  }
+  c.globalAlpha = 1;
+  if (E.flash > 0) { c.globalAlpha = E.flash; c.fillStyle = '#ffffff'; c.fillRect(0, 0, CINE.W, CINE.H); c.globalAlpha = 1; E.flash = Math.max(0, E.flash - 0.06); }
+  c.fillStyle = '#000';   // кинополосы
+  c.fillRect(0, 0, CINE.W, 34); c.fillRect(0, CINE.H - 34, CINE.W, 34);
+}
+function endCine(E) {
+  closeCine();
+  gainMask(E.boss, E.peace ? 'Призрак ушёл с миром. На полу — расколотая маска' : 'Расколотая маска');
+  game.ending = null;
+  setTimeout(() => callout('Наверх ведёт винтовая лестница — покои принцессы', 'perfect'), 2200);
+  save();
+}
+// от большого окна в покоях принцессы (E) — к порталу: та же сцена у всех
+function startPortalEnding() {
+  const d = (ROOMS.mage.encounters ?? []).find(e => e.finish)?.finish ?? {};
+  game.ending = { phase: 'leave', t: 0, d, peace: game.flags.ending === 'peace', done: {}, black: 0, white: 0, glow: 0 };
+  letterbox(true);
+  hint('');
+}
+function gainMask(b, text) {
+  b.state = 'gone';
+  if (!owns('broken_mask')) { game.bag.push('broken_mask'); game.flags.given_broken_mask = true; }
+  callout(text, 'perfect');
+  sfx.perfect();
+}
+function toPortalScene(E) {
+  E.phase = 'portal';
+  E.t = 0;
+  const pr = ROOMS.cell.portal;
+  loadRoom('cell', { x: pr.x - 30, z: pr.z, facing: 1 });
+  game.flags.chapter1_done = true;
+  save();
+}
+function endingPortal(E, p, dt) {
+  const t = E.t, pr = ROOMS.cell.portal;
+  E.black = Math.max(0, 1 - t / 0.9);
+  p.facing = 1;
+  // подходит, опускается на колено и кладёт цветок в янтаре в центр знака; встаёт и отступает
+  E.kneel = t >= 1.3 && t < 2.4;
+  p.update(dt, STILL);
+  if (t < 1.3) p.x = pr.x - 30 + Math.min(1, t / 1.2) * 12;
+  if (once(E, 'flower', 1.8)) {
+    E.amber = true;
+    const i = game.bag.indexOf('resin_flower'); if (i >= 0) game.bag.splice(i, 1);
+    sfx.coin(2);
+  }
+  if (t >= 2.4 && t < 3.0) p.x -= dt * 14;
+  E.glow = t < 2.2 ? 0 : Math.min(1.6, (t - 2.2) * 0.45);
+  if (once(E, 'hum', 2.6)) sfx.portal();
+  if (once(E, 'ring', 4.2)) sfx.ward();
+  // рыцарь шагает в свет — тает; вспышка — и он уже перед замком
+  if (t >= 6.0 && t < 6.8) p.x += dt * 22;
+  if (t >= 6.2) E.knightAlpha = Math.max(0, 1 - (t - 6.2) / 0.6);
+  if (once(E, 'flare', 6.4)) { sfx.portal(); shake(2); }
+  if (t >= 6.4) E.white = Math.min(1, (t - 6.4) / 0.7);
+  if (t >= 7.3 && !E.day) {
+    E.day = true;
+    openStory('ending_day', () => {
+      game.ending = null;
+      letterbox(false);
+      finish(E.d);
+    });
+  }
+}
+// обряд у портала: янтарь в центре, волны по знаку, второй круг с рунами дорисовывается, свет нарастает
+const RITE_RUNES = ['ᚠ', 'ᚢ', 'ᚦ', 'ᚨ', 'ᚱ', 'ᚲ', 'ᚷ', 'ᚹ', 'ᚺ', 'ᚾ', 'ᛁ', 'ᛃ'];
+function drawPortalRite(cx, cy, E) {
+  const t = E.t;
+  if (E.amber) {
+    const a = 0.7 + 0.3 * Math.sin(game.time * 6);
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    const gr = g.createRadialGradient(cx, cy - 1, 1, cx, cy - 1, 10 + 30 * E.glow);
+    gr.addColorStop(0, `rgba(255,190,90,${0.5 * a + 0.3 * E.glow})`);
+    gr.addColorStop(1, 'rgba(255,190,90,0)');
+    g.fillStyle = gr;
+    g.fillRect(cx - 50, cy - 50, 100, 100);
+    g.restore();
+    rect(g, cx - 2, cy - 3, 4, 3, '#d9822b'); rect(g, cx - 1, cy - 4, 2, 1, '#f2b14a'); rect(g, cx - 1, cy - 2, 1, 1, '#c0392b'); rect(g, cx, cy - 3, 1, 1, '#ffe9a8');
+  }
+  // волны от янтаря по знаку
+  for (const w0 of [2.6, 3.2, 3.8, 4.4]) {
+    const k = (t - w0) / 1.3;
+    if (k < 0 || k > 1) continue;
+    const rx = 4 + 40 * k, ry = rx * 0.27;
+    g.globalAlpha = 1 - k;
+    for (let a = 0; a < Math.PI * 2; a += 2 / rx) rect(g, Math.round(cx + Math.cos(a) * rx), Math.round(cy + Math.sin(a) * ry), 1, 1, '#ffd58a');
+    g.globalAlpha = 1;
+  }
+  // второй круг: дорисовывается по кругу, на нём загораются руны
+  const ring = Math.max(0, Math.min(1, (t - 3.4) / 1.8));
+  if (ring > 0) {
+    const rx = 36, ry = 10;
+    for (let a = 0; a < Math.PI * 2 * ring; a += 0.04) rect(g, Math.round(cx + Math.cos(a - Math.PI / 2) * rx), Math.round(cy + Math.sin(a - Math.PI / 2) * ry), 1, 1, '#bff4ff');
+    g.font = '7px serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (let i = 0; i < RITE_RUNES.length; i++) {
+      const at = i / RITE_RUNES.length;
+      if (at > ring) break;
+      const a = at * Math.PI * 2 - Math.PI / 2;
+      g.globalAlpha = 0.7 + 0.3 * Math.sin(game.time * 4 + i);
+      g.fillStyle = i % 2 ? '#ffd58a' : '#bff4ff';
+      g.fillText(RITE_RUNES[i], Math.round(cx + Math.cos(a) * (rx - 4)), Math.round(cy + Math.sin(a) * (ry - 1)));
+    }
+    g.globalAlpha = 1;
+  }
+  // столб света
+  if (t > 5) {
+    const k = Math.min(1, (t - 5) / 1.4);
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    const gr = g.createLinearGradient(0, cy - 120, 0, cy);
+    gr.addColorStop(0, 'rgba(191,244,255,0)');
+    gr.addColorStop(1, `rgba(255,236,190,${0.55 * k})`);
+    g.fillStyle = gr;
+    g.fillRect(cx - 10 - 14 * k, cy - 120, 20 + 28 * k, 122);
+    g.restore();
+  }
+}
+
 const SECRETS = ['secret_hall', 'cup_placed', 'secret_library'];  // замурованный проход, алтарь, стеллаж
 function finish(d = {}) {
   game.mode = 'end';
@@ -891,6 +1226,7 @@ const CONTROLS_TEXT = [
   'Колесо вверх — приём оружия · колесо вниз — навык · Q — сменить оружие',
   'E — говорить, лавка, сундук, осмотреть, отдохнуть · W у двери или лестницы — пройти',
   'I — снаряжение · H — зелье · B — журнал · M — карта · Esc — пауза',
+  'F — шаг призрака за спину врага (если надета Расколотая маска)',
 ].join('\n');
 
 // шрифт текста (v0.93, отзыв тестера): диалоги и описания — книжный (Philosopher), сказочный (Alice) или пиксельный (Tiny5)
@@ -1006,7 +1342,8 @@ const ADMIN_POINTS = [
   { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
 ];
-const ADMIN_LOOT = ['sword_old', 'rapier', 'dagger', 'map', 'journal', 'key_tower', 'diamond_ace', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup'];
+const ADMIN_LOOT = ['sword_old', 'rapier', 'dagger', 'map', 'journal', 'key_tower', 'diamond_ace', 'broken_mask', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup',
+  'diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_flower', 'heart_half'];   // всё для мирного исхода — проверить сцену
 
 // текущая игра → данные сохранения (как save(), но комнату и место можно подменить)
 function adminSnapshot(room = game.room, x = game.player.x) {
@@ -1080,6 +1417,8 @@ function buildAdmin() {
       <button type="button" data-a="potions">5 зелий и бинтов</button>
       <button type="button" data-a="heal">Вылечить</button>
     </div>
+    <div class="admin-sec">Очки путей (игроку не видны)</div>
+    <div class="admin-row" id="admin-paths"></div>
     <div class="admin-sec">Бой</div>
     <div class="admin-grid">
       <button type="button" data-a="clear">Убрать врагов в комнате</button>
@@ -1117,6 +1456,7 @@ function openAdmin() {
   el.querySelector('#admin-room').value = game.room;
   el.querySelector('#admin-god').checked = !!game.god;
   el.querySelector('#admin-peace').checked = admin.peace;
+  el.querySelector('#admin-paths').textContent = PATHS.map(id => `${PATH_NAMES[id]} ${game.flags['path_' + id] ?? 0}`).join(' · ') + ` · мирный исход: ${peaceReady() ? 'да' : 'нет'}`;
   el.hidden = false;
   admin.open = true;
 }
@@ -1221,6 +1561,7 @@ function handlePress(code) {
     return;
   }
   if (game.transition) return;
+  if (game.ending) return;   // сцена конца главы (v0.95) — без управления
 
   const p = game.player;
   if (game.rest) {
@@ -1278,6 +1619,7 @@ function handlePress(code) {
         callout('Свеча зажжена', 'perfect'); sfx.perfect(); save();
         return;
       }
+      if (look.ending) { startTalk(look.look, () => { if (game.flags.ending) startPortalEnding(); }); return; }   // окно покоев принцессы — к порталу (v0.95)
       if (look.fill && hasItem('silver_cup') && !game.flags[look.fill]) {
         game.flags[look.fill] = true;
         callout('Чаша наполнена мутной водой', 'perfect'); sfx.perfect(); save();
@@ -1322,6 +1664,7 @@ function handlePress(code) {
       callout(ITEMS[other].name, 'muted');
     }
   }
+  if (code === 'KeyF') useMask();
   if (code === 'KeyI') { openEquip(); return; }
   if (code === 'KeyH') drinkPotion();
   if (code === 'KeyB') openJournal();
@@ -1397,7 +1740,7 @@ const lockedArena = () => game.arena && !game.arena.open;
 // место для музыки (v0.89): у каждого может быть свой трек — ZONE_TRACK в src/audio.js
 function musicZone() {
   if (game.mode === 'title') return 'title';
-  if (game.rest || game.vibe) return 'rest';
+  if (game.rest || game.vibe || game.ending) return 'rest';
   if (game.arena) {
     // музыка боя — когда закончился разговор перед боем и пошла схватка (владелец, v0.93), дальше — до конца боя (и в паузе)
     const fight = game.enemies.some(e => e.group === game.arena.index && e.kind === 'boss') ? 'boss' : (room().encounters ?? [])[game.arena.index]?.story ? 'duel' : null;
@@ -1432,13 +1775,14 @@ function updateArena() {
     game.flags['beat_' + game.arena.key] = true;
     const enc = encs[game.arena.index];
     if (enc.story) game.flags['done_' + enc.story] = true;
-    if (enc.after) setTimeout(() => startTalk(enc.after, () => {
+    const peace = !!enc.peaceTalk && peaceReady();
+    if (enc.after) setTimeout(() => startTalk(peace ? enc.peaceTalk : enc.after, () => {
       if (game.room === 'balcony') {
         game.flags.balcony_done = true;
         callout('Лестница на второй этаж — в Столовой', 'perfect');
         save();
       }
-      if (enc.finish) finish(enc.finish);   // босс главы побеждён — конец главы
+      if (enc.finish) startEnding(enc.finish, peace);   // босс главы побеждён — сцена конца главы (v0.95)
     }), enc.finish ? 2200 : 900);
     else if (enc.finish) setTimeout(() => finish(enc.finish), 2200);
     // отдых после победы над группой
@@ -2123,6 +2467,7 @@ function update(dt) {
   const p = game.player;
   updateMotes(dt);
   if (game.cutscene) { updateCutscene(dt); return; }
+  if (game.ending) { updateEnding(dt); updateFx(dt); updateCamera(dt); return; }
   if (game.transition) { updateTransition(dt); updateCamera(dt); return; }
   if (game.rest) { updateRest(dt); updateCoinFx(dt); updateCamera(dt); return; }
   if (game.vibe) { updateVibe(dt); updateCamera(dt); return; }
@@ -2171,6 +2516,7 @@ function update(dt) {
     });
   }
   p.lastFall = fall;
+  updateBlink();
   handlePlayerEvents();
   updateChokeHint();
   updatePickups(dt);
@@ -2953,7 +3299,7 @@ const flagsOK = need => [].concat(need ?? []).every(f => game.flags[f]);
 const propOn = pr => flagsOK(pr.needs) && ![].concat(pr.unless ?? []).some(f => game.flags[f]);   // unless — исчезает после флага
 // страница дневника капитана (v0.78): текст — в ITEM_TEXTS (пишет владелец), читается рассказчиком
 function readPage(id) {
-  DIALOGUES['read_' + id] = [{ who: 'narrator', text: ITEM_TEXTS[id] ?? '' }];
+  DIALOGUES['read_' + id] = (ITEM_TEXTS[id] ?? '').split('\n').map(text => ({ who: 'narrator', text }));   // длинный дневник — по записям
   startTalk('read_' + id);
 }
 function startTalk(id, after = null) {
@@ -3053,16 +3399,32 @@ function chooseTalk(i) {
   if (performance.now() - (game.lineAt ?? 0) < TALK_GUARD) return;
   // путь (v0.78, лор владельца): pilgrim — солнце, ghost — Уроборос, monarch — корона, egoist — закрытый глаз; копится тихо
   const path = line.choices[i].path;
-  if (path) game.flags['path_' + path] = (game.flags['path_' + path] ?? 0) + 1;
+  if (path) addPath(path, line.choices[i].points ?? 1);
   game.talk.choose(i);
   showLine();
   if (path) showPathSign(path);
 }
 
+// очки путей (v0.95, владелец): обычный выбор — +1 (points у варианта — другое число), крупное событие — +5.
+// Игроку не видны; в сохранении — flags.path_<путь>, админу — в админке (F2).
+const PATHS = ['pilgrim', 'ghost', 'monarch', 'egoist'];
+const PATH_NAMES = { pilgrim: 'пилигрим', ghost: 'призрак', monarch: 'монарх', egoist: 'эгоист' };
+function addPath(path, n = 1) {
+  game.flags['path_' + path] = (game.flags['path_' + path] ?? 0) + n;
+  game.flags.path_last = path;
+}
+// кто лидирует среди путей; ничья — последний выбранный из них; очков нет — null
+function pathLeader(among = PATHS) {
+  const pts = id => game.flags['path_' + id] ?? 0;
+  const top = Math.max(...among.map(pts));
+  if (top <= 0) return null;
+  const lead = among.filter(id => pts(id) === top);
+  return lead.includes(game.flags.path_last) ? game.flags.path_last : lead[0];
+}
+
 // знак пути (v0.94, владелец): только после выбора — в вариантах ответа его нет, игрок выбирает сам
-const PATH_SIGNS = ['pilgrim', 'ghost', 'monarch', 'egoist'];
 function showPathSign(path) {
-  if (!PATH_SIGNS.includes(path)) return;
+  if (!PATHS.includes(path)) return;
   const el = ui.pathSign;
   el.src = `assets/ui/sign_${path}.png`;
   el.className = 'path-sign ' + path;
@@ -3505,7 +3867,9 @@ function render() {
     const c = game.cutscene;
     const lit = c ? Math.min(1, c.t / WAKE.flash) : 1;
     const glow = c ? (c.t < WAKE.flash ? lit * 0.6 : 1.2 - Math.min(0.6, (c.t - WAKE.flash) * 0.3)) : 0.55;
-    drawPortal(g, r.portal.x - cam, groundY(r.portal.z), game.time, lit, glow);
+    const E = game.ending?.phase === 'portal' ? game.ending : null;
+    drawPortal(g, r.portal.x - cam, groundY(r.portal.z), game.time, lit, E ? glow + E.glow : glow);
+    if (E) drawPortalRite(r.portal.x - cam, groundY(r.portal.z), E);
   }
 
   // сначала тени, потом бойцы, персонажи и вещи от дальних к ближним
@@ -3542,7 +3906,10 @@ function render() {
     if (a.prop?.type === 'weapon') { drawLyingWeapon(g, ITEMS[a.prop.pick].weapon, a.x - cam, groundY(a.z), game.time); continue; }   // оружие лежит на полу
     if (a.prop?.lights && !game.flags[a.prop.lights] && drawObjNamed(g, 'prop_candles_out', a.x - cam, groundY(a.z) + 1 - (a.prop.lift ?? 0))) continue;   // потухшая свеча
     if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z) - (a.prop.lift ?? 0), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? (!!game.flags[a.prop.altar] && cupOnAltar()) : !!game.flags[chestFlag(a.prop)], game.time, a.x);
-    else if (a === game.player) renderPlayer(cam);
+    else if (a === game.player) {
+      const fa = playerAlpha();
+      if (fa > 0.02) { g.globalAlpha = fa; renderPlayer(cam); g.globalAlpha = 1; }
+    }
     else if (a.npc) renderNpc(a, cam);
     else renderEnemy(a, cam);
   }
@@ -3614,9 +3981,16 @@ function render() {
   if (tr?.kind === 'edge') fade = tr.phase === 'out' ? tr.t / EDGE_PHASES.out : 1 - tr.t / EDGE_PHASES.in;
   if (tr?.kind === 'stairs') fade = tr.phase === 'out' ? tr.t / STAIR_PHASES.out : tr.phase === 'in' ? 1 - tr.t / STAIR_PHASES.in : tr.phase === 'climb' ? Math.max(0, (tr.t / CLIMB_T - 0.85) / 0.15) : 0;
   if (game.cutscene && game.cutscene.t < WAKE.flash) fade = Math.max(fade, 0.55);
+  if (game.ending) fade = Math.max(fade, game.ending.black ?? 0);
   if (fade > 0) {
     g.globalAlpha = Math.min(1, fade);
     g.fillStyle = '#000000';
+    g.fillRect(0, 0, W, H);
+    g.globalAlpha = 1;
+  }
+  if (game.ending?.white > 0) {   // вспышка портала
+    g.globalAlpha = Math.min(1, game.ending.white);
+    g.fillStyle = '#fff8e6';
     g.fillRect(0, 0, W, H);
     g.globalAlpha = 1;
   }
@@ -3637,6 +4011,13 @@ function render() {
     ui.skillGBar.style.width = `${Math.round(k * 100)}%`;
     ui.skillG.classList.toggle('ready', k >= 1);
     if (ui.skillG.firstChild.textContent !== sk.name.toLowerCase()) ui.skillG.firstChild.textContent = sk.name.toLowerCase();
+  }
+  const blink = ITEMS[game.equip.amulet]?.blink;
+  ui.skillMask.hidden = !blink;
+  if (blink) {
+    const k = Math.min(1, 1 - ((game.blinkReadyAt ?? 0) - game.time) / blink.cooldown);
+    ui.skillMaskBar.style.width = `${Math.round(k * 100)}%`;
+    ui.skillMask.classList.toggle('ready', k >= 1);
   }
   const ward = ITEMS[game.equip.amulet]?.ward;
   ui.skillWard.hidden = !ward;
@@ -3828,6 +4209,7 @@ function renderEnemy(e, cam) {
   const riseK = riser && e.state === 'rise' ? Math.min(1, e.t / RISE_TIME) : 1;
   let alpha = e.kind === 'ghost' ? (0.55 + 0.15 * Math.sin(game.time * 5 + e.x)) * (e.ghost ?? 1) : 1;  // призрак полупрозрачный и мерцает
   if (e.state === 'dead') alpha = Math.max(0, 1 - (e.t - 0.6) / 0.8);
+  if (e.endFade != null) alpha *= e.endFade;   // сцена конца главы: растворяется
   const vanishing = (e.state === 'leave' || e.state === 'flee') && e.vanishFx;
   if (vanishing) {
     // рывок в тень: шлейф полупрозрачных теней позади, сам тает; по пути — клочья дыма
@@ -3884,7 +4266,7 @@ function renderEnemy(e, cam) {
     const tip = sprite ? drawSprite(e.type, g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: depth ? game.time * 1.5 : e.step / 6.3, turn, depth,
       time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
-      bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: riseK < 1 ? 'pose_kneel' : undefined, anim: enemyAnim(e),
+      bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: e.endFrame ?? (riseK < 1 ? 'pose_kneel' : undefined), anim: e.endFrame ? undefined : enemyAnim(e),
       cloth: e.kind === 'boss' ? bossCloth(e) : undefined,
     }) ?? { tipX: ex, tipY: GROUND - 20 } : drawFigureOutlined(g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, colors, step: e.step, airY: e.airY,
@@ -4171,7 +4553,7 @@ function renderPlayer(cam) {
     g.globalAlpha = 1;
     return;
   }
-  if (game.cutscene && game.cutscene.t < WAKE.kneel && sprite) {
+  if (((game.cutscene && game.cutscene.t < WAKE.kneel) || game.ending?.kneel) && sprite) {
     drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' });
     return;
   }
@@ -4452,6 +4834,8 @@ function sceneLights() {
   if (r.portal) {
     const c = game.cutscene, k = c && c.t < WAKE.flash ? 0.3 + 0.7 * (c.t / WAKE.flash) : 1;   // портал разгорается, когда рыцарь очнулся
     add(r.portal.x, groundY(r.portal.z) - 8, r.dark ? 140 : 120, [0.55, 0.85, 1], (r.dark ? 1.3 : 0.9) * k, 20);
+    const E = game.ending?.phase === 'portal' ? game.ending : null;
+    if (E?.amber) add(r.portal.x, groundY(r.portal.z) - 4, 60 + 120 * E.glow, WARM, 0.6 + 1.2 * E.glow, 16);   // янтарь разгорается
   }
   if (r.dark) {
     if (r.gate) add(r.gate === 'right' ? r.length + 10 : -10, 100, 110, WARM, 0.9);   // свет факелов из-за решётки
@@ -4459,8 +4843,8 @@ function sceneLights() {
     add(p.x, groundY(p.z) - 16, 48, [0.75, 0.75, 0.9], 0.35, 40);                      // чуть видно самого рыцаря
   }
   // призраки светятся холодным; босс — сильнее, при удушении — ярче
-  for (const e of game.enemies) if ((e.kind === 'ghost' || e.kind === 'boss') && e.alive && e.state !== 'dormant') {
-    const k = (e.ghost ?? 1) * (e.kind === 'boss' ? 0.7 + 0.5 * e.eyes : 0.45);
+  for (const e of game.enemies) if ((e.kind === 'ghost' || e.kind === 'boss') && (e.alive || e.state === 'defeated') && e.state !== 'dormant') {
+    const k = (e.ghost ?? 1) * (e.endFade ?? 1) * (e.kind === 'boss' ? 0.7 + 0.5 * e.eyes : 0.45);
     add(e.x, groundY(e.z) - 20 - e.airY, e.kind === 'boss' ? 90 : 60, [0.6, 0.85, 1], k * (0.9 + 0.1 * Math.sin(t * 5 + e.x)), 18);
   }
   // удушение: голубой свет вокруг шеи рыцаря

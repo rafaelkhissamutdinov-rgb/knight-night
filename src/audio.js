@@ -78,6 +78,8 @@ export const sfx = {
     src.connect(f).connect(gn).connect(master); src.start(t0); src.stop(t0 + dur);
   },
   dash() { burst(0.09, 'lowpass', 600, 0.25); },
+  // шаг призрака (маска): холодный выдох и звон
+  blink() { tone(880, 0.3, 'sine', 0.08, 330); burst(0.25, 'bandpass', 1200, 0.25, 1.2); tone(1320, 0.4, 'triangle', 0.04); },
   ward() { tone(880, 0.25, 'sine', 0.15, 1320); burst(0.06, 'highpass', 2500, 0.2); },
   gulp() { tone(220, 0.35, 'square', 0.12, 70); burst(0.3, 'lowpass', 300, 0.5); },
   spit() { burst(0.15, 'lowpass', 800, 0.5); tone(160, 0.15, 'square', 0.1, 320); },
