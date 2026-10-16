@@ -85,6 +85,23 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/ui'; require('fs').mkd
   const tf = await p.evaluate(() => ({ t: !!window.knightNight.tutorial, skipped: window.knightNight.flags.tutorial_skipped, gone: window.knightNight.flags.trainer_gone }));
   console.log('skip', JSON.stringify(tf));
   if (tf.t || !tf.skipped) fail('обучение не пропустилось');
+
+  // 4. знак пути (v0.94): до выбора его нет, после выбора — проявляется над окном разговора и гаснет
+  await load('hall', 300, ['sword_old']);
+  await p.evaluate(() => window.knightNightDebug.startTalk('alkima_meet'));
+  for (let i = 0; i < 60 && !(await p.locator('#talk-choices button').count()); i++) { await p.keyboard.press('Enter'); await p.waitForTimeout(250); }
+  const before4 = await p.evaluate(() => !document.querySelector('#path-sign').hidden);
+  if (before4) fail('знак виден до выбора');
+  await p.waitForTimeout(400);
+  await p.locator('#talk-choices button').nth(1).click(); await p.waitForTimeout(450);
+  const sg = await p.evaluate(() => { const el = document.querySelector('#path-sign'); const r = el.getBoundingClientRect(), t = document.querySelector('#talk').getBoundingClientRect();
+    return { hidden: el.hidden, src: el.src.split('/').pop(), op: +getComputedStyle(el).opacity, ok: el.complete && el.naturalWidth > 0, above: document.querySelector('#talk').hidden || r.bottom <= t.top + 1, flag: window.knightNight.flags.path_ghost }; });
+  console.log('sign', JSON.stringify(sg));
+  await shot('3_path_sign');
+  if (sg.hidden || sg.src !== 'sign_ghost.png' || !sg.ok || sg.op < 0.3) fail('знак пути не появился после выбора');
+  if (!sg.above) fail('знак перекрывает окно разговора');
+  await p.waitForTimeout(2000);
+  if (!(await p.evaluate(() => document.querySelector('#path-sign').hidden))) fail('знак не погас');
   console.log('errors', JSON.stringify(errors));
   await b.close();
 })();
