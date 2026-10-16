@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.84';
+export const VERSION = 'v0.85';
 
 export const CONFIG = {
   width: 320,
@@ -529,7 +529,7 @@ export const ROOMS = {
   catlib: {
     name: 'Старая библиотека', tiles: 'castle', length: 420, columns: false, torches: [], dark: true, cobwebs: true,
     ambient: [0.3, 0.26, 0.32],   // полутьма видна и без свечей; каждая зажжённая свеча — светлее (владелец, 15.10)
-    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'hall', toDoor: 'lib', name: 'Темница' }],
+    doors: [{ id: 'out', x: 56, kind: 'wood', stairs: true, to: 'hall', toDoor: 'lib', name: 'Лестница вниз, в Темницу' }],   // v0.85: вниз по ступеням Темницы, а не «из стены»
     // места и позы кота: выбирается случайно при входе (lift — высота стола / стопки / стула)
     npcs: [{ type: 'fujin', x: 258, z: 12.5, lift: 15, spots: [   // все — в круге света свечи: чёрного кота в темноте не видно
       { x: 258, z: 12.5, lift: 15, img: 'cat_sit' }, { x: 256, z: 12.5, lift: 15, img: 'cat_sleep' },

@@ -150,6 +150,7 @@ export function drawSlimeImg(g, { x, ground, airY, size, squash, facing, holding
 
 // любая картинка набора по имени: низ по центру в (x, bottom), flip — отражение; false — нет картинки
 export const hasObj = name => !!objImg(name);   // картинка загружена
+export const objImage = name => objImg(name);   // сама картинка (для подсветки кота поверх света, v0.85)
 export function drawObjNamed(g, name, x, bottom, flip = false) {
   const im = objImg(name);
   if (!im) return false;
