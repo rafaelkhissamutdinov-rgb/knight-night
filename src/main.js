@@ -2576,12 +2576,12 @@ PARCHMENT.src = 'assets/ui/parchment.png';
 // карта (v0.93, владелец: «улучшить визуально, PixelLab проработать»): пергамент с рамкой и значки-жетоны из PixelLab
 // (tools/pixellab_map.py → assets/ui/map_<имя>.png); нет картинки — прежний рисунок кодом
 const MAP_IMG = {};
-for (const n of ['parchment', 'rest', 'shop', 'chest', 'boss', 'quest', 'stairs', 'lock', 'you', 'compass']) {
+for (const n of ['parchment', 'rest', 'shop', 'boss', 'quest', 'stairs', 'lock', 'you', 'compass']) {
   const im = new Image();
   im.onload = () => { MAP_IMG[n] = im; };
   im.src = `assets/ui/map_${n}.png`;
 }
-const MAP_LEGEND = [['you', 'ты здесь'], ['rest', 'отдых'], ['shop', 'лавка'], ['chest', 'сундук'], ['boss', 'опасность'], ['quest', 'персонаж'], ['stairs', 'лестница'], ['lock', 'заперто']];
+const MAP_LEGEND = [['you', 'ты здесь'], ['rest', 'отдых'], ['shop', 'лавка'], ['boss', 'опасность'], ['quest', 'персонаж'], ['stairs', 'лестница'], ['lock', 'заперто']];
 const INK = '#4a3622', INK_SOFT = '#8a7a58';
 
 // значок карты: картинка 32×32 в экранных пикселях (s — размер в мире), иначе — простая метка кодом
@@ -2606,7 +2606,7 @@ function mapMarks(id) {
   const at = x => x / r.length;
   for (const s of [...(r.props ?? []), ...(r.decor ?? [])]) if (s.rest) out.push(['rest', at(s.x)]);
   if (r.npcs?.some(n => NPC_TYPES[n.type]?.shop)) out.push(['shop', 0.5]);
-  for (const pr of r.props ?? []) if (pr.type === 'chest' && !f[`chest_${id}_${pr.id}`]) out.push(['chest', at(pr.x)]);
+  // сундуки на карте не отмечаются (владелец, v0.93: «пусть сами находят»)
   (r.encounters ?? []).forEach((e, i) => { if (e.story && !f['done_' + e.story] && !game.cleared.has(encKey(id, i))) out.push(['boss', at(e.x)]); });
   for (const n of r.npcs ?? []) {
     if (NPC_TYPES[n.type]?.shop || NPC_TYPES[n.type]?.cat || !flagsOK(n.needs) || [].concat(n.ifNot ?? []).some(k => f[k])) continue;
