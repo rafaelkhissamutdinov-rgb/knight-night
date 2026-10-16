@@ -47,6 +47,17 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/backtrack'; require('f
   if (s.cleared.includes('gallery:0') || s.cleared.includes('hall:1')) fail('отдых не вернул обычных врагов');
   if (!s.cleared.includes('lair:1')) fail('сюжетный бой вернулся после отдыха');
   await shot('2_rest');
+  // 4. Шагом (v0.87): режим из паузы — спокойный шаг без бега, меч за спиной
+  await load('gallery', 200, ['gallery:0'], {});
+  await p.evaluate(() => localStorage.setItem('knightNight.stroll', 'on'));
+  await load('gallery', 200, ['gallery:0'], {});
+  await p.evaluate(() => { window.knightNightDebug.timeScale = 1; });
+  const x0 = (await st()).x; await run('KeyD', 2000); const x1 = (await st()).x;
+  const sh = await p.evaluate(() => window.knightNight.player.sheathed);
+  console.log('stroll', x1 - x0, 'sheathed', sh);
+  if (x1 - x0 > 130 || x1 - x0 < 50) fail('шагом — не та скорость: ' + (x1 - x0));
+  if (!sh) fail('шагом меч не убран');
+  await p.evaluate(() => localStorage.removeItem('knightNight.stroll'));
   console.log('errors', JSON.stringify(errors));
   await b.close();
 })();

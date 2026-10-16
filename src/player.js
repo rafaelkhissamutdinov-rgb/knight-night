@@ -1,5 +1,5 @@
 import { CONFIG, WEAPON, WEAPONS } from './config.js';
-import { POSES, approachPose, lerpPose, spinPose, eightPose, ease, gaitCycle } from './poses.js';
+import { POSES, approachPose, lerpPose, spinPose, eightPose, ease, strideCycle } from './poses.js';
 
 // Какой удар выйдет при нажатии атаки. vert — зажатое направление ('up' | 'down' | null),
 // spin — только что нажато вперёд → назад, state / t — что рыцарь делает сейчас, sinceRoll — сколько прошло после кувырка.
@@ -266,20 +266,22 @@ export class Player {
         // в защите ходит медленнее
         const slow = g ? 0.6 : 1;
         let v = 0;
-        // вне боя через полсекунды ходьбы рыцарь сам переходит на бег
+        // вне боя через полсекунды ходьбы рыцарь сам переходит на бег; режим «шагом» (v0.87) — спокойный шаг без бега
         const moving = c.fwd || c.back || c.dz;
-        this.runT = !c.engaged && moving ? (this.runT ?? 0) + dt : 0;
+        const stroll = c.stroll && !c.engaged;
+        this.runT = !c.engaged && !stroll && moving ? (this.runT ?? 0) + dt : 0;
         const run = Math.min(1, Math.max(0, (this.runT - CONFIG.runDelay) / 0.25));
-        const walk = (c.engaged ? CONFIG.walkSpeed : CONFIG.exploreSpeed + (CONFIG.runSpeed - CONFIG.exploreSpeed) * run) * (this.speedMult ?? 1);  // броня мародёра — быстрее
+        const walk = (c.engaged ? CONFIG.walkSpeed : stroll ? CONFIG.strollSpeed : CONFIG.exploreSpeed + (CONFIG.runSpeed - CONFIG.exploreSpeed) * run) * (this.speedMult ?? 1);  // броня мародёра — быстрее
         this.stepRate = walk / 64;  // ноги быстрее, когда идёт быстрее
         if (c.back) v = -walk * CONFIG.backWalkFactor;
         else if (c.fwd) v = walk;
         if (v) forward(v * slow * dt);
         this.gaitRun = run;
-        this.speedNow = Math.hypot(v * slow, (c.dz ?? 0) * (c.engaged ? CONFIG.depthSpeed : CONFIG.exploreDepthSpeed) * slow);
+        this.speedNow = Math.hypot(v * slow, (c.dz ?? 0) * (c.engaged ? CONFIG.depthSpeed : stroll ? CONFIG.strollDepthSpeed : CONFIG.exploreDepthSpeed) * slow);
         // на бегу оружие (любое) за спиной, руки свободны; sheatheAt — когда убрал (для анимации)
-        if (run > 0.5 && !g && !this.sheathed) { this.sheathed = true; this.sheatheAt = this.clock; this.sheatheRun = true; }
-        if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * (c.engaged ? CONFIG.depthSpeed : CONFIG.exploreDepthSpeed) * slow * dt));
+        this.strollT = stroll && moving ? (this.strollT ?? 0) + dt : 0;   // шагом меч убирается через секунду
+        if ((run > 0.5 || this.strollT > 1) && !g && !this.sheathed) { this.sheathed = true; this.sheatheAt = this.clock; this.sheatheRun = true; }
+        if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * (c.engaged ? CONFIG.depthSpeed : stroll ? CONFIG.strollDepthSpeed : CONFIG.exploreDepthSpeed) * slow * dt));
         this.walking = !!(v || c.dz);
         if (!c.engaged && !g && !this.sheathed && this.idleT > CONFIG.autoSheathe) { this.sheathed = true; this.sheatheAt = this.clock; this.sheatheRun = false; }
         const rest = this.weapon === 'rapier' ? POSES.fence : POSES.idle;
@@ -392,6 +394,6 @@ export class Player {
     }
 
     if (target) this.pose = approachPose(this.pose, target, dt, this.state === 'attack' ? 55 : 40);
-    this.step = this.walking ? this.step + dt * (this.speedNow ?? 60) / gaitCycle(this.gaitRun ?? 0) : 0;
+    this.step = this.walking ? this.step + dt * (this.speedNow ?? 60) / strideCycle(this.gaitRun ?? 0) : 0;
   }
 }
