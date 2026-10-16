@@ -44,6 +44,20 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/music'; require('fs').
   await p.keyboard.press('Enter'); await p.waitForTimeout(1500);
   m = await info(); console.log('shop', JSON.stringify(m));
   if (m.zone !== 'shop') fail('в лавке не то место: ' + m.zone);
+  // босс главы — свой трек (v0.91, «Captive of Love»)
+  await load('mage', 120);
+  await p.keyboard.press('Enter'); await p.waitForTimeout(800);
+  await p.keyboard.down('KeyD');
+  for (let i = 0; i < 40 && !(await p.evaluate(() => !!window.knightNight.arena)); i++) {
+    if (await p.evaluate(() => window.knightNight.mode) === 'talk') { await p.keyboard.up('KeyD'); await p.keyboard.press('Escape'); await p.keyboard.down('KeyD'); }
+    await p.waitForTimeout(150);
+  }
+  await p.keyboard.up('KeyD');
+  for (let i = 0; i < 6; i++) { if (await p.evaluate(() => window.knightNight.mode) === 'talk') await p.keyboard.press('Escape'); await p.waitForTimeout(200); }
+  await p.evaluate(() => { window.knightNight.player.hp = 99; });
+  await p.waitForTimeout(4000);
+  m = await info(); console.log('boss', JSON.stringify(m));
+  if (m.zone !== 'boss' || m.track !== 'boss') fail('у босса не его трек: ' + m.zone + ' / ' + m.track);
   await p.evaluate(() => { localStorage.removeItem('knightNight.musicVol'); localStorage.removeItem('knightNight.sfxVol'); });
   console.log('errors', JSON.stringify(errors));
   await b.close();

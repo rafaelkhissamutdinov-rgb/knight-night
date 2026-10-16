@@ -2063,7 +2063,6 @@ function update(dt) {
   for (const code of input.take()) {
     try { handlePress(code); } catch (err) { frameError(performance.now(), err); }   // сбой одной клавиши не глотает остальные (Esc)
   }
-  updateMusic(game.mode === 'play' && !!game.arena, musicZone(), ROOMS[game.room]?.music ?? null);  // играет и в разговорах, лавке, паузе
   if (game.mode !== 'play') return;
 
   game.time += dt;
@@ -2735,6 +2734,8 @@ function step(dt) {
   const eq = game.equip ?? {};
   setKnightSkin(eq.armor === 'mar_jacket' || eq.armor === 'armor_marauder' ? (eq.head === 'mar_scarf' || eq.armor === 'armor_marauder' ? 'knight_marauder' : 'knight_leather') : 'knight');
   updateFx(dt);
+  // музыка — в любом режиме (разговор, лавка, снаряжение, пауза): иначе трек босса не включался, пока идёт реплика перед боем
+  try { updateMusic(game.mode === 'play' && !!game.arena, musicZone(), ROOMS[game.room]?.music ?? null); } catch (err) { frameError(performance.now(), err); }
   if (game.mode === 'shop' || game.mode === 'equip' || game.mode === 'journal') {
     for (const code of input.take()) handlePress(code);
     if (game.mode === 'shop') tickShop(dt);
