@@ -15,8 +15,19 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/alkima'; require('fs')
   const st = () => p.evaluate(() => { const g = window.knightNight, l = g.talk?.current; return { mode: g.mode, room: g.room, story: g.storyView ? g.storyView.i : null, who: l?.who, line: l?.text?.slice(0, 50), choices: l?.choices?.length ?? 0, bag: g.bag.join(','), flags: Object.keys(g.flags).filter(f => /alkima|path_|erinner/.test(f)).map(f => f + '=' + g.flags[f]).join(',') }; });
   const log = async t => console.log(t, JSON.stringify(await st()));
   // до выбора: Enter, пока у реплики нет вариантов (выход — если разговор кончился)
-  const untilChoice = async () => { for (let i = 0; i < 40; i++) { const s = await st(); if (s.mode !== 'talk' || s.story !== null) return s; if (s.choices) { await p.keyboard.press('Enter'); await p.waitForTimeout(300); return st(); } await p.keyboard.press('Enter'); await p.waitForTimeout(350); } return st(); };
-  const choose = async n => { await p.keyboard.press('Digit' + n); await p.waitForTimeout(500); };
+  // до выбора: Enter, пока у реплики нет вариантов (выход — если разговор кончился или идёт сказание).
+  // Под нагрузкой Enter мог пролистать варианты — поэтому выбор (choose) сам проверяет, что варианты на экране и что выбор сработал.
+  const untilChoice = async () => { for (let i = 0; i < 40; i++) { const s = await st(); if (s.mode !== 'talk' || s.story !== null || s.choices) return s; await p.keyboard.press('Enter'); await p.waitForTimeout(350); } return st(); };
+  const choose = async n => {
+    for (let i = 0; i < 40; i++) {
+      const s = await st();
+      if (s.mode !== 'talk' || s.story !== null) return;
+      if (s.choices >= n) {
+        await p.keyboard.press('Digit' + n); await p.waitForTimeout(500);
+        const s2 = await st(); if (s2.line !== s.line || s2.choices !== s.choices || s2.mode !== 'talk') return;
+      } else { await p.keyboard.press('Enter'); await p.waitForTimeout(350); }
+    }
+  };
   // дверь гардеробной в Северном крыле
   await p.evaluate(() => { window.knightNight.player.x = 205; window.knightNight.player.z = 2; }); await p.waitForTimeout(300);
   await shot('0_hall3_door'); await log('door hint ' + await p.evaluate(() => window.knightNight.hint));
