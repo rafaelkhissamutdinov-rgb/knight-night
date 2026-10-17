@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.95';
+export const VERSION = 'v0.96';
 
 export const CONFIG = {
   width: 320,
@@ -288,6 +288,31 @@ export const ENEMY_TYPES = {
     heights: ['high', 'mid', 'low'], volleyChance: 0, minDist: 60, maxDist: 170, arrowSpeed: 240,
     guardChance: 0.3, reaction: 0.12,
     colors: { armor: '#5a5a3e', armorDark: '#3b3b2a', tabard: '#3b4a2e', helm: '#b88a68', visor: '#14101e', blade: '#8a8478', hilt: '#6b4532', boots: '#2e2420', bandana: '#4a5a3a', mask: '#3b3b2a' },
+  },
+  // ---------- глава 2: гоблины (описание друга владельца, 17.10; пока фигурой кодом, спрайты — после выбора облика) ----------
+  // воин (оранжевый): замах — удар мечом
+  gobWarrior: {
+    kind: 'melee', name: 'Гоблин-воин', shortName: 'Гоблин', hp: 3, damage: 1, aggro: 140, reach: 28, speed: 50, lunge: 5, weapon: 15, goblin: true,
+    windup: 0.6, comboWindup: 0.45, gap: 0.1, recover: 0.9, wait: [0.6, 1.0],
+    combos: [['mid'], ['high'], ['mid', 'low'], ['high', 'mid']],
+    guardChance: 0.35, reaction: 0.12,
+    colors: { armor: '#8a5a32', armorDark: '#5a3a22', tabard: '#6a4a2a', helm: '#d8743a', visor: '#2a1408', blade: '#a09080', hilt: '#4a3020', boots: '#3a2a1a', bandana: '#6a4a2a', mask: '#d8743a' },
+  },
+  // прыгун (зелёный): с кинжалом, быстрые выпады-прыжки
+  gobJumper: {
+    kind: 'melee', name: 'Гоблин-прыгун', shortName: 'Прыгун', hp: 2, damage: 1, aggro: 160, reach: 26, speed: 78, lunge: 16, weapon: 9, goblin: true,
+    windup: 0.42, comboWindup: 0.32, gap: 0.08, recover: 0.7, wait: [0.4, 0.8],
+    combos: [['low'], ['mid'], ['low', 'mid'], ['high']],
+    guardChance: 0.15, reaction: 0.1,
+    colors: { armor: '#4e7a3a', armorDark: '#2e4a22', tabard: '#3a2a1e', helm: '#6aa04a', visor: '#1a2a10', blade: '#c3ccd6', hilt: '#4a3020', boots: '#2e2a1e', bandana: '#3a2a1e', mask: '#6aa04a' },
+  },
+  // стрелок (жёлтый): рогатка — заряжает камень и после паузы стреляет
+  gobShooter: {
+    kind: 'archer', name: 'Гоблин-стрелок', shortName: 'Стрелок', hp: 2, damage: 1, aggro: 220, goblin: true,
+    windup: 1.3, comboWindup: 1.3, recover: 2.0, wait: [0.6, 1.0],
+    heights: ['high', 'mid', 'low'], volleyChance: 0, minDist: 70, maxDist: 180, arrowSpeed: 200,
+    guardChance: 0.2, reaction: 0.12,
+    colors: { armor: '#7a6a3a', armorDark: '#4a4222', tabard: '#5a4a2a', helm: '#d8c04a', visor: '#2a2408', blade: '#8a7a5a', hilt: '#6b4532', boots: '#2e2420', bandana: '#5a4a2a', mask: '#d8c04a' },
   },
   // тренировочное чучело: не умирает, медленно и без урона показывает удары на трёх высотах
   dummy: {
@@ -988,6 +1013,54 @@ export const ROOMS = {
         finish: { finishTitle: 'Конец главы 1 (черновик)', finishText: 'Найт стоит перед замком. Внизу — лес и дорога к деревне. Продолжение — в главе 2.' },
         enemies: [{ type: 'boss', dx: 120, z: 20 }] },
     ],
+  },
+  // ---------- глава 2 (каркас, владелец 17.10): днём; скала с титульного вида → лес → ворота деревни ----------
+  cliff: {
+    name: 'Скала над долиной', chapter: 2, tiles: 'forest', tileCount: 1, far: 'assets/backgrounds/cliff/far.png', length: 320, day: true, ceiling: false, torches: [],
+    edges: { right: { to: 'forest1', x: 30, name: 'Тропа в лес' } },
+    decor: [{ type: 'spot', x: 120, look: 'look_cliff', name: 'вид на замок' }],
+  },
+  forest1: {
+    name: 'Лесной склон', chapter: 2, tiles: 'forest', tileCount: 1, length: 720, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'cliff', x: 290, name: 'Скала' }, right: { to: 'forest2', x: 30, name: 'Поляна' } },
+    encounters: [
+      { x: 300, enemies: [{ type: 'gobWarrior', dx: 70, z: 18 }] },
+      { x: 560, enemies: [{ type: 'gobJumper', dx: 50, z: 26 }, { type: 'gobWarrior', dx: 100, z: 10 }] },
+    ],
+  },
+  forest2: {
+    name: 'Поляна', chapter: 2, tiles: 'forest', tileCount: 1, length: 640, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'forest1', x: 690, name: 'Лесной склон' }, right: { to: 'forest3', x: 30, name: 'Бурелом' } },
+    // боковая тропа — к лагерю гоблинов (шаг и затемнение, без проёма)
+    doors: [{ id: 'camp', x: 330, kind: 'none', stairs: true, to: 'forest_camp', toDoor: 'out', name: 'Тропа в сторону' }],
+    encounters: [{ x: 460, enemies: [{ type: 'merc', dx: 60, z: 20 }, { type: 'crossbow', dx: 160, z: 30 }] }],   // мародёры и в лесу
+  },
+  forest_camp: {
+    name: 'Лагерь гоблинов', chapter: 2, tiles: 'forest', tileCount: 1, length: 560, day: true, ceiling: false, torches: [],
+    doors: [{ id: 'out', x: 50, kind: 'none', stairs: true, to: 'forest2', toDoor: 'camp', name: 'Обратно на поляну' }],
+    props: [{ type: 'campfire', x: 300, z: 18, light: true }, { type: 'chest', id: 'gob', x: 500, z: 3, coins: 40 }],
+    encounters: [{ x: 260, enemies: [{ type: 'gobWarrior', dx: 60, z: 14 }, { type: 'gobJumper', dx: 110, z: 30 }, { type: 'gobShooter', dx: 200, z: 8 }] }],
+    // босс гоблинов — позже (шаман: призывает слабых скелетов)
+  },
+  forest3: {
+    name: 'Бурелом', chapter: 2, tiles: 'forest', tileCount: 1, length: 720, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'forest2', x: 610, name: 'Поляна' }, right: { to: 'village_gate', x: 30, name: 'К деревне' } },
+    encounters: [{ x: 380, enemies: [{ type: 'gobShooter', dx: 150, z: 8 }, { type: 'gobWarrior', dx: 50, z: 22 }, { type: 'gobJumper', dx: 90, z: 32 }] }],
+  },
+  village_gate: {
+    name: 'У деревни', chapter: 2, tiles: 'forest', tileCount: 1, length: 400, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'forest3', x: 690, name: 'Бурелом' } },
+    doors: [{ id: 'gate', x: 340, kind: 'none', stairs: true, to: 'village', toDoor: 'in', name: 'Ворота деревни' }],
+  },
+  // деревня (проба PixelLab, assets/backgrounds/village): главное в главе 2 — люди, камео, вещи; пока — улица и конец каркаса
+  village: {
+    name: 'Деревня', chapter: 2, tiles: 'village', tileCount: 1, length: 320, day: true, ceiling: false, torches: [], limitRight: 300,
+    doors: [
+      { id: 'in', x: 30, kind: 'none', stairs: true, to: 'village_gate', toDoor: 'gate', name: 'К лесу' },
+      { id: 'on', x: 290, kind: 'none', stairs: true, to: 'village', toDoor: 'in', name: 'Дальше по улице', finish: true,
+        finishTitle: 'Глава 2 — каркас (черновик)', finishText: 'Рыцарь дошёл до деревни, которую видно из замка. Дальше — деревня: люди, камео, вещи.' },
+    ],
+    decor: [{ type: 'spot', x: 160, look: 'look_village', name: 'улица' }],
   },
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.
