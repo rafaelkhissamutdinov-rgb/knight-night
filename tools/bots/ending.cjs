@@ -50,7 +50,7 @@ const PEACE = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_
     s = await st(); console.log(tag, 'princess', JSON.stringify(s));
     if (s.room !== 'princess') { fail(`${tag}: не поднялся в покои принцессы`); await p.evaluate(() => window.knightNightDebug.goRoom?.('princess')); }
     await shot(`${tag}_princess`);
-    await p.evaluate(() => { const g = window.knightNight; g.player.x = 262; g.player.z = 8; });
+    await p.evaluate(() => { const g = window.knightNight; g.player.x = 222; g.player.z = 8; });
     await p.waitForTimeout(400);
     await p.keyboard.press('KeyE'); await p.waitForTimeout(300);
     console.log(tag, 'after E', JSON.stringify(await p.evaluate(() => { const g = window.knightNight; return { mode: g.mode, cur: g.talk?.current?.text?.slice(0, 30), hidden: document.querySelector('#talk').hidden, story: !!g.storyView, vibe: !!g.vibe }; })));

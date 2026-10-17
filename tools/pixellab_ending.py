@@ -24,13 +24,26 @@ BASE = ('inside a dark gothic castle antechamber before the tall ornate carved w
 FRAMES = {   # правки основы: только поза, остальное — как было
     'bow':      'keep everything exactly the same, only the kneeling ghost bows his head very low, almost touching the floor, humble',
     'rise':     'keep everything exactly the same, only the ghost slowly rises and stands upright, calm, the sword at his side',
-    'look':     'keep everything exactly the same, only the standing ghost turns his masked face toward the viewer and looks straight at us, calm',
+    'look':     'keep everything exactly the same and keep the ghost standing upright in exactly the same pose and place, only his head turns so the white mask faces the viewer, looking straight at us, calm',
     'fade':     'keep everything exactly the same, only the standing ghost dissolves into soft glowing golden and pale blue light, fading away peacefully, motes of light rising',
     'mask':     'keep the knight and the hall exactly the same; the ghost is gone; on the floor where he stood lies his white porcelain mask broken in two halves, a faint glow',
     'raise':    'keep everything exactly the same, only the knight raises his long sword high above his head with both hands over the kneeling ghost',
     'strike':   'keep the hall the same; the knight has swung his sword down in a bright slashing arc; the ghost bursts into pale blue mist, '
                 'his white mask split in two halves flying apart; no blood',
 }
+def compose(base, edit, x0=0):
+    """Кадр = основа + изменившееся из правки правее x0. Прозрачное в основе правка заливает белым — там остаётся основа."""
+    B = Image.open(os.path.join(W, base + '.png')).convert('RGBA'); E = Image.open(os.path.join(W, edit + '.png')).convert('RGBA').resize(B.size)
+    bg = Image.new('RGBA', B.size, (6, 5, 10, 255)); bg.alpha_composite(B); B = bg
+    b, e = B.load(), E.load()
+    for y in range(B.height):
+        for x in range(x0, B.width):
+            r, g, bl, a = e[x, y]
+            if a < 128 or (r > 238 and g > 238 and bl > 238): continue   # белое пятно — артефакт правки
+            b[x, y] = (r, g, bl, 255)
+    return B
+if sys.argv[1] == 'compose':   # compose <основа> <правка> <x0> <итог> → <итог>.png
+    compose(sys.argv[2], sys.argv[3], int(sys.argv[4])).save(os.path.join(W, sys.argv[5] + '.png')); print('ok'); sys.exit()
 if sys.argv[1] == 'pick':
     Image.open(os.path.join(W, sys.argv[2] + '.png')).convert('RGB').save(os.path.join(ROOT, 'assets', 'story', 'ending_' + sys.argv[3] + '.png')); print('ok'); sys.exit()
 def ref(path, usage):
@@ -50,11 +63,13 @@ if sys.argv[1] == 'base':
                    os.path.join(W, f'base{k}'))
     with ThreadPoolExecutor(2) as ex: print([len(p) for p in ex.map(job, range(2))], req('GET', '/balance')['subscription']['generations'])
 elif sys.argv[1] == 'frames':
-    img, sz = b64img(os.path.join(W, sys.argv[2] + '.png'))
+    src = os.path.join(W, sys.argv[2] + '.png'); flat = os.path.join(W, sys.argv[2] + '_flat.png')
+    bg = Image.new('RGBA', Image.open(src).size, (6, 5, 10, 255)); bg.alpha_composite(Image.open(src).convert('RGBA')); bg.save(flat)   # без прозрачности: иначе правка заливает её белым
+    img, sz = b64img(flat)
     def job(key):
-        return key, run('/edit-images-v2', {'method': 'edit_with_text', 'description': FRAMES[key] + '. ' + STYLE, 'seed': 41,
+        return key, run('/edit-images-v2', {'method': 'edit_with_text', 'description': FRAMES[key] + '. ' + STYLE, 'seed': int(os.environ.get('SEED', 41)),
                                              'edit_images': [{'image': img, 'width': 320, 'height': 180}], 'image_size': {'width': 320, 'height': 180}},
-                        os.path.join(W, key))
+                        os.path.join(W, key + os.environ.get('TAG', '')))
     with ThreadPoolExecutor(4) as ex:
         for k, p in ex.map(job, sys.argv[3:] or list(FRAMES)): print(k, len(p), flush=True)
     print(req('GET', '/balance')['subscription']['generations'])

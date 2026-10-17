@@ -992,21 +992,19 @@ export const ROOMS = {
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.
   princess: {
-    name: 'Покои принцессы', tiles: 'castle', length: 440, columns: false, torches: [80], cobwebs: true,
-    doors: [{ id: 'down', x: 56, kind: 'wood', stairs: true, to: 'mage', toDoor: 'up', name: 'Винтовая лестница' }],   // вниз — по ступеням Преддверия, без проёма
+    // покои — картина целиком (владелец, 17.10: «свой вид, открытые широкие окна, балдахин»): assets/backgrounds/princess/princess_0.png
+    // (tools/pixellab_room.py base princess …); на картине кровать с балдахином, тумбочка с подсвечником, окна с видом,
+    // стол для записей с креслом, комод. Осмотр — невидимые места (spot) у нарисованных вещей.
+    name: 'Покои принцессы', tiles: 'princess', tileCount: 1, length: 320, columns: false, torches: [], limitRight: 306, ceiling: false,
+    doors: [{ id: 'down', x: 22, kind: 'none', stairs: true, to: 'mage', toDoor: 'up', name: 'Винтовая лестница' }],
     decor: [
-      { type: 'window', x: 168, w: 52, h: 60, y: 4, view: true, look: 'look_princess_view', name: 'окно' },
-      { type: 'window', x: 262, w: 64, h: 66, y: 2, moon: true, view: true, look: 'look_princess_window', name: 'большое окно (вернуться к порталу)', ending: true },
+      { type: 'spot', x: 56, look: 'look_princess_bed', name: 'кровать с балдахином' },
+      { type: 'spot', x: 104, look: 'look_princess_stand', name: 'тумбочка' },
+      { type: 'spot', x: 154, look: 'look_princess_view', name: 'окно' },
+      { type: 'spot', x: 222, look: 'look_princess_window', name: 'большое окно (вернуться к порталу)', ending: true },
+      { type: 'spot', x: 278, look: 'look_princess_desk', name: 'стол для записей' },
+      { type: 'spot', x: 300, look: 'look_princess_dresser', name: 'комод' },
     ],
-    // убранство — по описанию владельца: кровать с балдахином, стол для записей, мягкое кресло, две тумбочки, комод, подсвечник
-    props: [
-      { type: 'rug', x: 262, z: 12 },
-      { type: 'dresser', x: 104, z: 2, look: 'look_princess_dresser', name: 'комод' },
-      { type: 'desk', x: 206, z: 2, look: 'look_princess_desk', name: 'стол для записей' }, { type: 'armchair', x: 186, z: 4 },
-      { type: 'nightstand', x: 318, z: 2, look: 'look_princess_stand', name: 'тумбочка' },
-      { type: 'bed', x: 362, z: 3, look: 'look_princess_bed', name: 'кровать с балдахином' },
-      { type: 'nightstand', x: 408, z: 2, look: 'look_princess_stand2', name: 'тумбочка' },
-      { type: 'candles', x: 408, z: 2.2, lift: 12, light: true },
-    ],
+    props: [],
   },
 };

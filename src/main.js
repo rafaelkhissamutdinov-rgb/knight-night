@@ -973,7 +973,7 @@ function drawCine(E) {
   if (k < 1) { c.globalAlpha = 1 - k; c.fillStyle = '#05040a'; c.fillRect(0, 0, CINE.W, CINE.H); c.globalAlpha = 1; }
   if (E.flash > 0) { c.globalAlpha = E.flash; c.fillStyle = '#ffffff'; c.fillRect(0, 0, CINE.W, CINE.H); c.globalAlpha = 1; E.flash = Math.max(0, E.flash - 0.05); }
   c.fillStyle = '#000';   // кинополосы
-  c.fillRect(0, 0, CINE.W, 30); c.fillRect(0, CINE.H - 30, CINE.W, 30);
+  c.fillRect(0, 0, CINE.W, 8); c.fillRect(0, CINE.H - 8, CINE.W, 8);   // тонкие — маска на полу внизу кадра видна
 }
 function endCine(E) {
   closeCine();
