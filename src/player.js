@@ -99,7 +99,7 @@ export class Player {
     return {
       guard: this.state === 'ready' ? this.guard : null,
       broken: this.broken,
-      dodge: (this.state === 'roll' && this.t >= r[0] && this.t <= r[1]) || this.state === 'swallowed' || this.state === 'held',
+      dodge: (this.state === 'roll' && this.t >= r[0] && this.t <= r[1]) || this.state === 'swallowed' || this.state === 'held' || this.state === 'blink',
       ward: this.state === 'backdash' && this.wardActive,
       attacking: this.state === 'attack',
       // «восьмёрка» рапирой: клинок сам закрывает от лёгких ударов
@@ -351,6 +351,12 @@ export class Player {
         }
         break;
       }
+
+      case 'blink':
+        // шаг призрака (маска, v0.95): растворился и проявился за спиной врага — переносит main.js, неуязвим всё время
+        target = POSES.dash;
+        if (this.t >= (this.blinkTime ?? 0.34)) this.enter('ready');
+        break;
 
       case 'hurt':
         this.x += this.knock * 20 * dt;

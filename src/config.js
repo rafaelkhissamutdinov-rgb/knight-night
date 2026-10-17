@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.94';
+export const VERSION = 'v0.95';
 
 export const CONFIG = {
   width: 320,
@@ -427,6 +427,11 @@ export const ITEMS = {
   // квест Алкимы (v0.78, лор владельца): лоскут ткани памяти — у мародёров Северного крыла; награда — медальон Солнца и страница дневника
   old_fabric: { name: 'Лоскут старинной ткани', quest: true },
   sun_medallion: { name: 'Медальон Солнца', quest: true },
+  // конец главы 1 (v0.95, владелец): маска босса — артефакт «шаг призрака»: F — за спину ближайшего врага
+  broken_mask: { name: 'Расколотая маска', slot: 'amulet', blink: { cooldown: 7, reach: 140, behind: 22, time: 0.34 } },
+  // для мирной концовки (владелец, 16.10): все страницы, полный дневник, цветок в янтаре и половинка кулона
+  diary_full: { name: 'Дневник капитана', diary: 5 },
+  heart_half: { name: 'Половинка кулона-сердца', quest: true },
   // обрывки дневника капитана (лор владельца: 1 — балкон, 2 — библиотека, 3 — Алкима, 4 — служанка)
   diary_1: { name: 'Страница дневника I', diary: 1 },
   diary_2: { name: 'Страница дневника II', diary: 2 },
@@ -523,7 +528,7 @@ export const ROOMS = {
       { x: 1020, enemies: [{ type: 'merc', dx: 70, z: 20 }] },
       { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }] },
       { x: 1740, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
-      { x: 2100, story: 'ilia', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
+      { x: 2100, story: 'ilia', music: 'ilia', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
     ],
   },
   // Старая библиотека над Темницей (v0.78, идея владельца): много книг, столы, бумаги на полу, потухшая свеча; живёт кот Фуджин
@@ -856,6 +861,7 @@ export const ROOMS = {
     doors: [{ id: 'out', x: 60, kind: 'hole', to: 'chapel', toDoor: 'vestry', name: 'Часовня' }],
     props: [
       { type: 'chest', id: 'v', x: 250, z: 3, coins: 20, item: 'rosary' },
+      { type: 'letter', id: 'diaryfull', x: 205, z: 14, pick: 'diary_full' },   // полный дневник (владелец: в закрытой комнате)
       { type: 'bones', x: 160, z: 10 }, { type: 'sack', x: 290, z: 3 },
     ],
     decor: [{ type: 'shelf', x: 150, y: 50, w: 50, rows: [['bottle', 'scroll', 'bottle', 'book'], ['box', 'bottle', 'scroll']] }],
@@ -922,7 +928,7 @@ export const ROOMS = {
     enterTalk: { id: 'alkima_meet', needs: 'trainer_gone' },
     npcs: [{ type: 'alkima', x: 236, z: 16 }],
     decor: [
-      { type: 'wardrobe', x: 110 }, { type: 'mannequin', x: 176 }, { type: 'mannequin', x: 318 },
+      { type: 'wardrobe', x: 110, look: 'look_wardrobe', name: 'шкаф с платьями' }, { type: 'mannequin', x: 176 }, { type: 'mannequin', x: 318 },
       { type: 'window', x: 260, w: 24, h: 40, y: 22, moon: true }, { type: 'tapestry', x: 200, y: 16 },
     ],
     props: [{ type: 'fabric', x: 280, z: 4 }, { type: 'chest', id: 'w', x: 330, z: 3, coins: 15 }, { type: 'rug', x: 220, z: 12 }],
@@ -968,16 +974,37 @@ export const ROOMS = {
   },
   // покои принцессы — арена босса главы 1 (призрак главы стражи, v0.65); победа — конец главы
   mage: {
-    name: 'Покои принцессы', tiles: 'castle', length: 480, columns: false, torches: [100, 240, 380], magic: true,
+    name: 'Преддверие покоев', tiles: 'castle', length: 480, columns: false, torches: [100, 240, 380], magic: true, stairs: 'up', stairsX: 424,
     decor: [
       { type: 'window', x: 200, y: 18, moon: true }, { type: 'window', x: 330, y: 18 },
-      { type: 'portrait', x: 265, y: 30, who: 'princess', look: 'look_princess', name: 'портрет принцессы' }, { type: 'tapestry', x: 410, y: 16 },
+      { type: 'portrait', x: 265, y: 30, who: 'princess', look: 'look_princess', name: 'портрет принцессы' }, { type: 'tapestry', x: 140, y: 16 },
     ],
-    doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни' }],
+    // после победы над боссом — винтовая лестница наверх, в покои принцессы (владелец, v0.95)
+    doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни' },
+      { id: 'up', x: 430, kind: 'none', stairs: true, climb: true, requires: 'done_boss', to: 'princess', toDoor: 'down', name: 'Покои принцессы' }],
     encounters: [
-      { x: 230, story: 'boss', before: 'boss_intro', after: 'boss_end', noRise: true,
-        finish: { finishTitle: 'Конец главы 1 (черновик)', finishText: 'Призрак главы стражи упокоен. Выбор «упокоить или уничтожить» и дальнейший путь — в следующей главе.' },
+      // v0.95: собрана вся история капитана (PEACE_ITEMS в src/main.js) — разговор peaceTalk и мирный исход, иначе казнь
+      { x: 230, story: 'boss', before: 'boss_intro', after: 'boss_end', peaceTalk: 'boss_peace', noRise: true,
+        finish: { finishTitle: 'Конец главы 1 (черновик)', finishText: 'Найт стоит перед замком. Внизу — лес и дорога к деревне. Продолжение — в главе 2.' },
         enemies: [{ type: 'boss', dx: 120, z: 20 }] },
     ],
+  },
+  // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
+  // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.
+  princess: {
+    // покои — картина целиком (владелец, 17.10: «свой вид, открытые широкие окна, балдахин»): assets/backgrounds/princess/princess_0.png
+    // (tools/pixellab_room.py base princess …); на картине кровать с балдахином, тумбочка с подсвечником, окна с видом,
+    // стол для записей с креслом, комод. Осмотр — невидимые места (spot) у нарисованных вещей.
+    name: 'Покои принцессы', tiles: 'princess', tileCount: 1, length: 320, columns: false, torches: [], limitRight: 306, ceiling: false,
+    doors: [{ id: 'down', x: 22, kind: 'none', stairs: true, to: 'mage', toDoor: 'up', name: 'Винтовая лестница' }],
+    decor: [
+      { type: 'spot', x: 56, look: 'look_princess_bed', name: 'кровать с балдахином' },
+      { type: 'spot', x: 104, look: 'look_princess_stand', name: 'тумбочка' },
+      { type: 'spot', x: 154, look: 'look_princess_view', name: 'окно' },
+      { type: 'spot', x: 222, look: 'look_princess_window', name: 'большое окно (вернуться к порталу)', ending: true },
+      { type: 'spot', x: 278, look: 'look_princess_desk', name: 'стол для записей' },
+      { type: 'spot', x: 300, look: 'look_princess_dresser', name: 'комод' },
+    ],
+    props: [],
   },
 };

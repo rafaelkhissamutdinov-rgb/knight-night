@@ -21,7 +21,7 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1, fabric: 1, papers: 1, bookpile: 1, tripod: 1, pack: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_campfire_pot', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff', 'prop_candles_out', 'cat_sit', 'cat_sit_1', 'cat_sleep', 'cat_loaf', 'cat_lounge', 'cat_side', 'cat_groom', 'cat_stretch', 'cat_stand', 'priest_kneel', 'maid_ghost',
+export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_campfire_pot', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff', 'prop_candles_out', 'cat_sit', 'cat_sit_1', 'cat_sleep', 'cat_loaf', 'cat_lounge', 'cat_side', 'cat_groom', 'cat_stretch', 'cat_stand', 'cat_belly', 'knight_sit_seat', 'knight_sit_ground', 'priest_kneel', 'maid_ghost',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -84,7 +84,7 @@ export function decorBounds(d, floorTop) {
 // убранство картинкой (если есть); false — рисовать кодом
 function decorImage(g, d, floorTop, room) {
   const spec = DECOR_IMG[d.type];
-  if (!spec) return false;
+  if (!spec || d.view) return false;   // широкое окно с видом (покои принцессы, v0.95) — кодом: в нём видна долина
   const [n, anchor, top0, dy] = spec;
   // портрет — по тому, кто на нём (король, маг с выцарапанным лицом, принцесса); без who — дамы по месту
   const who = d.type === 'portrait' && { king: 'decor_portrait_king', mage: 'decor_portrait_mage', princess: 'decor_portrait' }[d.who];
@@ -877,6 +877,42 @@ export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
     if (Math.floor(time * 3) % 3 === 0) rect(g, x + 1, gy - 20, 1, 1, '#ffffff');
     return;
   }
+  // покои принцессы (v0.95, описание владельца) — кодом: кровать с розовым полупрозрачным балдахином, тумбочка, комод из тёмного дуба
+  if (type === 'bed') {
+    const L = x - 28, R = x + 28;
+    rect(g, L, gy - 10, 56, 8, '#3a2418');                 // рама
+    rect(g, L + 1, gy - 15, 54, 6, '#f4e8ec');             // перина
+    rect(g, L + 10, gy - 16, 45, 7, '#e8a4b8');            // покрывало
+    rect(g, L + 10, gy - 16, 45, 1, '#f6c8d6');
+    rect(g, L + 2, gy - 18, 8, 4, '#ffffff'); rect(g, L + 2, gy - 18, 8, 1, '#f4e8ec');   // подушка
+    rect(g, L + 30, gy - 17, 6, 2, '#7a3a4a');             // дневник принцессы на покрывале
+    for (const px of [L, R - 2]) rect(g, px, gy - 52, 2, 52, '#4a2e1e');   // столбики
+    rect(g, L - 1, gy - 54, 58, 3, '#4a2e1e'); rect(g, L - 1, gy - 54, 58, 1, '#6a4430');   // верх балдахина
+    g.globalAlpha = 0.42;                                    // полупрозрачная розовая ткань
+    for (let i = 0; i < 9; i++) {
+      const sway = Math.round(Math.sin(time * 0.8 + i) * 0.6);
+      rect(g, L + 2 + i, gy - 51, 1, 40 - i * 3 + sway, '#f2a8c4');
+      rect(g, R - 3 - i, gy - 51, 1, 40 - i * 3 - sway, '#f2a8c4');
+    }
+    rect(g, L + 2, gy - 51, 52, 4, '#f6bcd2');
+    g.globalAlpha = 1;
+    return;
+  }
+  if (type === 'nightstand') {
+    rect(g, x - 6, gy - 13, 12, 13, '#3a2418'); rect(g, x - 7, gy - 14, 14, 2, '#4f3220');
+    rect(g, x - 5, gy - 9, 10, 1, '#24160e'); rect(g, x - 1, gy - 7, 2, 1, '#d4a83a');
+    return;
+  }
+  if (type === 'dresser') {
+    rect(g, x - 14, gy - 20, 28, 20, '#2a1810'); rect(g, x - 15, gy - 21, 30, 2, '#3a2418'); rect(g, x - 15, gy - 21, 30, 1, '#5a3a28');   // лак — блик по краю
+    for (let i = 0; i < 3; i++) {
+      const y = gy - 17 + i * 6;
+      rect(g, x - 12, y, 24, 5, '#20120a'); rect(g, x - 12, y, 24, 1, '#3a2418');
+      rect(g, x - 6, y + 2, 2, 1, '#d4a83a'); rect(g, x + 4, y + 2, 2, 1, '#d4a83a');   // золотые ручки
+    }
+    rect(g, x - 13, gy - 1, 2, 1, '#20120a'); rect(g, x + 11, gy - 1, 2, 1, '#20120a');
+    return;
+  }
   if (PROP_IMG[type]) {
     const i = Math.abs(Math.round(seed / 10)) % PROP_IMG[type];
     const im = objImg(type === 'chest' && opened ? 'prop_chest_open' : 'prop_' + type + (i ? '_' + i : ''));
@@ -986,6 +1022,10 @@ export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
     if (opened) {
       rect(g, x - 1, top - 7, 3, 3, '#d8dde6'); rect(g, x, top - 4, 1, 2, '#a3aab4');
       if (Math.floor(time * 3) % 3 === 0) rect(g, x + 1, top - 8, 1, 1, '#ffffff');
+      if (opened === 2) {   // освящённая вода с медальоном: цепочка свисает через край
+        rect(g, x - 1, top - 7, 3, 1, '#9fe0ff');
+        rect(g, x + 2, top - 7, 1, 1, '#e8ba40'); rect(g, x + 2, top - 6, 1, 1, '#a8822e'); rect(g, x + 3, top - 5, 1, 1, '#e8ba40');
+      }
     }
   } else if (type === 'altar') {
     // алтарь: каменная плита, белое покрывало, свечи; на подставке — чаша, если поставили (opened)

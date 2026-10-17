@@ -78,6 +78,18 @@ export const sfx = {
     src.connect(f).connect(gn).connect(master); src.start(t0); src.stop(t0 + dur);
   },
   dash() { burst(0.09, 'lowpass', 600, 0.25); },
+  // мурчание кота: низкое дрожащее урчание
+  purr() {
+    if (!ctx) return;
+    const t0 = ctx.currentTime, osc = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), gn = ctx.createGain();
+    osc.type = 'sawtooth'; osc.frequency.value = 52;
+    lfo.frequency.value = 24; lg.gain.value = 0.05; lfo.connect(lg).connect(gn.gain);
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 240;
+    gn.gain.setValueAtTime(0.0001, t0); gn.gain.exponentialRampToValueAtTime(0.06, t0 + 0.3); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.7);
+    osc.connect(f).connect(gn).connect(master); osc.start(t0); lfo.start(t0); osc.stop(t0 + 1.8); lfo.stop(t0 + 1.8);
+  },
+  // шаг призрака (маска): холодный выдох и звон
+  blink() { tone(880, 0.3, 'sine', 0.08, 330); burst(0.25, 'bandpass', 1200, 0.25, 1.2); tone(1320, 0.4, 'triangle', 0.04); },
   ward() { tone(880, 0.25, 'sine', 0.15, 1320); burst(0.06, 'highpass', 2500, 0.2); },
   gulp() { tone(220, 0.35, 'square', 0.12, 70); burst(0.3, 'lowpass', 300, 0.5); },
   spit() { burst(0.15, 'lowpass', 800, 0.5); tone(160, 0.15, 'square', 0.1, 320); },
@@ -168,10 +180,13 @@ export const TRACKS = {
   // «Lika Shop» (владелец, v0.92) — лавка Лики. 16 тактов по 3,2 с: 4 такта вступления (тихие колокольчики), по кругу —
   // такты 5–16. Трек тише остальных (−21,7 LUFS против −17), поэтому громкость выше
   shop: { url: 'assets/music/lika_shop.mp3', intro: 12.8, length: 51.2, beat: 0.8, vol: 0.5, reverb: 0 },
+  // бой с Илиа (владелец, 17.10, BeepBox) — с момента, когда он обнажил клинок. 16 тактов по 3,2 с: первый — вступление,
+  // по кругу такты 2–16
+  ilia: { url: 'assets/music/ilia_duel.mp3', intro: 3.2, length: 51.2, beat: 0.8, vol: 0.3, reverb: 0, drums: false },
 };
 // места: title — заставка, explore — замок, shop — лавка, rest — отдых и «вайб», duel — сюжетный бой, boss — босс главы.
 // Новый трек владельца: добавить в TRACKS и указать здесь; у комнаты можно задать свой (music в ROOMS)
-export const ZONE_TRACK = { title: 'castle', explore: 'castle', shop: 'shop', rest: 'castle', duel: 'castle', boss: 'boss' };
+export const ZONE_TRACK = { title: 'castle', explore: 'castle', shop: 'shop', rest: 'castle', duel: 'castle', boss: 'boss' , ilia: 'ilia' };
 export const TRACK = TRACKS.castle;   // прежнее имя
 const loaded = {};    // имя → { buf, t0 } (t0 — где в файле начинается музыка: mp3 добавляет в начало тишину кодировщика)
 const loading = {};   // имя → true | 'failed'
