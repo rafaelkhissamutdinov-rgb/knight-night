@@ -41,7 +41,7 @@ const PEACE = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_
     for (let i = 0; i < 200 && (await st()).ending; i++) await p.waitForTimeout(50);
     s = await st(); console.log(tag, 'after cine', JSON.stringify(s));
     if (!s.mask) fail(`${tag}: маска не получена`);
-    if (!signs.includes(peace ? 'pilgrim' : 'ghost')) fail(`${tag}: знак пути не появился в кат-сцене (${signs})`);
+    if (!signs.some(c => c.split(' ').includes(peace ? 'pilgrim' : 'ghost'))) fail(`${tag}: знак пути не появился в кат-сцене (${signs})`);
     await p.waitForTimeout(800);
     // к лестнице наверх и в покои
     await p.evaluate(() => { const g = window.knightNight; g.player.x = 380; g.player.z = 10; });
