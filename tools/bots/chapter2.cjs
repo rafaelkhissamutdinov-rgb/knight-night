@@ -24,13 +24,13 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/chapter2'; require('fs
       const x = s.x; if (x > 60) { await p.keyboard.down('KeyA'); await p.waitForTimeout(200); await p.keyboard.up('KeyA'); continue; }
       await p.keyboard.down('KeyW'); await p.waitForTimeout(500); await p.keyboard.up('KeyW'); await p.waitForTimeout(1500); continue;
     }
-    if (s.room === 'village_gate' && s.x > 330) { await p.keyboard.down('KeyW'); await p.waitForTimeout(600); await p.keyboard.up('KeyW'); await p.waitForTimeout(800); continue; }
+    if ((s.room === 'village_gate' && s.x > 330) || (s.room === 'village' && s.x > 284)) { await p.keyboard.down('KeyW'); await p.waitForTimeout(600); await p.keyboard.up('KeyW'); await p.waitForTimeout(800); continue; }
     const key = s.room === 'forest2' && !seen.has('forest_camp') && s.x > 330 ? 'KeyA' : 'KeyD';
     await p.keyboard.down(key); await p.waitForTimeout(160); await p.keyboard.up(key);
   }
   const s = await st();
   console.log('end', JSON.stringify(s), [...seen].join(' '), await p.locator('#overlay-title').textContent());
-  for (const r of ['cliff', 'forest1', 'forest2', 'forest_camp', 'forest3', 'village_gate']) if (!seen.has(r)) fail('не дошёл: ' + r);
+  for (const r of ['cliff', 'forest1', 'forest2', 'forest_camp', 'forest3', 'village_gate', 'village']) if (!seen.has(r)) fail('не дошёл: ' + r);
   if (s.mode !== 'end') fail('нет конца каркаса');
   console.log('errors', JSON.stringify(errors));
   await b.close();

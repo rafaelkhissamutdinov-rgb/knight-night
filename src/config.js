@@ -1050,8 +1050,17 @@ export const ROOMS = {
   village_gate: {
     name: 'У деревни', chapter: 2, tiles: 'forest', tileCount: 1, length: 400, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'forest3', x: 690, name: 'Бурелом' } },
-    doors: [{ id: 'gate', x: 340, kind: 'none', stairs: true, to: 'village_gate', toDoor: 'gate', name: 'Ворота деревни', finish: true,
-      finishTitle: 'Глава 2 — каркас (черновик)', finishText: 'Рыцарь вышел к деревне, которую видно из замка. Дальше — деревня: люди, камео, вещи.' }],
+    doors: [{ id: 'gate', x: 340, kind: 'none', stairs: true, to: 'village', toDoor: 'in', name: 'Ворота деревни' }],
+  },
+  // деревня (проба PixelLab, assets/backgrounds/village): главное в главе 2 — люди, камео, вещи; пока — улица и конец каркаса
+  village: {
+    name: 'Деревня', chapter: 2, tiles: 'village', tileCount: 1, length: 320, day: true, ceiling: false, torches: [], limitRight: 300,
+    doors: [
+      { id: 'in', x: 30, kind: 'none', stairs: true, to: 'village_gate', toDoor: 'gate', name: 'К лесу' },
+      { id: 'on', x: 290, kind: 'none', stairs: true, to: 'village', toDoor: 'in', name: 'Дальше по улице', finish: true,
+        finishTitle: 'Глава 2 — каркас (черновик)', finishText: 'Рыцарь дошёл до деревни, которую видно из замка. Дальше — деревня: люди, камео, вещи.' },
+    ],
+    decor: [{ type: 'spot', x: 160, look: 'look_village', name: 'улица' }],
   },
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.

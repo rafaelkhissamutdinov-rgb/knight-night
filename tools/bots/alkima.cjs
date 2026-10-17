@@ -45,6 +45,7 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/alkima'; require('fs')
   await untilChoice(); await log('hub2'); await choose(4);                     // помощь → задание
   await untilChoice(); await choose(5);                                        // пойду
   await p.waitForTimeout(600); await log('quest'); await shot('4_room');
+  for (let i = 0; i < 10 && (await st()).mode === 'talk'; i++) { await p.keyboard.press('Enter'); await p.waitForTimeout(350); }   // «Береги себя.» (владелец, 17.10)
   // мародёр в Северном крыле роняет ткань
   await p.evaluate(() => { const g = window.knightNight; g.player.x = 56; g.player.z = 2; }); await p.waitForTimeout(200);
   await p.keyboard.down('KeyW'); await p.waitForTimeout(700); await p.keyboard.up('KeyW'); await p.waitForTimeout(2500);
