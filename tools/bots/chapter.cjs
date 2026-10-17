@@ -73,13 +73,13 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/full'; require('fs').m
   // v0.95: после босса — кат-сцена кадрами, винтовая лестница в покои принцессы, у большого окна (E) — портал и дневной замок
   for (let i = 0; i < 400; i++) {
     const s = await st3(); if (s.mode === 'end') break;
-    const g = await p.evaluate(() => ({ ending: !!window.knightNight.ending, story: !!window.knightNight.storyView, room: window.knightNight.room, done: !!window.knightNight.flags.ending }));
+    const g = await p.evaluate(() => ({ ending: !!window.knightNight.ending, story: !!window.knightNight.storyView, room: window.knightNight.room, done: !!window.knightNight.flags.ending, vn: window.knightNight.mode === 'vn' }));
+    if (g.vn) { await p.click('.vn-bar [data-a=finish]'); await p.waitForTimeout(500); continue; }   // v0.97: покои — картина, «Завершить миссию»
     if (g.story) { await p.keyboard.press('Enter'); await p.waitForTimeout(400); continue; }
     if (s.mode === 'talk') { await talk(); continue; }
     if (g.ending) { await p.waitForTimeout(200); continue; }
     if (s.arena) { await kill(); await p.waitForTimeout(150); continue; }
-    if (g.done && g.room === 'mage') { await p.evaluate(() => { window.knightNight.player.x = 430; window.knightNight.player.z = 0; }); await p.keyboard.down('KeyW'); await p.waitForTimeout(600); await p.keyboard.up('KeyW'); await p.waitForTimeout(2500); continue; }
-    if (g.room === 'princess') { await p.evaluate(() => { window.knightNight.player.x = 222; window.knightNight.player.z = 8; }); await p.waitForTimeout(300); await p.keyboard.press('KeyE'); await p.waitForTimeout(400); continue; }
+    if (g.done && g.room === 'mage') { await p.evaluate(() => { window.knightNight.player.x = 380; window.knightNight.player.z = 0; }); await p.keyboard.down('KeyW'); await p.waitForTimeout(600); await p.keyboard.up('KeyW'); await p.waitForTimeout(2500); continue; }
     await p.waitForTimeout(150);
   }
   console.log('end', (await st3()).mode, await p.locator('#overlay-title').textContent());
