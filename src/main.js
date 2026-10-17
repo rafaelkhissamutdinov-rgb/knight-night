@@ -1323,6 +1323,7 @@ const ADMIN_POINTS = [
   { name: 'Второй этаж', room: 'landing2', x: 200, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Глава 2: скала', room: 'cliff', x: 60, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard', 'boss'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { chapter1_done: true, chapter: 2, ending: 'execution', done_boss: true } },
+  { name: 'Финал: покои принцессы', room: 'princess', x: 200, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { done_boss: true, ending: 'execution' } },   // к окну, E — портал
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
 ];
 const ADMIN_LOOT = ['sword_old', 'rapier', 'dagger', 'map', 'journal', 'key_tower', 'diamond_ace', 'broken_mask', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup',
