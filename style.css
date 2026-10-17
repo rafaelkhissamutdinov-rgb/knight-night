@@ -195,13 +195,14 @@ kbd {
 /* знак пути (v0.94, владелец): после выбора, влияющего на путь, в правом верхнем углу проявляется знак — мягко светится и гаснет */
 .path-sign {
   position: absolute; top: 2.5cqw; right: 3cqw; width: 9cqw; height: 9cqw;
-  image-rendering: pixelated; pointer-events: none; opacity: 0; z-index: 5;
+  image-rendering: pixelated; pointer-events: none; opacity: 0; z-index: 40;   /* поверх кат-сцены */
   --glow: rgba(255, 210, 110, 0.85);
 }
 .path-sign[hidden] { display: none; }
 .path-sign.ghost { --glow: rgba(170, 230, 190, 0.8); }
 .path-sign.monarch { --glow: rgba(255, 120, 90, 0.8); }
 .path-sign.egoist { --glow: rgba(190, 160, 255, 0.8); }
+.path-sign.undecided { --glow: rgba(200, 200, 210, 0.7); }
 .path-sign.show { animation: path-sign 1.7s ease-out forwards; }
 @keyframes path-sign {
   0% { opacity: 0; transform: translateY(1cqw) scale(0.7); filter: drop-shadow(0 0 0 transparent) brightness(1.6); }
@@ -356,3 +357,20 @@ img.shop-portrait { image-rendering: auto; object-fit: contain; background: none
 .vibe-bar.top { top: 0; transform: translateY(-100%); }
 .vibe-bar.bottom { bottom: 0; transform: translateY(100%); }
 .game.vibing .vibe-bar { transform: none; }
+/* покои картиной (v0.97): как в визуальной новелле — наведение и клик по вещам */
+.vn { position: absolute; inset: 0; background: #000; }
+.vn[hidden] { display: none; }
+.vn canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; opacity: 0; transition: opacity 0.6s; }
+.vn.in canvas { opacity: 1; }
+.vn.out { opacity: 0; transition: opacity 0.5s; }
+.vn.black canvas { opacity: 0; transition: opacity 0.8s; }
+.vn.pointing canvas { cursor: pointer; }
+.vn-title { position: absolute; left: 3cqw; top: 2.4cqw; font-family: var(--pixel); font-size: 2.6cqw; color: var(--gold); text-shadow: 0 0.3cqw 0 rgba(0,0,0,0.7); pointer-events: none; }
+.vn-help { position: absolute; left: 3cqw; bottom: 2.4cqw; font-family: var(--pixel); font-size: 1.6cqw; color: var(--fg); opacity: 0.75; text-shadow: 0 0.2cqw 0 rgba(0,0,0,0.8); pointer-events: none; }
+.vn-label { position: absolute; transform: translate(-50%, -150%); font-family: var(--pixel); font-size: 1.9cqw; color: var(--gold); background: rgba(13, 11, 20, 0.9); border: 0.3cqw solid var(--line); padding: 0.3cqw 1cqw; white-space: nowrap; pointer-events: none; }
+.vn-label[hidden] { display: none; }
+.vn-bar { position: absolute; right: 3cqw; bottom: 2.4cqw; display: flex; gap: 1.2cqw; }
+.vn-bar button { font-family: var(--pixel); font-size: 1.9cqw; padding: 0.5cqw 1.4cqw; cursor: pointer; }
+.vn-finish { color: var(--gold); background: var(--panel); border: 0.3cqw solid var(--gold); }
+.vn-finish:hover, .vn-finish:focus-visible { background: #2a2238; outline: none; }
+.vn.talking .vn-bar, .vn.talking .vn-help { display: none; }

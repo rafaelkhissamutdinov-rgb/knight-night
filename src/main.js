@@ -891,9 +891,10 @@ function letterbox(on) {
 function startEnding(d, peace) {
   const boss = game.enemies.find(e => e.kind === 'boss');
   if (!boss) { finish(d); return; }
-  // крупное событие пути: +5 пилигриму за мирный исход; казнь — +5 лидеру среди остальных (никого — эгоисту)
-  const path = peace ? 'pilgrim' : pathLeader(['ghost', 'monarch', 'egoist']) ?? 'egoist';
-  addPath(path, 5);
+  // крупное событие пути: +5 пилигриму за мирный исход; казнь — +5 лидеру среди остальных; у них поровну —
+  // путь не определён (серый знак, пятый путь — владелец 17.10, свой знак придумает позже), очков никому
+  const path = peace ? 'pilgrim' : executionPath();
+  if (PATHS.includes(path)) addPath(path, 5);
   game.flags.ending = peace ? 'peace' : 'execution';
   const p = game.player;
   p.atk = null; p.buffer = null; p.guard = null; p.enter('ready');
@@ -994,6 +995,165 @@ function gainMask(b, text) {
   if (!owns('broken_mask')) { game.bag.push('broken_mask'); game.flags.given_broken_mask = true; }
   callout(text, 'perfect');
   sfx.perfect();
+}
+// ---------- покои принцессы картиной (v0.97, владелец 17.10: «как в визуальных новеллах») ----------
+// Рыцаря в покоях нет — на экране сама картина комнаты. Навёл на вещь — подпись и рамка, клик (или цифра) — осмотр
+// (те же разговоры look_…). «Завершить миссию» — к порталу, «Спуститься» — назад к лестнице в Преддверии покоев.
+const VN_SCENES = {
+  princess: {
+    title: 'Покои принцессы', img: 'assets/backgrounds/princess/princess_0.png', finish: 'princess_leave',
+    // места на картине (640×360): x, y, ширина, высота
+    spots: [
+      { name: 'Кровать с балдахином', look: 'look_princess_bed', r: [4, 104, 190, 216] },
+      { name: 'Тумбочка', look: 'look_princess_stand', r: [196, 226, 50, 66] },
+      { name: 'Окно', look: 'look_princess_view', r: [282, 78, 96, 178] },
+      { name: 'Большое окно', look: 'look_princess_window', r: [414, 78, 100, 178] },
+      { name: 'Стол для записей', look: 'look_princess_desk', r: [540, 182, 100, 108] },
+      { name: 'Комод', look: 'look_princess_dresser', r: [526, 290, 114, 70] },
+    ],
+    candle: [220, 231],
+  },
+};
+let vnImg = null;
+function openVN(id) {
+  const sc = VN_SCENES[id];
+  let el = ui.vn;
+  if (!el) {
+    el = ui.vn = document.createElement('div');
+    el.className = 'vn';
+    el.innerHTML = `<canvas width="640" height="360"></canvas><div class="vn-title"></div><div class="vn-label" hidden></div>
+      <div class="vn-help">наведи на вещь и нажми — осмотреть</div>
+      <div class="vn-bar"><button type="button" class="close-btn" data-a="down">↓ Спуститься</button><button type="button" class="vn-finish" data-a="finish">Завершить миссию</button></div>`;
+    ui.box.insertBefore(el, ui.talk);   // окно разговора — поверх картины
+    const cv = el.querySelector('canvas');
+    const at = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * 640, (e.clientY - r.top) / r.height * 360, e.clientX - r.left, e.clientY - r.top]; };
+    cv.addEventListener('pointermove', e => {
+      const v = game.vn; if (!v) return;
+      const [x, y, px, py] = at(e);
+      v.hover = game.mode === 'vn' ? VN_SCENES[v.id].spots.findIndex(s => x >= s.r[0] && x <= s.r[0] + s.r[2] && y >= s.r[1] && y <= s.r[1] + s.r[3]) : -1;
+      vnLabel(px, py);
+    });
+    cv.addEventListener('pointerleave', () => { if (game.vn) { game.vn.hover = -1; vnLabel(); } });
+    cv.addEventListener('pointerdown', e => {
+      if (game.mode !== 'vn') return;   // в разговоре клик листает реплики, как везде
+      e.stopPropagation(); e.preventDefault();
+      ui.box.focus();
+      const [x, y] = at(e);
+      const i = VN_SCENES[game.vn.id].spots.findIndex(s => x >= s.r[0] && x <= s.r[0] + s.r[2] && y >= s.r[1] && y <= s.r[1] + s.r[3]);
+      if (i >= 0) vnLook(i);
+    });
+    for (const b of el.querySelectorAll('button')) b.addEventListener('pointerdown', e => {
+      e.stopPropagation(); e.preventDefault();
+      if (game.mode !== 'vn') return;
+      if (b.dataset.a === 'down') vnDown(); else vnFinish();
+    });
+  }
+  if (!vnImg || !vnImg.src.endsWith(sc.img)) { vnImg = new Image(); vnImg.src = sc.img; }
+  el.querySelector('.vn-title').textContent = sc.title;
+  el.hidden = false;
+  el.classList.remove('out', 'black');
+  void el.offsetWidth;
+  el.classList.add('in');
+  game.vn = { id, hover: -1, t: 0 };
+  game.mode = 'vn';
+  game.flags.map_princess = true;
+  hint('');
+  sfx.door();
+  requestAnimationFrame(vnLoop);
+}
+function vnLabel(px, py) {
+  const lab = ui.vn.querySelector('.vn-label'), v = game.vn;
+  const s = v && v.hover >= 0 ? VN_SCENES[v.id].spots[v.hover] : null;
+  ui.vn.classList.toggle('pointing', !!s);
+  lab.hidden = !s;
+  if (!s) return;
+  lab.textContent = s.name;
+  if (px != null) { lab.style.left = px + 'px'; lab.style.top = py + 'px'; }
+}
+function vnLook(i) {
+  const s = VN_SCENES[game.vn.id].spots[i];
+  if (!s) return;
+  game.vn.hover = -1; vnLabel();
+  startTalk(s.look);
+}
+function vnPress(code) {
+  if (code === 'Escape') vnDown();
+  else if (/^Digit[1-9]$/.test(code)) vnLook(+code.slice(5) - 1);
+}
+function vnFinish() {
+  startTalk(VN_SCENES[game.vn.id].finish, () => {
+    if (!game.flags.vn_leave) return;
+    delete game.flags.vn_leave;
+    // картина гаснет в темноту — и сразу сцена у портала (та же у всех)
+    ui.vn.classList.add('black');
+    game.mode = 'vnOut';
+    setTimeout(() => {
+      closeVN(true);
+      game.mode = 'play';
+      startPortalEnding();
+      game.ending.t = 1.0;   // уже темно — без второго затемнения
+    }, 900);
+  });
+}
+// назад: картина тает, рыцарь стоит у нижней ступени лестницы в Преддверии
+function vnDown() {
+  closeVN();
+  game.mode = 'play';
+  game.doorLock = true;
+  sfx.step();
+  callout(room().name, 'muted');
+  save();
+}
+function closeVN(now = false) {
+  game.vn = null;
+  const el = ui.vn;
+  if (!el) return;
+  el.classList.remove('in', 'pointing');
+  el.querySelector('.vn-label').hidden = true;
+  if (now) { el.hidden = true; return; }
+  el.classList.add('out');
+  setTimeout(() => { if (!game.vn) el.hidden = true; }, 600);
+}
+function vnLoop(now) {
+  const v = game.vn;
+  if (!v || !ui.vn) return;
+  ui.vn.classList.toggle('talking', game.mode !== 'vn');
+  const c = ui.vn.querySelector('canvas').getContext('2d'), sc = VN_SCENES[v.id], t = now / 1000;
+  c.imageSmoothingEnabled = false;
+  c.fillStyle = '#05040a';
+  c.fillRect(0, 0, 640, 360);
+  if (vnImg?.complete && vnImg.naturalWidth) c.drawImage(vnImg, 0, 0, 640, 360);
+  // живое: свеча на тумбочке дрожит, в лунном свете плавает пыль
+  const [cx, cy] = sc.candle, fl = 0.8 + 0.2 * Math.sin(t * 9) * Math.sin(t * 5.3 + 1);
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  const gr = c.createRadialGradient(cx, cy, 1, cx, cy, 46 * fl);
+  gr.addColorStop(0, `rgba(255,190,110,${0.32 * fl})`);
+  gr.addColorStop(1, 'rgba(255,190,110,0)');
+  c.fillStyle = gr;
+  c.fillRect(cx - 50, cy - 50, 100, 100);
+  for (let i = 0; i < 26; i++) {
+    const x = (i * 97 + t * (6 + i % 5)) % 640, y = 70 + ((i * 53 + t * (3 + i % 3) * (i % 2 ? 1 : -1)) % 260 + 260) % 260;
+    c.fillStyle = `rgba(230,220,255,${0.12 + 0.1 * Math.sin(t * 1.3 + i)})`;
+    c.fillRect(Math.round(x), Math.round(y), 2, 2);
+  }
+  c.restore();
+  // наведённая вещь: мягкий свет и золотые уголки рамки
+  const s = v.hover >= 0 && game.mode === 'vn' ? sc.spots[v.hover] : null;
+  if (s) {
+    const [x, y, w, h] = s.r, a = 0.75 + 0.25 * Math.sin(t * 4), k = 10;
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.fillStyle = `rgba(255,225,160,${0.07 * a})`;
+    c.fillRect(x, y, w, h);
+    c.restore();
+    c.fillStyle = `rgba(232,196,104,${a})`;
+    for (const [px, py, dx, dy] of [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]]) {
+      c.fillRect(dx > 0 ? px : px - k, dy > 0 ? py : py - 2, k, 2);
+      c.fillRect(dx > 0 ? px : px - 2, dy > 0 ? py : py - k, 2, k);
+    }
+  }
+  requestAnimationFrame(vnLoop);
 }
 function toPortalScene(E) {
   E.phase = 'portal';
@@ -1287,11 +1447,14 @@ function startNew() {
 }
 
 function startContinue(data) {
+  const vr = ROOMS[data.room]?.vn && ROOMS[data.room];   // старое сохранение в покоях — к лестнице и картина (v0.97)
+  if (vr) data = { ...data, room: vr.vnFrom[0], x: vr.vnFrom[1], z: 2 };
   continueGame(data);
   game.mode = 'play';
   hideOverlay();
   hint(hintWalk());
   callout(ROOMS[game.room].name, 'muted');
+  if (vr) openVN(vr.vn);
 }
 
 // ---------- админка (v0.72) ----------
@@ -1475,6 +1638,8 @@ function recordGuard(height) {
 function handlePress(code) {
   if (game.storyView) { storyPress(code); return; }
   if (game.mode === 'shop') { shopPress(code); return; }
+  if (game.mode === 'vn') { vnPress(code); return; }
+  if (game.mode === 'vnOut') return;
   if (game.mode === 'map') { mapPress(code); return; }
   if (game.mode === 'equip') { equipPress(code); return; }
   if (game.mode === 'journal') { journalPress(code); return; }
@@ -1625,7 +1790,7 @@ function handlePress(code) {
       npc.facing = Math.sign(p.x - npc.x) || -1;
       if (npc.def.shop) openShop(npc);
       else if (npc.def.cat && game.flags.fujin_fed) petCat(npc);   // накормлен — можно погладить (владелец, 17.10)
-      else startTalk(npcTalkId(npc.def), npc.def.cat ? () => { if (game.flags.fujin_fed && !npc.belly) { npc.belly = true; npc.img = 'cat_belly'; npc.flip = true; } } : null);   // угостил — валится на спину
+      else startTalk(npcTalkId(npc.def), npc.def.cat ? () => { if (game.flags.fujin_fed && !npc.belly) { Object.assign(npc, npc.def.bellyAt); npc.belly = true; npc.img = 'cat_belly'; npc.flip = true; } } : null);   // угостил — валится на спину
       return;
     }
   }
@@ -2314,6 +2479,15 @@ function updateTransition(dt) {
       p.x += tr.dir * CONFIG.exploreSpeed * 0.6 * dt;
       p.step += dt * CONFIG.exploreSpeed * 0.6 / strideCycle(0);
       p.walking = true;
+      if (tr.t >= STAIR_PHASES.out && ROOMS[tr.door.to].vn) {
+        // наверху — покои картиной (v0.97); рыцарь ждёт у нижней ступени, чтобы вернуться туда же
+        const g0 = tr.geom ?? stairsGeom(room(), CONFIG.floorTop);
+        if (g0) p.x = g0.pts[0][0] - 6;
+        p.z = 2; p.facing = -1; p.walking = false; p.step = 0;
+        game.transition = null;
+        openVN(ROOMS[tr.door.to].vn);
+        return;
+      }
       if (tr.t >= STAIR_PHASES.out) {
         const to = ROOMS[tr.door.to];
         const out = to.doors.find(x => x.id === tr.door.toDoor);
@@ -3347,11 +3521,18 @@ function showLine() {
   }
   game.talkShown = 0;
   game.lineAt = performance.now();
+  game.talkPages = talkPages(line.text);
+  game.talkPage = 0;
   ui.talkText.textContent = '';
   ui.talkChoices.innerHTML = '';
-  ui.talkNext.hidden = !!line.choices;
   ui.talkSkip.hidden = !!line.choices;
-  if (line.choices) {
+  talkChoices(line);
+}
+// варианты ответа — только на последней части длинной реплики
+function talkChoices(line) {
+  const last = game.talkPage >= game.talkPages.length - 1;
+  ui.talkNext.hidden = !!line.choices && last;
+  if (line.choices && last) {
     line.choices.forEach((c, i) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -3362,13 +3543,44 @@ function showLine() {
   }
 }
 
+// длинная реплика — на несколько окон (владелец, 17.10: окно разговора не должно разрастаться на пол-экрана):
+// не больше TALK_LINES строк; режется по предложениям, слишком длинное предложение — по словам. Меряется по самому
+// окну, поэтому работает с любым шрифтом (Philosopher / Tiny5).
+const TALK_LINES = 3;
+function talkPages(text) {
+  if (!text) return [text];
+  const el = ui.talkText, lh = parseFloat(getComputedStyle(el).lineHeight) || 20;
+  const fits = t => { el.textContent = t; return el.scrollHeight <= lh * TALK_LINES + lh * 0.5; };
+  const ok = fits(text);
+  el.textContent = '';
+  if (ok) return [text];
+  const pages = [];
+  let cur = '';
+  const add = (piece, sep = ' ') => {
+    const next = cur ? cur + sep + piece : piece;
+    if (fits(next)) { cur = next; return true; }
+    return false;
+  };
+  for (const sent of text.split(/(?<=[.!?…»:;])\s+/)) {
+    if (add(sent)) continue;
+    if (cur) { pages.push(cur); cur = ''; }
+    if (add(sent)) continue;
+    for (const w of sent.split(' ')) if (!add(w)) { if (cur) pages.push(cur); cur = w; }
+  }
+  if (cur) pages.push(cur);
+  el.textContent = '';
+  return pages.length ? pages : [text];
+}
+const talkPageText = line => game.talkPages?.[game.talkPage] ?? line.text;
+
 // текст печатается по буквам; нажатие во время печати показывает строку целиком
 function tickTalk(dt) {
   const line = game.talk?.current;
   if (!line || !line.text) return;
-  if (game.talkShown < line.text.length) {
-    game.talkShown = Math.min(line.text.length, game.talkShown + dt * 45);
-    ui.talkText.textContent = line.text.slice(0, Math.floor(game.talkShown));
+  const text = talkPageText(line);
+  if (game.talkShown < text.length) {
+    game.talkShown = Math.min(text.length, game.talkShown + dt * 45);
+    ui.talkText.textContent = text.slice(0, Math.floor(game.talkShown));
   }
 }
 
@@ -3379,12 +3591,21 @@ function advanceTalk() {
   const line = game.talk?.current;
   if (!line) return;
   if (performance.now() - (game.lineAt ?? 0) < TALK_GUARD) return;
-  if (line.choices) return;
-  if (line.text && game.talkShown < line.text.length) {
-    game.talkShown = line.text.length;
-    ui.talkText.textContent = line.text;
+  const text = talkPageText(line);
+  if (text && game.talkShown < text.length) {
+    game.talkShown = text.length;
+    ui.talkText.textContent = text;
     return;
   }
+  if (game.talkPages && game.talkPage < game.talkPages.length - 1) {   // следующая часть длинной реплики
+    game.talkPage++;
+    game.talkShown = 0;
+    game.lineAt = performance.now();
+    ui.talkText.textContent = '';
+    talkChoices(line);
+    return;
+  }
+  if (line.choices) return;
   game.talk.advance();
   showLine();
 }
@@ -3392,6 +3613,7 @@ function advanceTalk() {
 function chooseTalk(i) {
   const line = game.talk?.current;
   if (!line?.choices?.[i]) return;
+  if (game.talkPage < game.talkPages.length - 1) return;   // длинная реплика ещё не дочитана
   if (performance.now() - (game.lineAt ?? 0) < TALK_GUARD) return;
   // путь (v0.78, лор владельца): pilgrim — солнце, ghost — Уроборос, monarch — корона, egoist — закрытый глаз; копится тихо
   const path = line.choices[i].path;
@@ -3418,9 +3640,13 @@ function pathLeader(among = PATHS) {
   return lead.includes(game.flags.path_last) ? game.flags.path_last : lead[0];
 }
 
+function executionPath() {
+  const dark = ['ghost', 'monarch', 'egoist'], pts = dark.map(id => game.flags['path_' + id] ?? 0);
+  return pts.every(n => n === pts[0]) ? 'undecided' : pathLeader(dark);
+}
 // знак пути (v0.94, владелец): только после выбора — в вариантах ответа его нет, игрок выбирает сам
 function showPathSign(path) {
-  if (!PATHS.includes(path)) return;
+  if (!PATHS.includes(path) && path !== 'undecided') return;
   const el = ui.pathSign;
   el.src = `assets/ui/sign_${path}.png`;
   el.className = 'path-sign ' + path;
@@ -4982,4 +5208,4 @@ requestAnimationFrame(frame);
 
 // для автотестов в браузере
 window.knightNight = game;
-window.knightNightDebug = { groundY, input, ROOMS, bgFor, musicInfo, startTalk };   // для ботов-тестеров
+window.knightNightDebug = { groundY, input, ROOMS, bgFor, musicInfo, startTalk, readPage };   // для ботов-тестеров

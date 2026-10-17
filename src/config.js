@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.96';
+export const VERSION = 'v0.97';
 
 export const CONFIG = {
   width: 320,
@@ -405,6 +405,7 @@ export const NPC_TYPES = {
       { id: 'fujin_feed', if: 'fujin_met', has: ['dried_fish'] },
       { id: 'fujin_hungry', if: 'fujin_met' },
     ],
+    bellyAt: { x: 250, z: 12.5, lift: 13.5 },   // угостил — валится на спину на столе для чтения, на раскрытой книге (владелец 17.10)
     name: 'Фуджин', alias: 'чёрный кот', known: 'fujin_met', verb: 'подойти', talk: 'fujin_meet', cat: true,   // имя — с миски, после знакомства
     sitImgs: { idle: ['cat_sit', 'cat_sit', 'cat_sit_1'], wave: 'cat_sit_1' },
   },
@@ -999,14 +1000,14 @@ export const ROOMS = {
   },
   // покои принцессы — арена босса главы 1 (призрак главы стражи, v0.65); победа — конец главы
   mage: {
-    name: 'Преддверие покоев', tiles: 'castle', length: 480, columns: false, torches: [100, 240, 380], magic: true, stairs: 'up', stairsX: 424,
+    name: 'Преддверие покоев', tiles: 'castle', length: 480, columns: false, torches: [100, 240, 380], magic: true, stairs: 'up', stairsX: 372,   // лестница целиком в кадре (v0.97)
     decor: [
       { type: 'window', x: 200, y: 18, moon: true }, { type: 'window', x: 330, y: 18 },
       { type: 'portrait', x: 265, y: 30, who: 'princess', look: 'look_princess', name: 'портрет принцессы' }, { type: 'tapestry', x: 140, y: 16 },
     ],
     // после победы над боссом — винтовая лестница наверх, в покои принцессы (владелец, v0.95)
     doors: [{ id: 'in', x: 56, kind: 'wood', to: 'tower', toDoor: 'up', name: 'Лестница башни' },
-      { id: 'up', x: 430, kind: 'none', stairs: true, climb: true, requires: 'done_boss', to: 'princess', toDoor: 'down', name: 'Покои принцессы' }],
+      { id: 'up', x: 378, kind: 'none', stairs: true, climb: true, requires: 'done_boss', to: 'princess', toDoor: 'down', name: 'Покои принцессы' }],
     encounters: [
       // v0.95: собрана вся история капитана (PEACE_ITEMS в src/main.js) — разговор peaceTalk и мирный исход, иначе казнь
       { x: 230, story: 'boss', before: 'boss_intro', after: 'boss_end', peaceTalk: 'boss_peace', noRise: true,
@@ -1068,6 +1069,10 @@ export const ROOMS = {
     // покои — картина целиком (владелец, 17.10: «свой вид, открытые широкие окна, балдахин»): assets/backgrounds/princess/princess_0.png
     // (tools/pixellab_room.py base princess …); на картине кровать с балдахином, тумбочка с подсвечником, окна с видом,
     // стол для записей с креслом, комод. Осмотр — невидимые места (spot) у нарисованных вещей.
+    // v0.97 (владелец 17.10): покои — картина, как в визуальной новелле (VN_SCENES в src/main.js): рыцаря там нет, вещи
+    // осматриваются наведением и кликом, «Завершить миссию» — к порталу. Комната ниже — запасная (старые сохранения
+    // ведут к лестнице Преддверия и сразу открывают картину: vnFrom).
+    vn: 'princess', vnFrom: ['mage', 366],
     name: 'Покои принцессы', tiles: 'princess', tileCount: 1, length: 320, columns: false, torches: [], limitRight: 306, ceiling: false,
     doors: [{ id: 'down', x: 22, kind: 'none', stairs: true, to: 'mage', toDoor: 'up', name: 'Винтовая лестница' }],
     decor: [

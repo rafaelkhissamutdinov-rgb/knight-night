@@ -15,7 +15,7 @@ const PEACE = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_
     await p.evaluate(([room, x, bag, equip, flags]) => localStorage.setItem('knightNight.save.v1', JSON.stringify({ room, x, z: 20, hp: 10, coins: 0, bag, equip: { weapon: 'sword_old', armor: 'armor_old', ...equip }, unlocked: ['sword'], cleared: [], flags: { seen_wake: true, trainer_gone: true, ...flags }, pickups: [] })), [room, x, bag, equip, flags]);
     await p.reload(); await p.waitForTimeout(900); await p.keyboard.press('Enter'); await p.waitForTimeout(900);
   };
-  const st = () => p.evaluate(() => { const g = window.knightNight; return { mode: g.mode, room: g.room, ending: g.ending && { phase: g.ending.phase, t: +g.ending.t.toFixed(1), bt: g.ending.at == null ? -1 : g.ending.t - g.ending.at + 0.8, peace: g.ending.peace }, story: !!g.storyView, x: Math.round(g.player.x), flags: { pilgrim: g.flags.path_pilgrim, ghost: g.flags.path_ghost, egoist: g.flags.path_egoist, ending: g.flags.ending }, mask: g.bag.includes('broken_mask') }; });
+  const st = () => p.evaluate(() => { const g = window.knightNight; return { mode: g.mode, room: g.room, ending: g.ending && { phase: g.ending.phase, t: +g.ending.t.toFixed(1), bt: g.ending.at == null ? -1 : g.ending.t - g.ending.at + 0.8, peace: g.ending.peace }, story: !!g.storyView, vn: !!g.vn, sign: !document.querySelector('#path-sign').hidden && document.querySelector('#path-sign').className, x: Math.round(g.player.x), flags: { pilgrim: g.flags.path_pilgrim, ghost: g.flags.path_ghost, egoist: g.flags.path_egoist, ending: g.flags.ending }, mask: g.bag.includes('broken_mask') }; });
 
   for (const peace of [true, false]) {
     const tag = peace ? 'peace' : 'exec';
@@ -31,6 +31,7 @@ const PEACE = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_
       await p.waitForTimeout(250);
     }
     console.log(tag, 'start', JSON.stringify(s));
+    const signs = []; for (let i = 0; i < 30; i++) { const c = await st(); if (c.sign) signs.push(c.sign); await p.waitForTimeout(80); }
     if (!s.ending || s.ending.peace !== peace) { fail(`${tag}: сцена конца не началась`); continue; }
     // кат-сцена кадрами: снимки кадров, потом — снова игра, лестница наверх, покои, окно (E)
     for (let f = 0; f < (peace ? 7 : 4); f++) {
@@ -40,19 +41,19 @@ const PEACE = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_
     for (let i = 0; i < 200 && (await st()).ending; i++) await p.waitForTimeout(50);
     s = await st(); console.log(tag, 'after cine', JSON.stringify(s));
     if (!s.mask) fail(`${tag}: маска не получена`);
+    if (!signs.includes(peace ? 'pilgrim' : 'ghost')) fail(`${tag}: знак пути не появился в кат-сцене (${signs})`);
     await p.waitForTimeout(800);
     // к лестнице наверх и в покои
-    await p.evaluate(() => { const g = window.knightNight; g.player.x = 420; g.player.z = 10; });
+    await p.evaluate(() => { const g = window.knightNight; g.player.x = 380; g.player.z = 10; });
     await p.waitForTimeout(300);
     await p.keyboard.down('KeyW'); await p.waitForTimeout(600); await p.keyboard.up('KeyW');
-    for (let i = 0; i < 80 && (await st()).room !== 'princess'; i++) await p.waitForTimeout(100);
-    await p.waitForTimeout(1500);
+    // v0.97: покои — картина (визуальная новелла), рыцаря там нет
+    for (let i = 0; i < 80 && !(await st()).vn; i++) await p.waitForTimeout(100);
+    await p.waitForTimeout(1000);
     s = await st(); console.log(tag, 'princess', JSON.stringify(s));
-    if (s.room !== 'princess') { fail(`${tag}: не поднялся в покои принцессы`); await p.evaluate(() => window.knightNightDebug.goRoom?.('princess')); }
+    if (!s.vn) fail(`${tag}: не поднялся в покои принцессы`);
     await shot(`${tag}_princess`);
-    await p.evaluate(() => { const g = window.knightNight; g.player.x = 222; g.player.z = 8; });
-    await p.waitForTimeout(400);
-    await p.keyboard.press('KeyE'); await p.waitForTimeout(300);
+    await p.click('.vn-bar [data-a=finish]'); await p.waitForTimeout(500);
     console.log(tag, 'after E', JSON.stringify(await p.evaluate(() => { const g = window.knightNight; return { mode: g.mode, cur: g.talk?.current?.text?.slice(0, 30), hidden: document.querySelector('#talk').hidden, story: !!g.storyView, vibe: !!g.vibe }; })));
     for (let i = 0; i < 40 && (await st()).mode === 'talk'; i++) { await p.keyboard.press((await p.locator('#talk-choices button').count()) ? 'Digit1' : 'Enter'); await p.waitForTimeout(300);
       if (process.env.DBG) console.log(JSON.stringify(await p.evaluate(() => ({ m: window.knightNight.mode, cur: window.knightNight.talk?.current?.text?.slice(0, 20), dom: document.querySelector('#talk-text').textContent.slice(0, 20), shown: window.knightNight.talkShown, la: performance.now() - window.knightNight.lineAt, af: document.activeElement?.className })))); }
