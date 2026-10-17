@@ -27,6 +27,7 @@ run backtrack tools/bots/backtrack.cjs
 run music tools/bots/music.cjs
 run ui tools/bots/ui.cjs
 run facing tools/bots/facing.cjs
+run ending tools/bots/ending.cjs
 grep -q 'diary_4' "$KN_OUT/souls.log" && grep -q 'sun_medallion_pure' "$KN_OUT/souls.log" || { echo "   задания душ не пройдены"; fail=1; }
 if [ -z "$BOTS_QUICK" ]; then
   run boss tools/bots/boss.cjs 0.2 turn 60
