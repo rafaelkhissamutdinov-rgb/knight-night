@@ -170,10 +170,13 @@ export const TRACKS = {
   // «Lika Shop» (владелец, v0.92) — лавка Лики. 16 тактов по 3,2 с: 4 такта вступления (тихие колокольчики), по кругу —
   // такты 5–16. Трек тише остальных (−21,7 LUFS против −17), поэтому громкость выше
   shop: { url: 'assets/music/lika_shop.mp3', intro: 12.8, length: 51.2, beat: 0.8, vol: 0.5, reverb: 0 },
+  // бой с Илиа (владелец, 17.10, BeepBox) — с момента, когда он обнажил клинок. 16 тактов по 3,2 с: первый — вступление,
+  // по кругу такты 2–16
+  ilia: { url: 'assets/music/ilia_duel.mp3', intro: 3.2, length: 51.2, beat: 0.8, vol: 0.3, reverb: 0, drums: false },
 };
 // места: title — заставка, explore — замок, shop — лавка, rest — отдых и «вайб», duel — сюжетный бой, boss — босс главы.
 // Новый трек владельца: добавить в TRACKS и указать здесь; у комнаты можно задать свой (music в ROOMS)
-export const ZONE_TRACK = { title: 'castle', explore: 'castle', shop: 'shop', rest: 'castle', duel: 'castle', boss: 'boss' };
+export const ZONE_TRACK = { title: 'castle', explore: 'castle', shop: 'shop', rest: 'castle', duel: 'castle', boss: 'boss' , ilia: 'ilia' };
 export const TRACK = TRACKS.castle;   // прежнее имя
 const loaded = {};    // имя → { buf, t0 } (t0 — где в файле начинается музыка: mp3 добавляет в начало тишину кодировщика)
 const loading = {};   // имя → true | 'failed'

@@ -13,6 +13,8 @@ POSES = {
     'groom': 'sitting and licking its raised front paw, grooming itself',
     'stretch': 'doing a long stretch: front legs reaching forward low, rear raised, tail up',
     'stand': 'standing on four legs with its tail raised high, looking back over its shoulder with bright yellow eyes',
+    # v0.95 (владелец): после угощения валится на спину и показывает живот — ждёт, что погладят
+    'belly': 'rolled over on its back, belly up, all four paws curled in the air, head tilted toward the viewer, playful, waiting to be petted',
 }
 ref, rsz = b64img(os.path.join(ROOT, 'assets', 'objects', 'cat_sit.png'))
 def job(k):

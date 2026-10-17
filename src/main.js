@@ -1622,6 +1622,7 @@ function handlePress(code) {
       if (look.ending) { startTalk(look.look, () => { if (game.flags.ending) startPortalEnding(); }); return; }   // окно покоев принцессы — к порталу (v0.95)
       if (look.fill && hasItem('silver_cup') && !game.flags[look.fill]) {
         game.flags[look.fill] = true;
+        syncCupName();
         callout('Чаша наполнена мутной водой', 'perfect'); sfx.perfect(); save();
         return;
       }
@@ -1743,7 +1744,10 @@ function musicZone() {
   if (game.rest || game.vibe || game.ending) return 'rest';
   if (game.arena) {
     // музыка боя — когда закончился разговор перед боем и пошла схватка (владелец, v0.93), дальше — до конца боя (и в паузе)
-    const fight = game.enemies.some(e => e.group === game.arena.index && e.kind === 'boss') ? 'boss' : (room().encounters ?? [])[game.arena.index]?.story ? 'duel' : null;
+    const enc = (room().encounters ?? [])[game.arena.index];
+    // music — свой трек боя (Илиа, владелец 17.10): с того мига, как он заметил рыцаря и обнажил рапиру
+    const awake = game.enemies.some(e => e.group === game.arena.index && e.alive && e.state !== 'dormant');
+    const fight = game.enemies.some(e => e.group === game.arena.index && e.kind === 'boss') ? 'boss' : enc?.story ? (enc.music ? (awake || game.arena.music ? enc.music : null) : 'duel') : null;
     if (fight && (game.arena.music || game.mode === 'play')) { game.arena.music = true; return fight; }
   }
   if (game.mode === 'shop' || (room()?.npcs ?? []).some(n => NPC_TYPES[n.type]?.shop)) return 'shop';
@@ -1987,6 +1991,7 @@ function useAltar(pr) {
     // освящение (лор владельца): вода в старой чаше, медальон Солнца — в воду; освящает не священник, но свет отвечает
     game.bag.splice(game.bag.indexOf('sun_medallion'), 1);
     game.flags.cup_holy = true;
+    syncCupName();
     game.flags[pr.altar] = true;
     sparks(pr.x, groundY(pr.z) - 20, 40, ['#ffe080', '#ffffff', '#fff4c2'], 140);
     flash('#fff4c2', 0.7);
@@ -2787,6 +2792,7 @@ function readScroll(id) {
 
 // Окно снаряжения: слева — надетое, справа — сумка, внизу — описание
 function openEquip() {
+  syncCupName();
   if (game.mode !== 'play' || game.transition || game.cutscene) return;
   game.mode = 'equip';
   game.equipSel = null;
@@ -2811,7 +2817,11 @@ function bagStacks() {
 }
 
 // иконка предмета (v0.74, assets/items/<id>.png из tools/pixellab_icons.py); нет картинки — просто текст
-const itemIcon = id => (id ? `<img class="item-icon" src="assets/items/${id}.png" alt="" onerror="this.remove()">` : '');
+const itemIcon = id => (id ? `<img class="item-icon" src="assets/items/${id === 'silver_cup' && game.flags.cup_holy ? 'silver_cup_holy' : id}.png" alt="" onerror="this.remove()">` : '');
+// подпись чаши по тому, что в ней (владелец, 17.10): освящённая вода с медальоном видна и в названии
+function syncCupName() {
+  ITEMS.silver_cup.name = game.flags.cup_holy ? 'Чаша: освящённая вода с медальоном' : game.flags.cup_water ? 'Чаша с мутной водой' : 'Серебряная чаша';
+}
 
 // v0.91 (отзыв тестера: «нажала посмотреть — а бинт сразу использовался»): клик выбирает вещь и показывает
 // описание с кнопкой действия; действие — этой кнопкой или повторным кликом по той же вещи
@@ -3905,7 +3915,7 @@ function render() {
     }
     if (a.prop?.type === 'weapon') { drawLyingWeapon(g, ITEMS[a.prop.pick].weapon, a.x - cam, groundY(a.z), game.time); continue; }   // оружие лежит на полу
     if (a.prop?.lights && !game.flags[a.prop.lights] && drawObjNamed(g, 'prop_candles_out', a.x - cam, groundY(a.z) + 1 - (a.prop.lift ?? 0))) continue;   // потухшая свеча
-    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z) - (a.prop.lift ?? 0), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? (!!game.flags[a.prop.altar] && cupOnAltar()) : !!game.flags[chestFlag(a.prop)], game.time, a.x);
+    if (a.prop) drawProp(g, a.prop.type, a.x - cam, groundY(a.z) - (a.prop.lift ?? 0), a.prop.type === 'chair' ? !!a.prop.flip : a.prop.altar ? (game.flags[a.prop.altar] && cupOnAltar() ? (game.flags.cup_holy ? 2 : 1) : 0) : !!game.flags[chestFlag(a.prop)], game.time, a.x);
     else if (a === game.player) {
       const fa = playerAlpha();
       if (fa > 0.02) { g.globalAlpha = fa; renderPlayer(cam); g.globalAlpha = 1; }

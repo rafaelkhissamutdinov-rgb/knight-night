@@ -1022,6 +1022,10 @@ export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
     if (opened) {
       rect(g, x - 1, top - 7, 3, 3, '#d8dde6'); rect(g, x, top - 4, 1, 2, '#a3aab4');
       if (Math.floor(time * 3) % 3 === 0) rect(g, x + 1, top - 8, 1, 1, '#ffffff');
+      if (opened === 2) {   // освящённая вода с медальоном: цепочка свисает через край
+        rect(g, x - 1, top - 7, 3, 1, '#9fe0ff');
+        rect(g, x + 2, top - 7, 1, 1, '#e8ba40'); rect(g, x + 2, top - 6, 1, 1, '#a8822e'); rect(g, x + 3, top - 5, 1, 1, '#e8ba40');
+      }
     }
   } else if (type === 'altar') {
     // алтарь: каменная плита, белое покрывало, свечи; на подставке — чаша, если поставили (opened)

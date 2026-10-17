@@ -528,7 +528,7 @@ export const ROOMS = {
       { x: 1020, enemies: [{ type: 'merc', dx: 70, z: 20 }] },
       { x: 1380, enemies: [{ type: 'skelShield', dx: 50, z: 26 }] },
       { x: 1740, enemies: [{ type: 'skelLong', dx: 70, z: 22 }, { type: 'skelShort', dx: 100, z: 38 }] },
-      { x: 2100, story: 'ilia', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
+      { x: 2100, story: 'ilia', music: 'ilia', enemies: [{ type: 'duelist', dx: 80, z: 22 }] },  // Илиа отдыхает, замечает рыцаря и бросается в бой
     ],
   },
   // Старая библиотека над Темницей (v0.78, идея владельца): много книг, столы, бумаги на полу, потухшая свеча; живёт кот Фуджин
@@ -993,7 +993,7 @@ export const ROOMS = {
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.
   princess: {
     name: 'Покои принцессы', tiles: 'castle', length: 440, columns: false, torches: [80], cobwebs: true,
-    doors: [{ id: 'down', x: 56, kind: 'wood', to: 'mage', toDoor: 'up', name: 'Винтовая лестница' }],
+    doors: [{ id: 'down', x: 56, kind: 'wood', stairs: true, to: 'mage', toDoor: 'up', name: 'Винтовая лестница' }],   // вниз — по ступеням Преддверия, без проёма
     decor: [
       { type: 'window', x: 168, w: 52, h: 60, y: 4, view: true, look: 'look_princess_view', name: 'окно' },
       { type: 'window', x: 262, w: 64, h: 66, y: 2, moon: true, view: true, look: 'look_princess_window', name: 'большое окно (вернуться к порталу)', ending: true },
