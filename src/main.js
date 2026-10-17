@@ -1105,8 +1105,20 @@ function finish(d = {}) {
     `${d.finishText ?? 'Рыцарь поднимается на второй этаж — его мы сделаем дальше.'}\nСундуки: ${found} из ${chests.length} · тайники: ${secrets} из ${SECRETS.length} · время: ${time} · монет: ${game.coins}\nИдеальных парирований: ${s.perfect} · блоков: ${s.block} · уклонов: ${s.dodged} · пропущено: ${s.hit} · контратак: ${s.counter}`,
     'R — пройти заново');
   ui.overlayText.classList.add('controls');
-  setMenu([['Пройти заново', startNew], ['Главное меню', toTitle]]);
+  setMenu([...(game.flags.chapter1_done && !ROOMS[game.room]?.chapter ? [['Глава 2 (черновик) →', startChapter2]] : []), ['Пройти заново', startNew], ['Главное меню', toTitle]]);
   hint('');
+}
+// глава 2 (каркас, v0.96): рыцарь — на скале с титульного вида, днём; вещи и снаряжение — с собой
+function startChapter2() {
+  hideOverlay();
+  ui.overlayText.classList.remove('controls');
+  ui.reportBtn.hidden = true;
+  game.flags.chapter = 2;
+  game.mode = 'play';
+  game.player.hp = CONFIG.playerHp;
+  loadRoom('cliff', { x: 60, z: 10, facing: 1 });
+  callout('Глава 2 — Спуск', 'perfect');
+  save();
 }
 
 // ---------- лёгкий режим ----------
@@ -1310,6 +1322,7 @@ const ADMIN_POINTS = [
   { name: 'Перед балконом', room: 'balcony', x: 60, steps: ['wake', 'tutorial', 'ilia'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Второй этаж', room: 'landing2', x: 200, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Глава 2: скала', room: 'cliff', x: 60, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard', 'boss'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { chapter1_done: true, chapter: 2, ending: 'execution', done_boss: true } },
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
 ];
 const ADMIN_LOOT = ['sword_old', 'rapier', 'dagger', 'map', 'journal', 'key_tower', 'diamond_ace', 'broken_mask', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup',
@@ -1336,7 +1349,7 @@ function adminLoad(data) {
 const adminSpot = id => Math.max(40, Math.min(ROOMS[id].length - 40, (ROOMS[id].doors?.[0]?.x ?? 40) + 24));
 
 function adminPoint(pt) {
-  const flags = Object.assign({}, ...pt.steps.map(s => STORY_FLAGS[s]));
+  const flags = Object.assign({}, ...pt.steps.map(s => STORY_FLAGS[s]), pt.flags ?? {});
   const cleared = ALL_ENCOUNTERS.filter(({ enc }) => enc.story && flags['done_' + enc.story]).map(({ key }) => key);
   const unlocked = ['sword', ...(pt.bag.includes('rapier') ? ['rapier'] : [])];
   adminLoad({ version: VERSION, room: pt.room, x: pt.x, z: 10, hp: CONFIG.playerHp, coins: Math.max(game.coins ?? 0, 100),
@@ -4861,12 +4874,13 @@ function sceneLights() {
 }
 // тёмные комнаты (камера, привал) — тоже живым светом (v0.67): почти ночь, светят портал, костёр и выход
 const DARK_AMBIENT = [0.16, 0.14, 0.2];
+const DAY_AMBIENT = [1.02, 1, 0.96];
 function applyLight() {
   if (!light) return;
   const r = game.mode === 'title' || game.mode === 'map' ? null : room();
   if (!r) { light.off(); return; }
   // тёмная комната с ambient (v0.80, библиотека): полутьма видна и без свечей, каждая зажжённая свеча (lights) светлеет
-  let amb = r.dark ? (r.ambient ?? DARK_AMBIENT) : AMBIENT;
+  let amb = r.day ? DAY_AMBIENT : r.dark ? (r.ambient ?? DARK_AMBIENT) : AMBIENT;   // глава 2 — день
   if (r.ambient) { const lit = (r.props ?? []).filter(pr => pr.lights && game.flags[pr.lights]).length; amb = amb.map(v => Math.min(0.62, v + lit * 0.045)); }
   light.draw(sceneLights(), amb, true);
 }
