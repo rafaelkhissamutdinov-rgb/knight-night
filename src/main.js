@@ -917,27 +917,20 @@ function updateEnding(dt) {
   } else if (E.phase === 'portal') endingPortal(E, p, dt);
 }
 
-// ---------- кат-сцена кадрами (v0.95, владелец): картина стоит, меняются только позы героев — как раскадровка ----------
-// Мирный исход: призрак на коленях — склоняется — встаёт — смотрит на нас — растворяется. Казнь: на коленях — рыцарь
-// заносит меч — удар (маска раскалывается, призрак рассыпается дымом, без крови) — маска на полу.
+// ---------- кат-сцена кадрами (v0.95, владелец): как story mode — нарисованные картины меняются одна за другой ----------
+// Картины — PixelLab (tools/pixellab_ending.py): одна основа (рыцарь стоит, призрак на колене у двери покоев) и её правки.
+// Мирный исход: на коленях — склоняется — встаёт — смотрит на нас — растворяется в свете — маска на полу.
+// Казнь: на коленях — рыцарь заносит меч — удар (маска раскалывается, призрак рассыпается дымом, без крови) — маска на полу.
 function cineFrames(peace) {
   return peace ? [
-    { d: 1.6, boss: 'pose_kneel', knight: 'idle' },
-    { d: 1.5, boss: 'pose_dead', knight: 'idle' },
-    { d: 1.0, boss: 'pose_kneel', knight: 'idle' },
-    { d: 1.4, boss: 'pose_idle', knight: 'idle' },
-    { d: 2.0, boss: 'front', knight: 'idle' },
-    { d: 2.2, boss: 'front', knight: 'idle', fade: true },
-    { d: 1.8, knight: 'idle', mask: true },
+    { img: 'base', d: 2.0 }, { img: 'bow', d: 1.8 }, { img: 'base', d: 0.9 }, { img: 'rise', d: 1.8 }, { img: 'look', d: 2.4 },
+    { img: 'fade', d: 2.4, fade: true }, { img: 'mask', d: 2.2 },
   ] : [
-    { d: 1.6, boss: 'pose_kneel', knight: 'idle' },
-    { d: 1.6, boss: 'pose_kneel', knight: 'windup' },
-    { d: 1.8, knight: 'strike', shatter: true },
-    { d: 1.8, knight: 'idle', mask: true },
+    { img: 'base', d: 2.0 }, { img: 'raise', d: 1.8 }, { img: 'strike', d: 2.0, shatter: true }, { img: 'mask', d: 2.2 },
   ];
 }
-const CINE = { W: 640, H: 360, kx: 250, bx: 410, ground: 318, scale: 2 };
-let cineBg = null, cineSpr = null;
+const CINE = { W: 640, H: 360 };
+const cineImgs = {};
 function openCine() {
   let el = ui.cine;
   if (!el) {
@@ -946,7 +939,7 @@ function openCine() {
     el.innerHTML = `<canvas width="${CINE.W}" height="${CINE.H}"></canvas>`;
     ui.box.appendChild(el);
   }
-  if (!cineBg) { cineBg = new Image(); cineBg.src = 'assets/story/ending_hall.png'; }
+  for (const n of ['base', 'bow', 'rise', 'look', 'fade', 'mask', 'raise', 'strike']) if (!cineImgs[n]) { cineImgs[n] = new Image(); cineImgs[n].src = `assets/story/ending_${n}.png`; }
   el.hidden = false;
   el.classList.remove('out');
 }
@@ -962,76 +955,25 @@ function updateCine(E, dt) {
     E.ft = 0;
     const nx = E.frames[E.i];
     if (!nx) { endCine(E); return; }
-    if (nx.shatter) { sfx.counter(); sfx.flame(); cineShatter(E); }
+    if (nx.shatter) { sfx.counter(); sfx.flame(); E.flash = 1; }
     else if (nx.fade) sfx.portal();
-    else if (nx.knight === 'windup') sfx.whoosh();
+    else if (nx.img === 'raise') sfx.whoosh();
   }
-  for (const f of E.fx) { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += (f.g ?? 0) * dt; f.life -= dt; }
-  E.fx = E.fx.filter(f => f.life > 0);
-  if (E.frames[E.i].fade && Math.random() < 0.7) E.fx.push({ x: CINE.bx + (Math.random() - 0.5) * 50, y: CINE.ground - Math.random() * 110, vx: (Math.random() - 0.5) * 12, vy: -30 - Math.random() * 40, life: 1.2, max: 1.2, c: Math.random() < 0.5 ? '#fff3c4' : '#bfe8ff', r: 2 });
   drawCine(E);
-}
-function cineShatter(E) {
-  for (let i = 0; i < 22; i++) E.fx.push({   // осколки маски
-    x: CINE.bx + (Math.random() - 0.5) * 8, y: CINE.ground - 100, vx: (Math.random() - 0.5) * 260, vy: -120 - Math.random() * 160, g: 600,
-    life: 0.9 + Math.random() * 0.4, max: 1.3, c: i % 3 ? '#f2efe6' : '#c9a24a', r: 3,
-  });
-  for (let i = 0; i < 18; i++) E.fx.push({   // призрак рассыпается дымом
-    x: CINE.bx + (Math.random() - 0.5) * 50, y: CINE.ground - Math.random() * 100, vx: (Math.random() - 0.5) * 60, vy: -20 - Math.random() * 30,
-    life: 1.2 + Math.random() * 0.5, max: 1.7, c: '#9fd6ff', r: 6 + Math.random() * 8, mist: true,
-  });
-  E.flash = 1;
-}
-// персонаж — в маленький холст в родном размере, потом на кадр увеличенным (пиксели героев — как у картины)
-function cineSprite(c, draw) {
-  const o = cineSpr ??= document.createElement('canvas');
-  o.width = 120; o.height = 120;
-  const x = o.getContext('2d');
-  x.imageSmoothingEnabled = false;
-  draw(x);
-  c.drawImage(o, 0, 0, 120, 120, 0, 0, 120 * CINE.scale, 120 * CINE.scale);
 }
 function drawCine(E) {
   const c = ui.cine.querySelector('canvas').getContext('2d');
   c.imageSmoothingEnabled = false;
   c.fillStyle = '#05040a';
   c.fillRect(0, 0, CINE.W, CINE.H);
-  if (cineBg?.complete && cineBg.naturalWidth) c.drawImage(cineBg, 0, 0, CINE.W, CINE.H);
-  const fr = E.frames[E.i], p = game.player, k = Math.min(1, E.ft / fr.d);
-  setNormalTarget(null);   // свой холст — карте нормалей игры это не нужно (игра вернёт её в следующем кадре)
-  const at = (cx, f) => { c.save(); c.translate(cx - 60 * CINE.scale, CINE.ground - 110 * CINE.scale); f(); c.restore(); };
-  c.fillStyle = 'rgba(0,0,0,0.35)';   // тени под героями
-  c.fillRect(CINE.kx - 34, CINE.ground - 4, 68, 6);
-  if (fr.boss) c.fillRect(CINE.bx - 34, CINE.ground - 4, 68, 6);
-  if (fr.boss) at(CINE.bx, () => {
-    c.globalAlpha = fr.fade ? Math.max(0, 1 - k) * 0.9 : 0.9;
-    cineSprite(c, x => drawSprite('boss', x, { x: 60, ground: 110, facing: -1, frame: fr.boss, state: 'ready', time: game.time, weaponLen: 17, bladeHidden: fr.boss !== 'pose_kneel' && fr.boss !== 'pose_dead' }));
-    c.globalAlpha = 1;
-  });
-  const kp = fr.knight === 'windup' ? POSES.windup_high : fr.knight === 'strike' ? POSES.strike_high : POSES.idle;
-  at(CINE.kx, () => cineSprite(c, x => drawKnight(x, { x: 60, ground: 110, facing: 1, pose: kp, state: fr.knight === 'idle' ? 'ready' : 'attack', time: game.time,
-    weaponLen: p.arms.length ?? 17, rapier: p.weapon === 'rapier', weapon: p.weapon === 'dagger' ? 'dagger' : undefined })));
-  if (light) setNormalTarget(light.normalCtx);
-  if (fr.mask) {   // расколотая маска на полу: две белые половинки с золотом
-    const mx = CINE.bx - 6, my = CINE.ground - 8;
-    for (const [dx, rot] of [[-7, -0.3], [7, 0.4]]) {
-      c.save(); c.translate(mx + dx, my); c.rotate(rot);
-      c.fillStyle = '#f2efe6'; c.fillRect(-6, -4, 12, 8);
-      c.fillStyle = '#c9a24a'; c.fillRect(-6, -4, 12, 2);
-      c.fillStyle = '#14101e'; c.fillRect(dx < 0 ? -3 : 1, -1, 3, 2);
-      c.restore();
-    }
-  }
-  for (const f of E.fx) {
-    c.globalAlpha = Math.max(0, f.life / f.max) * (f.mist ? 0.35 : 1);
-    c.fillStyle = f.c;
-    if (f.mist) { c.beginPath(); c.arc(f.x, f.y, f.r + (1 - f.life / f.max) * 10, 0, Math.PI * 2); c.fill(); }
-    else c.fillRect(Math.round(f.x), Math.round(f.y), f.r, f.r);
-  }
-  c.globalAlpha = 1;
-  if (E.flash > 0) { c.globalAlpha = E.flash; c.fillStyle = '#ffffff'; c.fillRect(0, 0, CINE.W, CINE.H); c.globalAlpha = 1; E.flash = Math.max(0, E.flash - 0.06); }
+  const fr = E.frames[E.i], im = cineImgs[fr.img];
+  if (im?.complete && im.naturalWidth) c.drawImage(im, 0, 0, CINE.W, CINE.H);
+  // кадр проявляется из темноты (смена кадра — короткая, как перелистывание)
+  const k = Math.min(1, E.ft / 0.18);
+  if (k < 1) { c.globalAlpha = 1 - k; c.fillStyle = '#05040a'; c.fillRect(0, 0, CINE.W, CINE.H); c.globalAlpha = 1; }
+  if (E.flash > 0) { c.globalAlpha = E.flash; c.fillStyle = '#ffffff'; c.fillRect(0, 0, CINE.W, CINE.H); c.globalAlpha = 1; E.flash = Math.max(0, E.flash - 0.05); }
   c.fillStyle = '#000';   // кинополосы
-  c.fillRect(0, 0, CINE.W, 34); c.fillRect(0, CINE.H - 34, CINE.W, 34);
+  c.fillRect(0, 0, CINE.W, 30); c.fillRect(0, CINE.H - 30, CINE.W, 30);
 }
 function endCine(E) {
   closeCine();
@@ -4601,11 +4543,15 @@ function renderPlayer(cam) {
     drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' });
     return;
   }
+  // посадка по месту (владелец, 17.10): на скамье, диване, в кресле — сидит на сиденье; у костра и камина — на земле, как Илиа
+  const sitImg = game.rest ? ((game.rest.spot.rest.seat ?? 0) > 0 ? 'knight_sit_seat' : 'knight_sit_ground') : game.vibe?.spot.sit ? 'knight_sit_ground' : null;
   if (game.vibe && sprite && game.vibe.t > (game.vibe.spot.sit ? 0.6 : 0.25)) {   // «вайбовать»: сидит (sit у места) или стоит спиной к нам и смотрит вдаль
+    if (sitImg && drawObjNamed(g, sitImg, px, GROUND, p.facing < 0)) return;
     drawKnight(g, game.vibe.spot.sit ? { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' } : { x: px, ground: GROUND, facing: 1, frame: 'back' });
     return;
   }
   if (game.rest && sprite) {
+    if (drawObjNamed(g, sitImg, px, GROUND, p.facing < 0)) return;
     drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' });
     return;
   }
