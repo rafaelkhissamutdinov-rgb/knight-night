@@ -78,6 +78,16 @@ export const sfx = {
     src.connect(f).connect(gn).connect(master); src.start(t0); src.stop(t0 + dur);
   },
   dash() { burst(0.09, 'lowpass', 600, 0.25); },
+  // мурчание кота: низкое дрожащее урчание
+  purr() {
+    if (!ctx) return;
+    const t0 = ctx.currentTime, osc = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), gn = ctx.createGain();
+    osc.type = 'sawtooth'; osc.frequency.value = 52;
+    lfo.frequency.value = 24; lg.gain.value = 0.05; lfo.connect(lg).connect(gn.gain);
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 240;
+    gn.gain.setValueAtTime(0.0001, t0); gn.gain.exponentialRampToValueAtTime(0.06, t0 + 0.3); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.7);
+    osc.connect(f).connect(gn).connect(master); osc.start(t0); lfo.start(t0); osc.stop(t0 + 1.8); lfo.stop(t0 + 1.8);
+  },
   // шаг призрака (маска): холодный выдох и звон
   blink() { tone(880, 0.3, 'sine', 0.08, 330); burst(0.25, 'bandpass', 1200, 0.25, 1.2); tone(1320, 0.4, 'triangle', 0.04); },
   ward() { tone(880, 0.25, 'sine', 0.15, 1320); burst(0.06, 'highpass', 2500, 0.2); },

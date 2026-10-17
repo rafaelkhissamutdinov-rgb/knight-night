@@ -786,6 +786,34 @@ async function copyReport() {
   }
 }
 
+// ---------- погладить Фуджина (владелец, 17.10) ----------
+// Подходит, опускается на колено (кот на столе — тянется стоя) и гладит: лежит на спине или на боку — по животу,
+// сидит — кот поднимает голову к руке; спит — спит дальше. Сердечки и тихое мурчание.
+function petCat(n) {
+  const p = game.player;
+  const side = Math.sign(p.x - n.x) || -1;
+  const sleeping = n.img === 'cat_sleep';
+  const belly = ['cat_belly', 'cat_lounge', 'cat_side'].includes(n.img);
+  game.pet = { n, t: 0, from: p.x, to: n.x + side * 13, head: !sleeping && !belly, kneel: false };
+  p.atk = null; p.guard = null; p.walking = false;
+  if (!p.sheathed) { p.sheathed = true; p.sheatheAt = p.clock - 1; p.sheatheRun = true; }   // меч — за спину: гладят руками
+  p.facing = -side;
+  hint('');
+}
+function updatePet(dt) {
+  const P = game.pet, p = game.player, n = P.n;
+  P.t += dt;
+  const u = Math.min(1, P.t / 0.35);
+  p.x = P.from + (P.to - P.from) * u;
+  p.facing = Math.sign(n.x - p.x) || p.facing;
+  P.kneel = P.t > 0.35 && P.t < 2.2 && (n.lift ?? 0) < 10;
+  if (P.t > 0.5 && P.t < 2.1 && Math.random() < dt * 5) game.particles.push({   // сердечки над котом
+    x: n.x + (Math.random() - 0.5) * 8, y: groundY(n.z) - (n.lift ?? 0) - 14, vx: (Math.random() - 0.5) * 8, vy: -22, life: 0.9, color: Math.random() < 0.5 ? '#ff8fb0' : '#ffd0de', heart: true,
+  });
+  if (P.t > 0.5 && !P.purr) { P.purr = true; sfx.purr?.(); }
+  if (P.t > 2.4) { game.pet = null; callout(n.img === 'cat_sleep' ? 'Фуджин сладко сопит' : 'Фуджин мурчит', 'perfect'); }
+}
+
 // ---------- маска: шаг призрака (v0.95, владелец) ----------
 // F — раствориться и проявиться за спиной ближайшего врага (сначала — перед рыцарем); во время шага неуязвим.
 // Враг после шага «проскочен» (slipAt) — с кинжалом следующий удар в спину (×3, как после рывка сквозь врага).
@@ -1640,7 +1668,8 @@ function handlePress(code) {
     if (npc) {
       npc.facing = Math.sign(p.x - npc.x) || -1;
       if (npc.def.shop) openShop(npc);
-      else startTalk(npcTalkId(npc.def));
+      else if (npc.def.cat && game.flags.fujin_fed) petCat(npc);   // накормлен — можно погладить (владелец, 17.10)
+      else startTalk(npcTalkId(npc.def), npc.def.cat ? () => { if (game.flags.fujin_fed && !npc.belly) { npc.belly = true; npc.img = 'cat_belly'; npc.flip = true; } } : null);   // угостил — валится на спину
       return;
     }
   }
@@ -2475,6 +2504,7 @@ function update(dt) {
   if (game.ending) { updateEnding(dt); updateFx(dt); updateCamera(dt); return; }
   if (game.transition) { updateTransition(dt); updateCamera(dt); return; }
   if (game.rest) { updateRest(dt); updateCoinFx(dt); updateCamera(dt); return; }
+  if (game.pet) { updatePet(dt); updateFx(dt); updateCamera(dt); return; }
   if (game.vibe) { updateVibe(dt); updateCamera(dt); return; }
   updateShield(dt);
   updateEnterTalk();
@@ -2484,7 +2514,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk(), nearVibe());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.cat && game.flags.fujin_fed ? 'погладить' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk(), nearVibe());
   } else if (game.arena?.open) {
     const d = game.doorNear;
     hint(d ? (d.locked ? d.locked : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : game.time - game.arena.t0 < 4 ? 'Можно не драться — проскочи рывком (пробел) сквозь врагов' : '');
@@ -3208,7 +3238,7 @@ function updateFx(dt) {
   for (const s of game.particles) {
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    s.vy += 300 * dt;
+    s.vy += (s.heart ? 0 : 300) * dt;   // сердечки плывут вверх
     s.life -= dt;
   }
   game.particles = game.particles.filter(s => s.life > 0);
@@ -3932,7 +3962,11 @@ function render() {
   renderChokeHold(cam);
   for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck, a.bolt);
   for (const w of game.waves) renderWave(w, cam);
-  for (const s of game.particles) rect(g, s.x - cam, s.y, 1, 1, s.color);
+  for (const s of game.particles) {
+    if (!s.heart) { rect(g, s.x - cam, s.y, 1, 1, s.color); continue; }
+    const hx = Math.round(s.x - cam), hy = Math.round(s.y);   // сердечко 3×3
+    rect(g, hx - 1, hy, 1, 1, s.color); rect(g, hx + 1, hy, 1, 1, s.color); rect(g, hx - 1, hy + 1, 3, 1, s.color); rect(g, hx, hy + 2, 1, 1, s.color);
+  }
   renderPuffs(cam);
   renderCoinFx(cam);
   if (light && !r.dark) renderDust(cam);
@@ -4563,7 +4597,7 @@ function renderPlayer(cam) {
     g.globalAlpha = 1;
     return;
   }
-  if (((game.cutscene && game.cutscene.t < WAKE.kneel) || game.ending?.kneel) && sprite) {
+  if (((game.cutscene && game.cutscene.t < WAKE.kneel) || game.ending?.kneel || game.pet?.kneel) && sprite) {
     drawKnight(g, { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' });
     return;
   }
@@ -4699,7 +4733,8 @@ function renderNpc(n, cam) {
   if (n.def.sitImgs) {
     // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой
     const near = Math.abs(game.player.x - n.x) < 50;
-    if (n.def.cat && n.img && n.img !== 'cat_sit' && drawObjNamed(g, n.img, x, gy, n.flip ? n.facing < 0 : n.facing > 0)) { catGlow(n.img, x, gy, n.flip ? n.facing < 0 : n.facing > 0); return; }   // другая поза (flip — картинка смотрит вправо)
+    const img = n.def.cat ? (game.pet?.n === n && game.pet.head ? 'cat_sit' : n.img) : n.img;   // гладят — поднимает голову к руке
+    if (n.def.cat && img && img !== 'cat_sit' && drawObjNamed(g, img, x, gy, n.flip ? n.facing < 0 : n.facing > 0)) { catGlow(img, x, gy, n.flip ? n.facing < 0 : n.facing > 0); return; }   // другая поза (flip — картинка смотрит вправо)
     const name = n.def.cat ? ((game.time + n.x) % 4.3 < 0.16 ? 'cat_sit_1' : 'cat_sit')   // кот моргает
       : near ? n.def.sitImgs.wave : n.def.sitImgs.idle[Math.floor(game.time / 3.2) % n.def.sitImgs.idle.length];
     if (drawObjNamed(g, name, x, gy, n.def.cat ? n.facing > 0 : n.facing < 0)) { if (n.def.cat) catGlow(name, x, gy, n.facing > 0); return; }   // кот на картинке смотрит влево
