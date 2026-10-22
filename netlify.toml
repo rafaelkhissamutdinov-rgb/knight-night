@@ -1,0 +1,27 @@
+# Второй адрес игры (владелец, 22.10): Netlify берёт сайт прямо из репозитория, сборки нет — публикуется корень.
+# GitHub Pages при этом продолжает работать как раньше. Инструкция — docs/owner-todo.md, раздел «Второй адрес игры».
+[build]
+  publish = "."
+  command = "echo 'static'"
+
+# служебное и черновики не публикуем
+[[redirects]]
+  from = "/tools/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/art/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+# сервис-воркер и страница — всегда свежие (как на GitHub Pages)
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"

@@ -303,12 +303,16 @@ export function drawSprite(name, g, o) {
   const size = meta.size, foot = meta.foot, cx = meta.center;
   const X = Math.round(o.x * S), G = Math.round((o.ground - (o.airY ?? 0)) * S);
   let tip = null;
+  // масштаб (v1.0): уходит вдаль по нарисованной тропе — меньше, от точки на земле; карту нормалей тогда не рисуем
+  const scaled = o.scale != null && Math.abs(o.scale - 1) > 0.01;
+  if (scaled) { g.translate(X, G); g.scale(o.scale, o.scale); g.translate(-X, -G); }
+  const nc = scaled ? null : normalCtx;
   if (o.view === 'front' || o.view === 'back') {
     const img = s.imgs[o.view];
     if (!img) { g.restore(); return null; }
     const w = Math.max(2, Math.round(size * (o.squash ?? 1)));
     g.drawImage(img, X - Math.round(w / 2), G - foot, w, size);
-    if (normalCtx && s.nimgs[o.view]) normalCtx.drawImage(s.nimgs[o.view], X - Math.round(w / 2) + t.e, G - foot + t.f, w, size);
+    if (nc && s.nimgs[o.view]) normalCtx.drawImage(s.nimgs[o.view], X - Math.round(w / 2) + t.e, G - foot + t.f, w, size);
     g.restore();
     return null;
   }
@@ -339,7 +343,7 @@ export function drawSprite(name, g, o) {
   const left = right ? X - cx : X - (size - cx);
   const top = G - foot;
   const nimg = right ? s.nimgs[fname] : s.nflipped[fname];
-  if (normalCtx && nimg && !o.rotate) {
+  if (nc && nimg && !o.rotate) {
     normalCtx.globalAlpha = g.globalAlpha;
     normalCtx.drawImage(nimg, left + t.e, top + t.f);
     normalCtx.globalAlpha = 1;

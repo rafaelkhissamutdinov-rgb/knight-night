@@ -15,15 +15,37 @@ export function resetVibeFx() { state = null; }
 // звёзды — только в небе картины: пиксель голубой и светлый, вокруг тоже небо (не листва); луна — в самом широком просвете
 function skyStars(img) {
   if (!img?.complete || !img.naturalWidth) return null;
-  const c = document.createElement('canvas'); c.width = 160; c.height = 33;   // небо выше дальних гор: мир 320×66 с шагом 2
-  const x2 = c.getContext('2d', { willReadFrequently: true }); x2.drawImage(img, 0, 0, 640, 132, 0, 0, 160, 33);
-  const d = x2.getImageData(0, 0, 160, 33).data, sky = (x, y) => { if (x < 0 || y < 0 || x >= 160 || y >= 33) return false; const i = (y * 160 + x) * 4, r = d[i], gg = d[i + 1], b = d[i + 2]; return b > r + 25 && b > 120 && gg > r; };
-  const clear = (x, y, n) => { for (let dy = -n; dy <= n; dy++) for (let dx = -n; dx <= n; dx++) if (!sky(x + dx, y + dy)) return false; return true; };
+  // небо картины (мир 320×70, по пикселю картины 640×140): голубое и облака; маска — чтобы закат и ночь ложились только на небо
+  const W2 = 640, H2 = 140;
+  const c = document.createElement('canvas'); c.width = W2; c.height = H2;
+  const x2 = c.getContext('2d', { willReadFrequently: true }); x2.drawImage(img, 0, 0, W2, H2, 0, 0, W2, H2);
+  const id = x2.getImageData(0, 0, W2, H2), d = id.data;
+  const skyAt = i => { const r = d[i], gg = d[i + 1], b = d[i + 2]; return (b > r + 25 && b > 110 && gg > r) || (r > 190 && gg > 195 && b > 200); };
+  const m = new Uint8Array(W2 * H2);
+  for (let i = 0; i < W2 * H2; i++) m[i] = skyAt(i * 4) ? 1 : 0;
+  const mask = document.createElement('canvas'); mask.width = W2; mask.height = H2;
+  const mx = mask.getContext('2d'), md = mx.createImageData(W2, H2);
+  for (let i = 0; i < W2 * H2; i++) { md.data[i * 4 + 3] = m[i] ? 255 : 0; }
+  mx.putImageData(md, 0, 0);
+  const sky = (x, y) => x >= 0 && y >= 0 && x < W2 && y < H2 && m[y * W2 + x];
+  const clear = (x, y, n) => { for (let dy = -n; dy <= n; dy++) for (let dx = -n; dx <= n; dx++) if (!sky(x + dx * 2, y + dy * 2)) return false; return true; };
   const list = [];
-  for (let y = 0; y < 33; y++) for (let x = 0; x < 160; x++) if (clear(x, y, 1) && Math.random() < 0.09) list.push({ x: x * 2 + Math.floor(Math.random() * 2), y: y * 2 + Math.floor(Math.random() * 2), ph: rnd(0, 6.28), s: Math.random() < 0.12 ? 2 : 1 });
+  for (let y = 2; y < 128; y += 2) for (let x = 0; x < W2; x += 2) if (clear(x, y, 1) && Math.random() < 0.075)
+    list.push({ x: x / 2, y: y / 2, ph: rnd(0, 6.28), s: Math.random() < 0.1 ? 2 : 1, thr: 0.45 + Math.random() * 0.5, warm: Math.random() < 0.2 });
   let moon = { x: 200, y: 20 }, best = -1;
-  for (let y = 4; y < 22; y++) for (let x = 80; x < 150; x++) { let n = 0; while (n < 8 && clear(x, y, n + 1)) n++; if (n > best || (n === best && x > moon.x / 2)) { best = n; moon = { x: x * 2, y: y * 2 }; } }
-  return { list, moon };
+  for (let y = 10; y < 50; y += 2) for (let x = 160; x < 300; x += 2) { let n = 0; while (n < 8 && clear(x, y, n + 1)) n++; if (n > best || (n === best && x > moon.x * 2)) { best = n; moon = { x: x / 2, y: y / 2 }; } }
+  return { list, moon, mask };
+}
+// цвет неба по времени: k — 0 день … 1 ночь; dawn — путь обратно (рассвет розовее заката)
+const SKY_DUSK = [[0, ['#ffffff', '#ffffff', 0]], [0.35, ['#5a4a8a', '#ff9a5a', 0.55]], [0.6, ['#2a2a62', '#c0587a', 0.72]], [1, ['#060b26', '#1b2552', 0.9]]];
+const SKY_DAWN = [[0, ['#ffffff', '#ffffff', 0]], [0.35, ['#8a8ac8', '#ffc0a0', 0.45]], [0.65, ['#3a3a7a', '#e88aa0', 0.7]], [1, ['#060b26', '#1b2552', 0.9]]];
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+function skyAt(k, dawn) {
+  const T = dawn ? SKY_DAWN : SKY_DUSK;
+  let i = 0; while (i < T.length - 2 && k > T[i + 1][0]) i++;
+  const [k0, a] = T[i], [k1, b] = T[i + 1], u = Math.max(0, Math.min(1, (k - k0) / (k1 - k0)));
+  const mix = (p, q) => hex(p).map((v, j) => Math.round(v + (hex(q)[j] - v) * u));
+  return { top: mix(a[0], b[0]), low: mix(a[1], b[1]), a: a[2] + (b[2] - a[2]) * u };
 }
 
 function px(g, x, y, w, h, c, a = 1) {
@@ -72,18 +94,81 @@ export function drawVibeFx(g, fx, o) {
   g.save();
 
   if (fx === 'night') {
-    // ночь на поляне (глава 2, владелец): темноту и свет костра даёт живой свет (applyLight в main.js),
-    // здесь — только звёзды и луна, и только там, где на картине небо (o.sky — кусок фона 640×360)
+    // ночь на поляне (владелец, 22.10: «медленнее, красивее, звёзды у костра»): закат → сумерки → ночь; уходит — рассвет и снова день.
+    // Темноту и свет костра даёт живой свет (applyLight в main.js); здесь — небо по маске картины, звёзды, луна, светлячки, искры
     if (!S.stars) S.stars = skyStars(o.sky);
     if (!S.stars) { g.restore(); return; }
+    const N = o.night ?? k, dawn = !!o.dawn, cam = o.cam ?? 0;
+    const sk = skyAt(N, dawn);
+    if (sk.a > 0.01) {   // небо: цветной градиент только по маске неба (облака и даль остаются под ним)
+      const tc = S.tint ??= document.createElement('canvas');
+      tc.width = 640; tc.height = 140;
+      const tx = tc.getContext('2d');
+      tx.globalCompositeOperation = 'source-over';
+      tx.clearRect(0, 0, 640, 140);
+      const gr = tx.createLinearGradient(0, 0, 0, 140);
+      gr.addColorStop(0, `rgb(${sk.top})`); gr.addColorStop(1, `rgb(${sk.low})`);
+      tx.fillStyle = gr; tx.fillRect(0, 0, 640, 140);
+      tx.globalCompositeOperation = 'destination-in';
+      tx.drawImage(S.stars.mask, 0, 0);
+      g.globalAlpha = sk.a; g.drawImage(tc, -cam, 0, 320, 70);
+      // солнце уходит за горизонт тёплым пятном (закат) / встаёт розовым (рассвет)
+      const sunK = dawn ? Math.max(0, 1 - Math.abs(N - 0.4) / 0.35) : Math.max(0, 1 - Math.abs(N - 0.3) / 0.3);
+      if (sunK > 0) {
+        g.globalCompositeOperation = 'lighter';
+        const sx = (dawn ? 70 : 250) - cam, sy = 62;
+        const sg = g.createRadialGradient(sx, sy, 2, sx, sy, 90);
+        sg.addColorStop(0, dawn ? 'rgba(255,190,200,0.5)' : 'rgba(255,160,90,0.55)'); sg.addColorStop(1, 'rgba(255,140,90,0)');
+        g.globalAlpha = sunK; g.fillStyle = sg; g.fillRect(sx - 90, sy - 90, 180, 180);
+        g.globalCompositeOperation = 'source-over';
+      }
+    }
+    // звёзды загораются по одной (у каждой свой порог), мерцают
     g.globalCompositeOperation = 'lighter';
-    for (const s of S.stars.list) { g.globalAlpha = k * (0.5 + 0.4 * Math.sin(t * 1.6 + s.ph)); g.fillStyle = '#dfe8ff'; g.fillRect(s.x - (o.cam ?? 0), s.y, s.s, s.s); }
-    const m = S.stars.moon, mx = m.x - (o.cam ?? 0), my = m.y;
-    const grd = g.createRadialGradient(mx, my, 1, mx, my, 22); grd.addColorStop(0, 'rgba(200,215,255,0.35)'); grd.addColorStop(1, 'rgba(200,215,255,0)');
-    g.globalAlpha = k; g.fillStyle = grd; g.fillRect(mx - 22, my - 22, 44, 44);
-    g.globalCompositeOperation = 'source-over';
-    g.fillStyle = '#eef2ff'; g.beginPath(); g.arc(mx, my, 4, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#c9d3f0'; g.fillRect(mx - 1, my - 2, 2, 1); g.fillRect(mx + 1, my + 1, 1, 1);
+    for (const st of S.stars.list) {
+      const on = Math.max(0, Math.min(1, (N - st.thr) / 0.12));
+      if (on <= 0) continue;
+      g.globalAlpha = on * (0.55 + 0.4 * Math.sin(t * (1.2 + st.ph * 0.3) + st.ph));
+      g.fillStyle = st.warm ? '#ffe7c4' : '#dfe8ff';
+      g.fillRect(st.x - cam, st.y, st.s, st.s);
+      if (st.s > 1 && on > 0.5) { g.globalAlpha *= 0.35; g.fillRect(st.x - cam - 1, st.y + 0.5, 4, 1); g.fillRect(st.x - cam + 0.5, st.y - 1, 1, 4); }
+    }
+    // падающая звезда — иногда
+    if (N > 0.85) {
+      S.shoot ??= { t: -3 };
+      S.shoot.t += dt;
+      if (S.shoot.t > 7 + (S.shoot.wait ?? 0)) S.shoot = { t: 0, x: rnd(110, 260), y: rnd(6, 26), wait: rnd(0, 6) };
+      if (S.shoot.t < 0.7 && S.shoot.x) {
+        const u = S.shoot.t / 0.7, x0 = S.shoot.x - cam - u * 50, y0 = S.shoot.y + u * 18;
+        for (let i = 0; i < 10; i++) { g.globalAlpha = (1 - u) * (1 - i / 10) * 0.8; g.fillStyle = '#ffffff'; g.fillRect(Math.round(x0 + i * 2.6), Math.round(y0 - i * 0.95), 1, 1); }
+      }
+    }
+    // луна: поднимается с ночью
+    const mm = S.stars.moon, mon = Math.max(0, Math.min(1, (N - 0.4) / 0.5));
+    if (mon > 0) {
+      const mx = mm.x - cam, my = mm.y + (1 - mon) * 18;
+      const gl = g.createRadialGradient(mx, my, 1, mx, my, 24); gl.addColorStop(0, 'rgba(200,215,255,0.32)'); gl.addColorStop(1, 'rgba(200,215,255,0)');
+      g.globalAlpha = mon; g.fillStyle = gl; g.fillRect(mx - 24, my - 24, 48, 48);
+      g.globalCompositeOperation = 'source-over';
+      g.fillStyle = '#eef2ff'; g.beginPath(); g.arc(mx, my, 4, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#c9d3f0'; g.fillRect(mx - 1, my - 2, 2, 1); g.fillRect(mx + 1, my + 1, 1, 1);
+      g.globalCompositeOperation = 'lighter';
+    }
+    // светлячки в траве и искры костра — ночью
+    if (N > 0.5) {
+      S.flies ??= Array.from({ length: 16 }, () => ({ x: rnd(20, 300), y: rnd(o.floor + 8, o.floor + 50), ph: rnd(0, 6.28), v: rnd(0.3, 0.8) }));
+      for (const f of S.flies) {
+        const fx = f.x + Math.sin(t * f.v + f.ph) * 8 - cam, fy = f.y + Math.sin(t * f.v * 1.3 + f.ph * 2) * 4, b = 0.5 + 0.5 * Math.sin(t * 2.3 + f.ph * 3);
+        g.globalAlpha = (N - 0.5) * 2 * b * 0.8; g.fillStyle = '#d9ff8a'; g.fillRect(Math.round(fx), Math.round(fy), 1, 1);
+        g.globalAlpha *= 0.3; g.fillRect(Math.round(fx) - 1, Math.round(fy), 3, 1); g.fillRect(Math.round(fx), Math.round(fy) - 1, 1, 3);
+      }
+      S.sparks ??= [];
+      S.sacc = (S.sacc ?? 0) + dt * 7 * N;
+      while (S.sacc > 1) { S.sacc--; S.sparks.push({ x: o.fireX + cam + rnd(-3, 3), y: gy(o.z ?? 24) - 6, vx: rnd(-4, 4), vy: rnd(-26, -14), life: rnd(0.8, 1.6), t: 0 }); }
+      for (const p of S.sparks) { p.t += dt; p.x += (p.vx + Math.sin(t * 3 + p.y) * 3) * dt; p.y += p.vy * dt; }
+      S.sparks = S.sparks.filter(p => p.t < p.life);
+      for (const p of S.sparks) { const u = p.t / p.life; g.globalAlpha = (1 - u) * N; g.fillStyle = u < 0.4 ? '#ffe08a' : '#ff8a3a'; g.fillRect(Math.round(p.x - cam), Math.round(p.y), 1, 1); }
+    }
     g.restore();
     return;
   }
