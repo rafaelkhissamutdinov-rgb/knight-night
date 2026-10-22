@@ -2136,6 +2136,10 @@ function nearLook() {
   const r = room();
   return [...(r.decor ?? []), ...(r.props ?? [])].find(d => d.look && propOn(d) && !(d.secret && game.flags[d.secret]) && !(d.lights && game.flags[d.lights]) && Math.abs(d.x - p.x) < 20 && (d.z === undefined ? p.z < 14 : Math.abs(d.z - p.z) < 12)) ?? null;
 }
+// предмет, который толкают (push: { flag, dx, needs, found }) — кухонный стол, под ножкой письмо (владелец 23.10):
+// после разговора со служанкой подойти вплотную и идти в него — рыцарь упирается двумя руками и двигает стол
+const shoveDx = pr => (pr.push ? (game.flags[pr.push.flag] ? pr.push.dx : game.pushed?.[pr.push.flag] ?? 0) : 0);
+const PUSH_V = 9;   // px/с — стол тяжёлый
 // удар у замурованного прохода: три удара — стена рушится
 function hitWall(atk) {
   const p = game.player;
@@ -2401,7 +2405,7 @@ function endVibe() {
 
 function nearNpc() {
   const p = game.player;
-  return game.npcs.find(n => Math.abs(n.x - p.x) < 28 && Math.abs(n.z - p.z) < 12) ?? null;
+  return game.npcs.find(n => Math.abs(n.x - p.x) < 28 && Math.abs(n.z - p.z) < 12 && !(n.def.ghost && n.fadeT > 0)) ?? null;   // растаявшая душа — уже не собеседник
 }
 
 // Вход в дверь: прижался к стене у двери и держит W.
@@ -2840,6 +2844,7 @@ function updateView(dt, engaged) {
 
 function update(dt) {
   if (game.blend && (game.blend.t += dt) >= BLEND_T) game.blend = null;
+  if (game.pushT > 0) game.pushT -= dt;
   if (game.mode === 'play') try { updateAim(); } catch (err) { frameError(performance.now(), err); }  // высота — до нажатий этого кадра
   for (const code of input.take()) {
     try { handlePress(code); } catch (err) { frameError(performance.now(), err); }   // сбой одной клавиши не глотает остальные (Esc)
@@ -2895,8 +2900,21 @@ function update(dt) {
   // blocks у комнаты — то же для нарисованного на картине (клумбы, кадки у ратуши): { x, z, block }
   for (const pr of [...(room().props ?? []), ...(room().blocks ?? [])]) {
     if (!pr.block) continue;
-    const inside = (x, z) => Math.abs(x - pr.x) < pr.block[0] && z > pr.z - pr.block[1] && z < pr.z + 2;
+    const inside = (x, z) => Math.abs(x - pr.x - shoveDx(pr)) < pr.block[0] && z > pr.z - pr.block[1] && z < pr.z + 2;
     if (!inside(p.x, p.z)) continue;
+    const pu = pr.push;
+    if (pu && !game.flags[pu.flag] && flagsOK(pu.needs) && held('right') && px0 < pr.x + shoveDx(pr) - pr.block[0] + 2) {
+      // толкает: стол едет вправо, рыцарь — за ним, вплотную
+      game.pushed ??= {};
+      game.pushed[pu.flag] = Math.min(pu.dx, (game.pushed[pu.flag] ?? 0) + PUSH_V * dt);
+      p.x = pr.x + shoveDx(pr) - pr.block[0];
+      p.z = pr.z + 1;   // чуть ближе к нам, чем стол: руки — поверх его края
+      p.facing = 1;
+      game.pushT = 0.2;
+      if (Math.random() < 0.15) dust(p.x + 30, groundY(pr.z), 1);
+      if (game.pushed[pu.flag] >= pu.dx) { game.flags[pu.flag] = true; sfx.door(); shake(1.5); callout(pu.found ?? 'Стол сдвинулся', 'perfect'); save(); }
+      continue;
+    }
     if (!inside(px0, p.z)) p.x = px0; else if (!inside(p.x, pz0)) p.z = pz0; else { p.x = px0; p.z = pz0; }
   }
   // на бегу из-под ступни, которая встала на пол, — облачко пыли
@@ -4408,7 +4426,7 @@ function render() {
   }
   for (const it of game.pickups) if ((it.room ?? 'hall') === game.room) { if (!drawLyingWeapon(g, it.kind, it.x - cam, groundY(it.z), it.t)) drawPickup(g, it.x - cam, groundY(it.z), it.t); }
   renderChokeAura(cam);
-  const things = [...actors, ...(r.props ?? []).filter(pr => propOn(pr) && !(pr.pick && (pr.type === 'letter' || pr.type === 'weapon') && game.flags[chestFlag(pr)])).map(pr => ({ prop: pr, z: pr.z, x: pr.x }))];
+  const things = [...actors, ...(r.props ?? []).filter(pr => propOn(pr) && !(pr.pick && (pr.type === 'letter' || pr.type === 'weapon') && game.flags[chestFlag(pr)])).map(pr => ({ prop: pr, z: pr.z, x: pr.x + shoveDx(pr) }))];
   things.sort((a, b) => (a.prop?.flat ? -999 : a.z) - (b.prop?.flat ? -999 : b.z));   // ковёр (flat) — под всеми
   for (const a of things) {
     if (a.prop?.type === 'puddle') {
@@ -5103,6 +5121,10 @@ function renderPlayer(cam) {
   }
   // оружие за спиной (v0.69): любое, и рапира; sheath.k — сколько прошло от руки до ножен
   const sheathKind = p.weapon, sheathLen = (p.arms.length ?? 17) * 2;
+  if (game.pushT > 0 && sprite && spriteAnim('knight', 'push')) {   // толкает стол двумя руками (кадры PixelLab)
+    drawKnight(g, { x: px + 2, ground: GROUND, facing: 1, anim: { key: 'push', k: (game.time * 0.9) % 1 } });   // ладони — на краю столешницы
+    return;
+  }
   if (p.state === 'roll' && sprite) {
     const k = Math.min(1, p.t / WEAPON.roll.time);
     if (spriteAnim('knight', 'roll')) drawKnight(g, { x: px, ground: GROUND, facing: p.facing, anim: { key: 'roll', k }, sheath: p.sheathed ? { kind: sheathKind, len: sheathLen } : null });
@@ -5275,11 +5297,17 @@ function renderNpc(n, cam) {
   const x = n.x - cam;
   if (x < -40 || x > W + 40) return;
   const breathe = Math.sin(game.time * 2 + n.x) > 0.6 ? 1 : 0;
-  const gy = groundY(n.z) + 1 - (n.lift ?? 0);   // lift — сидит на столе (кот)
+  let gy = groundY(n.z) + 1 - (n.lift ?? 0);   // lift — сидит на столе (кот)
   if (n.def.ghost) {
-    // душа с сожалением (v0.79): полупрозрачная, чуть парит и мерцает
+    // душа с сожалением (v0.79): полупрозрачная, чуть парит и мерцает; обрела покой (ifNot выставлен) — медленно тает и поднимается
+    const gone = [].concat(n.ifNot ?? []).some(f => game.flags[f]);
+    if (gone && !game.talk) n.fadeT = (n.fadeT ?? 0) + 1 / 60;
+    const fade = gone ? Math.max(0, 1 - (n.fadeT ?? 0) / 2.5) : 1;
+    if (fade <= 0) return;
+    if (gone && Math.random() < 0.3) game.particles.push({ x: n.x + (Math.random() - 0.5) * 14, y: gy - Math.random() * 30, vx: 0, vy: -14, life: 0.8, color: '#cfe6ff' });
     g.save();
-    g.globalAlpha = 0.68 + 0.12 * Math.sin(game.time * 2.3 + n.x);
+    g.globalAlpha = (0.68 + 0.12 * Math.sin(game.time * 2.3 + n.x)) * fade;
+    gy -= Math.round((1 - fade) * 10);
     const ok = drawObjNamed(g, n.def.img, x, gy - Math.round(0.6 + 0.6 * Math.sin(game.time * 1.6)), n.facing > 0);   // чуть парит, ниже Найта (владелец)
     g.restore();
     if (ok) return;

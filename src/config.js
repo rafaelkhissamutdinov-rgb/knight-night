@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v1.03';
+export const VERSION = 'v1.04';
 
 export const CONFIG = {
   width: 320,
@@ -379,11 +379,12 @@ export const NPC_TYPES = {
     name: 'Илиа', face: 'ilia', talk: 'ilia_camp_again', human: true, robe: true, sit: true, sprite: 'duelist',
     colors: { armor: '#d9c7a3', armorDark: '#b39f7c', tabard: '#efe4cc', belt: '#6b4a32', helm: '#e2b896', visor: '#1b1b22', hair: '#15151c', hairLight: '#2a2a34', boots: '#4a3626', blade: '#c9d2dc', hilt: '#8a6a3a' },
   },
-  // душа служанки принцессы (v0.79): у засохшего букета на лестнице башни; письмо → страница дневника IV
+  // душа служанки принцессы (v0.79; сюжет и реплики — владелец 23.10): не донесла капитану письмо принцессы;
+  // письмо — на кухне под ножкой стола (стол сдвигается ударами); принёс — служанка обретает покой и тает
   maid: {
     talks: [
       { id: 'maid_after', if: 'maid_done' },
-      { id: 'maid_give', if: 'maid_asked', has: ['old_letter'] },
+      { id: 'maid_give', if: 'maid_asked', has: ['princess_letter'] },
       { id: 'maid_wait', if: 'maid_asked' },
     ],
     name: 'Призрак служанки', talk: 'maid_meet', ghost: true, img: 'maid_ghost',
@@ -447,7 +448,8 @@ export const ITEMS = {
   potion: { name: 'Зелье лечения', price: 10, use: { heal: 3 } },
   bandage: { name: 'Бинт', price: 4, use: { heal: 1 } },
   dried_fish: { name: 'Вяленая рыбка', price: 3, quest: true },
-  old_letter: { name: 'Письмо с сорванной печатью', quest: true },   // для служанки (v0.79)
+  old_letter: { name: 'Письмо с сорванной печатью', quest: true },   // прежний черновик квеста служанки (v0.79) — больше не выдаётся
+  princess_letter: { name: 'Письмо принцессы', quest: true },   // запечатанное письмо капитану (владелец 23.10): найти на кухне, отдать служанке, доставить адресату
   sun_medallion_pure: { name: 'Очищенный медальон Солнца', quest: true },   // исход Пилигрима в задании священника   // для кота Фуджина (v0.78)
   resin_flower: { name: 'Цветок в янтарной смоле', quest: true },
   // квест Алкимы (v0.78, лор владельца): лоскут ткани памяти — у мародёров Северного крыла; награда — медальон Солнца и страница дневника
@@ -522,7 +524,7 @@ export const NORMAL = { perfectWindow: CONFIG.perfectWindow, windupMult: CONFIG.
 // Ширина ≈ длина комнаты; боковые комнаты — над коридором, к которому ведёт их дверь.
 export const MAP = {
   cell: [1, 2, 14, 3], hall: [1, 5, 14, 19], secret: [1, 16.2, 17, 2.6],
-  gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], balcony: [1, 44.5, 9, 3.2],
+  gallery: [1, 24, 9, 9.5], corridor: [1, 33.5, 9, 7.2], dining: [1, 40.7, 9, 3.8], kitchen: [1, 40.4, 5, 2.6], balcony: [1, 44.5, 9, 3.2],
   shop: [1, 24.2, 5, 2.4], armory: [1, 25.9, 2, 2.4], guardroom: [1, 27.6, 5, 2.4], barracks: [1, 29.6, 2, 2.4], tower: [1, 31.8, 5, 2.4], priestcell: [1, 15.5, 11, 2.6], catlib: [1, 21.4, 11, 2.6],
   landing3: [3, 8, 9, 2.9], hall3: [3, 10.9, 9, 10.4], guardhall: [3, 13, 5, 3.8], wardrobe: [3, 10, 5, 2.8], lair: [3, 17.2, 5, 3.8],
   landing2: [2, 8, 9, 3.2], hall2: [2, 11.2, 9, 12], stairs3: [2, 23.2, 9, 2.6],
@@ -827,12 +829,11 @@ export const ROOMS = {
     doors: [
       // у подножия лестницы: наверх можно, когда осмотрел этаж до конца (балкон)
       { id: 'up', x: 60, kind: 'none', stairs: true, to: 'landing2', toDoor: 'down', name: 'Лестница на второй этаж', requires: 'balcony_done', locked: 'Сначала осмотри этаж до конца' },
+      { id: 'kitchen', x: 124, kind: 'wood', to: 'kitchen', toDoor: 'out', name: 'Кухня' },   // квест служанки (владелец 23.10)
     ],
     props: [
       { type: 'table', x: 300, z: 16 }, { type: 'chair', x: 252, z: 10 }, { type: 'chair', x: 348, z: 24, flip: true },
       { type: 'cup', id: 'cup', x: 318, z: 17, pick: 'silver_cup' },
-      { type: 'letter', x: 280, z: 15, look: 'look_letter', name: 'письмо', unless: 'maid_asked' },
-      { type: 'letter', id: 'maidletter', x: 280, z: 15, pick: 'old_letter', needs: 'maid_asked' },   // служанка просила — письмо можно взять
       { type: 'barrel', x: 452, z: 3 },
     ],
     decor: [
@@ -840,6 +841,23 @@ export const ROOMS = {
       { type: 'tapestry', x: 200, y: 2, w: 56, h: 34, look: 'look_tapestry', name: 'гобелен' },   // большой — над камином, не касаясь трубы
       { type: 'chandelier', x: 300, y: 28 },
       { type: 'banner', x: 395, y: 10 },
+    ],
+  },
+  // кухня (владелец 23.10): здесь после взрыва осталось письмо принцессы — под ножкой стола; стол толкают руками (после разговора со служанкой)
+  kitchen: {
+    name: 'Кухня', tiles: 'castle', length: 360, columns: false, torches: [70, 300], cobwebs: true,
+    doors: [{ id: 'out', x: 56, kind: 'wood', to: 'dining', toDoor: 'kitchen', name: 'Столовая' }],
+    decor: [
+      { type: 'fireplace', x: 250, look: 'look_kitchen_hearth', name: 'очаг' },
+      { type: 'shelf', x: 140, y: 30 }, { type: 'shelf', x: 330, y: 34 },
+      { type: 'window', x: 190, w: 20, h: 30, y: 24 },
+    ],
+    props: [
+      { type: 'worktable', id: 'ktable', x: 170, z: 18, block: [33, 8], look: 'look_kitchen_table', name: 'стол',
+        push: { flag: 'ktable_moved', dx: 26, needs: 'maid_asked', found: 'Стол отъехал — под ножкой белеет бумага' } },   // толкать: вплотную и D
+      { type: 'letter', id: 'princessletter', x: 140, z: 18, pick: 'princess_letter', needs: 'ktable_moved' },   // под левой ножкой
+      { type: 'barrel', x: 320, z: 3 }, { type: 'barrel', x: 340, z: 8 }, { type: 'sack', x: 300, z: 5 }, { type: 'crate', x: 100, z: 4 },
+      { type: 'pot', x: 228, z: 6 },
     ],
   },
   // тупик: обрыв и вид на долину, деревню, поля и леса — туда рыцарь пойдёт во второй локации

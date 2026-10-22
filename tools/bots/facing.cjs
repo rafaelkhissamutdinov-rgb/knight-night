@@ -22,7 +22,9 @@ const { chromium } = require('playwright');
   await p.waitForTimeout(1500);
   s = await st(); console.log('keyA', JSON.stringify(s));
   if (s.facing !== -1) fail('после A рыцарь развернулся сам (автонаведение)');
-  // 2. курсор вправо от рыцаря — разворот
+  // 2. курсор вправо от рыцаря — разворот (рыцарь мог упереться в край экрана у стены арены — курсору слева тогда нет места)
+  await p.evaluate(() => { const g = window.knightNight; if (g.player.x - g.camX < 40) g.player.x = Math.round(g.camX) + 48; });
+  await p.waitForTimeout(200);
   await mouseAt(-14); await p.waitForTimeout(150); await mouseAt(60); await p.waitForTimeout(200);
   s = await st(); console.log('cursor', JSON.stringify(s), JSON.stringify(await p.evaluate(() => ({ mx: window.knightNight.mouseX, side: window.knightNight.cursorSide, by: window.knightNight.faceBy, my: window.knightNight.mouseY }))));
   if (s.facing !== 1) fail('курсор справа не развернул');

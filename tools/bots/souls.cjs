@@ -41,12 +41,14 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/souls'; require('fs').
   // 5. исход Призрака: злой призрак
   await load('priestcell', 120, 10, ['sword_old'], { priest_met: true, priest_done: true, priest_ghostpath: true, priest_left: true });
   await go(170, 10); await p.waitForTimeout(1500); await log('wrath'); await shot('6_wrath'); await talkThrough(); await log('fight');
-  // 6. служанка: письмо из Столовой → страница IV
+  // 6. служанка (владелец 23.10): письмо принцессы на кухне — толкнуть стол (вплотную, D), под ножкой письмо → служанке → страница IV
   await load('tower', 120, 10, ['sword_old'], {});
   await npcE('maid'); await shot('7_maid'); await talkThrough(); await log('maid asked');
-  await load('dining', 260, 15, ['sword_old'], { maid_asked: true });
-  await go(280, 15); await log('letter hint'); await p.keyboard.press('KeyE'); await p.waitForTimeout(500); await log('letter');
-  await load('tower', 120, 10, ['sword_old', 'old_letter'], { maid_asked: true });
+  await load('kitchen', 118, 18, ['sword_old'], { maid_asked: true });
+  await p.keyboard.down('KeyD'); await p.waitForTimeout(5500); await p.keyboard.up('KeyD'); await log('table pushed'); await shot('7b_kitchen');
+  await go(140, 18); await log('letter hint'); await p.keyboard.press('KeyE'); await p.waitForTimeout(500); await log('letter');
+  const bag = await p.evaluate(() => window.knightNight.bag);
+  await load('tower', 120, 10, bag, { maid_asked: true, ktable_moved: true });
   await npcE('maid'); await talkThrough(); await log('итог'); await shot('8_maid_done');
   console.log('errors', errors.filter(e => !e.includes('404')).slice(0, 10), errors.length); await b.close();
 })();
