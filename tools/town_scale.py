@@ -18,15 +18,15 @@ def shrink(src, h):
     return rgb.crop(rgb.getbbox())
 
 # имя в игре: (исходник, высота в пикселях экрана)
-ADULT, SIT, TABLE = 46, 33, 37
+ADULT, SIT, TABLE = 50, 37, 40
 JOBS = {}
 for i in range(16):
-    JOBS[f'vil_{i}'] = (f'ch2/villager_{i:02d}.png', {9: 34, 12: 42, 5: 40, 0: 43, 11: 43}.get(i, ADULT))
+    JOBS[f'vil_{i}'] = (f'ch2/villager_{i:02d}.png', {9: 37, 12: 46, 5: 44, 0: 47, 11: 47}.get(i, ADULT))
     if i != 11: JOBS[f'vils_{i}'] = (f'ch2/sitting_{i:02d}.png', SIT)
 JOBS.update({
-    'npc_bartender': ('ch2/bartender_00.png', 47),
+    'npc_bartender': ('ch2/bartender_00.png', 51),
     'cam_glasses': ('cameo/glasses_sit_05.png', TABLE), 'cam_glasses_buzz': ('cameo/glasses_buzz_sit_05.png', TABLE),
-    'cam_redhead': ('cameo/redhead_sit_02.png', TABLE), 'cam_merc': ('cameo/merc_sit_00.png', 44),   # на высоком табурете
+    'cam_redhead': ('cameo/redhead_sit_02.png', TABLE), 'cam_merc': ('cameo/merc_sit_00.png', 47),   # на высоком табурете
     'prop_fountain': ('obj/fountain_01.png', 64), 'prop_town_bench': ('obj/bench_00.png', 26), 'prop_bar_table': ('obj/cafetable_02.png', 27),
     'prop_telescope': ('obj/telescope_01.png', 44), 'prop_log_seat': ('obj/log_00.png', 14),
 })

@@ -2673,7 +2673,15 @@ function update(dt) {
   updateCharge();
   updateCoinFx(dt);
   updateAmbience(dt);
+  const px0 = p.x, pz0 = p.z;
   p.update(dt, controls());
+  // мебель, сквозь которую не пройти (block: [полуширина, глубина] у предмета; бар — вид сверху, v0.98): шаг назад по оси, что упёрлась
+  for (const pr of room().props ?? []) {
+    if (!pr.block) continue;
+    const inside = (x, z) => Math.abs(x - pr.x) < pr.block[0] && z > pr.z - pr.block[1] && z < pr.z + 2;
+    if (!inside(p.x, p.z)) continue;
+    if (!inside(px0, p.z)) p.x = px0; else if (!inside(p.x, pz0)) p.z = pz0; else { p.x = px0; p.z = pz0; }
+  }
   // на бегу из-под ступни, которая встала на пол, — облачко пыли
   const fall = Math.floor(p.step * 2);
   if (p.walking && p.state === 'ready' && (p.gaitRun ?? 0) > 0.6 && fall !== p.lastFall) {

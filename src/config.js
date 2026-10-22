@@ -551,7 +551,7 @@ export const TOWNSFOLK = [
 for (const [img, name, sit] of TOWNSFOLK) NPC_TYPES['t_' + img] = { name, img, talk: 't_' + img, still: !!sit };
 // камео (v0.98): спрайт в позе по месту + портрет в разговоре (по фото владельца; одежда — под средневековье)
 Object.assign(NPC_TYPES, {
-  bartender: { name: 'Бармен', img: 'npc_bartender', talk: 'bartender_talk' },   // за стойкой (стойка — предмет перед ним)
+  bartender: { name: 'Бармен', img: 'npc_bartender', talk: 'bartender_talk', cut: 12 },   // за стойкой — видно до пояса
   cam_glasses: { name: 'Иэн', img: 'cam_glasses', imgAlt: ['glasses_buzz', 'cam_glasses_buzz'], still: true, faceRight: true,   // сидит за столом (стол — на картинке)
     talks: [{ id: 'glasses_after', if: 'glasses_buzz' }, { id: 'glasses_wait', if: 'glasses_asked' }], talk: 'glasses_meet' },
   cam_redhead: { name: 'Ксандра', img: 'cam_redhead', still: true, faceRight: true, talk: 'redhead_talk' },
@@ -1144,20 +1144,20 @@ export const ROOMS = {
   // бар — вид чуть сверху, как в Undertale (владелец, 22.10): низкая задняя стена, большой пол; стойка, табуреты и столы — предметы
   // в рост рыцаря (за ними можно пройти). Комната задаёт свою линию пола и глубину (floorTop, depth; tileLine — линия пола на картинке).
   town_bar: {
+    // картина бара целиком (PixelLab по эскизу-планировке в рост рыцаря: стойка лицом к нам на ~70% стены, полки с подсветкой, сплошной пол);
+    // столы вырезаны из неё в отдельные предметы (z-порядок, block — сквозь не пройти); бармен — за стойкой (видно до пояса)
     name: 'Бар «Härtezeichen»', chapter: 2, tiles: 'town_bar', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
-    floorTop: 55, depth: 112, tileLine: 110,
-    doors: [{ id: 'out', x: 35, kind: 'none', stairs: true, to: 'town_square', toDoor: 'bar', name: 'На площадь' }],
+    floorTop: 87, depth: 83, tileLine: 174,
+    doors: [{ id: 'out', x: 52, kind: 'none', stairs: true, to: 'town_square', toDoor: 'bar', name: 'На площадь' }],
     props: [
-      { type: 'bar_rug', x: 165, z: 52, flat: true },
-      { type: 'bar_counter', x: 140, z: 12 }, { type: 'bar_counter', x: 190, z: 12 },
-      { type: 'bar_stool', x: 148, z: 18 }, { type: 'bar_stool', x: 168, z: 18 }, { type: 'bar_stool', x: 188, z: 18 }, { type: 'bar_stool', x: 208, z: 18 },
-      { type: 'tavern_table', x: 62, z: 62 }, { type: 'tavern_table', x: 262, z: 58 }, { type: 'tavern_table', x: 96, z: 100 }, { type: 'tavern_table', x: 236, z: 102 },
+      { type: 'bar2_table0', x: 67, z: 37, block: [11, 8] }, { type: 'bar2_table1', x: 253, z: 35, block: [11, 8] },
+      { type: 'bar2_table2', x: 117, z: 64, block: [11, 8] }, { type: 'bar2_table3', x: 207, z: 65, block: [11, 8] },
     ],
     npcs: [
-      { type: 'bartender', x: 168, z: 3 },   // за стойкой
-      { type: 'cam_merc', x: 124, z: 19, facing: 1 },   // Виктор — у стойки слева (табурет — на его картинке)
-      { type: 't_vils_12', x: 249, z: 58.5, facing: 1 }, { type: 't_vils_2', x: 275, z: 58.5 },
-      { type: 't_vils_14', x: 83, z: 100.5, facing: 1 }, { type: 't_vils_4', x: 223, z: 102.5, facing: 1 }, { type: 't_vils_8', x: 249, z: 102.5 },
+      { type: 'bartender', x: 165, z: 0, lift: 31 },   // за стойкой
+      { type: 'cam_merc', x: 86, z: 1, facing: 1 },   // Виктор — у стойки слева
+      { type: 't_vils_12', x: 244, z: 35.5, facing: 1 }, { type: 't_vils_2', x: 263, z: 35.5 },
+      { type: 't_vils_14', x: 108, z: 64.5, facing: 1 }, { type: 't_vils_4', x: 198, z: 65.5, facing: 1 }, { type: 't_vils_8', x: 217, z: 65.5 },
     ],
   },
   town_armory: {
