@@ -21,7 +21,8 @@ const DECOR_IMG = {
 const PROP_IMG = { barrel: 1, crate: 2, sack: 1, chest: 1, bones: 2,
   sofa: 1, table: 1, chair: 1, armchair: 1, pew: 1, bench: 1, desk: 1, stool: 1, guardtable: 1, stall: 1, rug: 1,
   bedroll: 1, pot: 1, letter: 1, candles: 1, lute: 1, logbook: 1, bouquet: 1, loot: 1, fabric: 1, papers: 1, bookpile: 1, tripod: 1, pack: 1 };
-export const OBJECTS = ['door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_campfire_pot', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff', 'prop_candles_out', 'cat_sit', 'cat_sit_1', 'cat_sleep', 'cat_loaf', 'cat_lounge', 'cat_side', 'cat_groom', 'cat_stretch', 'cat_stand', 'cat_belly', 'knight_sit_seat', 'knight_sit_ground', 'priest_kneel', 'maid_ghost',
+export const OBJECTS = ['prop_fountain', 'sign_bar', 'prop_bar2_table0', 'prop_bar2_table1', 'prop_bar2_table2', 'prop_bar2_table3', 'cam_glasses', 'cam_glasses_buzz', 'cam_redhead', 'cam_merc', 'prop_town_bench', 'prop_bar_table', 'prop_telescope', 'prop_log_seat', 'npc_bartender', 'vil_0', 'vil_1', 'vil_2', 'vil_3', 'vil_4', 'vil_5', 'vil_6', 'vil_7', 'vil_8', 'vil_9', 'vil_10', 'vil_11', 'vil_12', 'vil_13', 'vil_14', 'vil_15', 'vils_0', 'vils_1', 'vils_2', 'vils_3', 'vils_4', 'vils_5', 'vils_6', 'vils_7', 'vils_8', 'vils_9', 'vils_10', 'vils_12', 'vils_13', 'vils_14', 'vils_15',   // город главы 2 (v0.98): предметы площади, горожане (временные — потом камео)
+  'door_wood', 'door_iron', 'door_bars', 'door_hole', 'prop_chest_open', 'bonepile', 'stairs', 'balustrade', 'stainedglass', 'prop_altar', 'lika_sit', 'lika_sit_1', 'lika_wave', 'prop_campfire', 'prop_campfire_pot', 'prop_cup', 'slime', 'slime_squash', 'slime_stretch', 'decor_chandelier', 'gate_bars', 'gate_door', 'decor_portrait_king', 'decor_portrait_mage', 'decor_sigil', 'decor_cracked', 'balcony_cliff', 'prop_candles_out', 'cat_sit', 'cat_sit_1', 'cat_sleep', 'cat_loaf', 'cat_lounge', 'cat_side', 'cat_groom', 'cat_stretch', 'cat_stand', 'cat_belly', 'knight_sit_seat', 'knight_sit_ground', 'priest_kneel', 'maid_ghost',
   ...Object.entries(PROP_IMG).flatMap(([t, n]) => Array.from({ length: n }, (_, i) => 'prop_' + t + (i ? '_' + i : ''))),
   ...Object.entries(DECOR_IMG).flatMap(([t, [n]]) => Array.from({ length: n }, (_, i) => 'decor_' + t + (i ? '_' + i : '')))];
 const obj = {};
@@ -208,7 +209,7 @@ export function buildRoom(room, height, floorTop, tiles = null) {
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   if (tiles) {
     // куски подряд; вариант — по очереди с перемешиванием (первый, основной, — чаще)
-    const dy = floorTop * 2 - TILE_LINE, th = tiles[0].height;
+    const dy = floorTop * 2 - (room.tileLine ?? TILE_LINE), th = tiles[0].height;   // tileLine — своя линия пола у картинки (бар сверху)
     // парный холст нормалей (рельеф кладки + нормали предметов) — для живого света
     const nrm = tiles.normals?.every(n => n.complete && n.naturalWidth) ? tiles.normals : null;
     let ng = null;
@@ -217,7 +218,7 @@ export function buildRoom(room, height, floorTop, tiles = null) {
       ng = c.normal.getContext('2d'); ng.imageSmoothingEnabled = false;
     }
     for (let x = 0, i = 0; x < length * 2; x += TILE_W, i++) {
-      const j = i === 0 || rand() < 0.4 ? 0 : 1 + Math.floor(rand() * (tiles.length - 1));
+      const j = room.tileSeq ? room.tileSeq[i % room.tileSeq.length] : i === 0 || rand() < 0.4 ? 0 : 1 + Math.floor(rand() * (tiles.length - 1));   // tileSeq — куски по порядку (площадь из двух картин)
       const t = tiles[j] ?? tiles[0];
       g.drawImage(t, x, dy);
       if (dy < 0) g.drawImage(t, 0, th + dy - 20, TILE_W, 20 - dy, x, height * 2 - 20 + dy, TILE_W, 20 - dy);
@@ -342,7 +343,7 @@ function finishRoom(g, room, length, height, floorTop, rand, tiled) {
   if (room.gate) drawGateWall(g, room.gate === 'right' ? length - 26 : 0, floorTop);
   if (room.stairs) drawStairs(g, stairsX(room, length), floorTop, tiled, (room.decor ?? []).some(d => d.type === 'rubble') && !!objImg('decor_rubble'));
   if (room.balcony) (tiled && room.far ? drawBalconyTiled : drawBalcony)(g, length, height, floorTop, rand);
-  for (const d of room.decor ?? []) if (!(tiled && decorImage(g, d, floorTop, room))) drawDecor(g, d, floorTop);  // поверх лестниц и дверей (завал на лестнице)
+  for (const d of room.decor ?? []) if (d.type === 'objimg') { if (objImg(d.img)) drawObj(g, objImg(d.img), d.x, d.y); } else if (!(tiled && decorImage(g, d, floorTop, room))) drawDecor(g, d, floorTop);   // objimg — готовая картинка (вывеска)  // поверх лестниц и дверей (завал на лестнице)
   if (room.magic) {
     // вершина башни: стены в лиловом отсвете, на стене знаки
     g.fillStyle = 'rgba(120,60,170,0.18)';
@@ -857,9 +858,11 @@ function campfireFlames(g, x, gy, time) {
   }
 }
 
+const TOWN_PROPS = new Set(['fountain', 'town_bench', 'bar_table', 'telescope', 'log_seat', 'bar2_table0', 'bar2_table1', 'bar2_table2', 'bar2_table3']);
 export function drawProp(g, type, x, gy, opened = false, time = 0, seed = 0) {
   x = Math.round(x);
   if ((type === 'loot' || type === 'cup') && opened) return;   // подобрали
+  if (TOWN_PROPS.has(type) && objImg('prop_' + type)) { drawObj(g, objImg('prop_' + type), x, gy + 1); return; }   // город главы 2 — картинкой
   if (type === 'campfire_pot' && objImg('prop_campfire_pot')) {
     // костёр с треногой и котелком одной картинкой (v0.83, владелец): котелок над огнём; живые язычки — у углей, перед котелком
     drawObj(g, objImg('prop_campfire_pot'), x, gy + 1);

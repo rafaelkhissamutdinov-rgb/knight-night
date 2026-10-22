@@ -42,6 +42,7 @@ const KEYS = {
 };
 // где на экране земля под бойцом на глубине z, и высота удара над ней
 const groundY = z => CONFIG.floorTop + 6 + z;
+const BASE_FLOOR = CONFIG.floorTop, BASE_DEPTH = CONFIG.depth;   // у комнаты может быть своя линия пола и глубина (бар — вид сверху, v0.98)
 const HIT_UP = { high: 34, mid: 22, low: 9 };
 const clashY = (h, z) => groundY(z) - HIT_UP[h];
 const near = (a, b) => Math.abs(a.z - b.z) <= CONFIG.depthReach;
@@ -163,7 +164,10 @@ function loadRoom(id, at) {
   game.climb = null;
   game.blueFireAt = null;
   game.coinFx = [];
+  CONFIG.floorTop = ROOMS[id].floorTop ?? BASE_FLOOR;
+  CONFIG.depth = ROOMS[id].depth ?? BASE_DEPTH;
   game.flags['map_' + id] = true;  // для карты: где побывал
+  for (const [f, at] of Object.entries(game.flags.later ?? {})) if ((game.flags.playTime ?? 0) >= at) { game.flags[f] = true; delete game.flags.later[f]; }
   const floor = ROOMS[id].floor ?? 1;
   if (FLOOR_NAMES[floor] && !game.flags['card_' + floor]) {
     // первый раз на этом этаже — заставка
@@ -185,7 +189,7 @@ function loadRoom(id, at) {
   game.visited.push(id);
   const r = ROOMS[id];
   game.enemies = spawnRoom(id);
-  game.npcs = (r.npcs ?? []).filter(n => flagsOK(n.needs) && ![].concat(n.ifNot ?? []).some(f => game.flags[f])).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: -1 }));
+  game.npcs = (r.npcs ?? []).filter(n => flagsOK(n.needs) && ![].concat(n.ifNot ?? []).some(f => game.flags[f])).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: n.facing ?? -1 }));
   // кот Фуджин (владелец): при каждом входе — в другом месте и в другой позе (spots: x, z, lift, img)
   for (const n of game.npcs) if (n.spots) {
     const ok = n.spots.filter(s => hasObj(s.img));
@@ -1485,6 +1489,7 @@ const ADMIN_POINTS = [
   { name: 'Перед балконом', room: 'balcony', x: 60, steps: ['wake', 'tutorial', 'ilia'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Второй этаж', room: 'landing2', x: 200, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Глава 2: город (площадь)', room: 'town_square', x: 160, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard', 'boss'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { chapter1_done: true, chapter: 2, ending: 'execution', done_boss: true } },
   { name: 'Глава 2: скала', room: 'cliff', x: 60, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard', 'boss'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { chapter1_done: true, chapter: 2, ending: 'execution', done_boss: true } },
   { name: 'Финал: покои принцессы', room: 'princess', x: 200, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { done_boss: true, ending: 'execution' } },   // к окну, E — портал
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
@@ -1787,7 +1792,7 @@ function handlePress(code) {
     }
     const npc = nearNpc();
     if (npc) {
-      npc.facing = Math.sign(p.x - npc.x) || -1;
+      if (!npc.def.still) npc.facing = Math.sign(p.x - npc.x) || -1;
       if (npc.def.shop) openShop(npc);
       else if (npc.def.cat && game.flags.fujin_fed) petCat(npc);   // накормлен — можно погладить (владелец, 17.10)
       else startTalk(npcTalkId(npc.def), npc.def.cat ? () => { if (game.flags.fujin_fed && !npc.belly) { Object.assign(npc, npc.def.bellyAt); npc.belly = true; npc.img = 'cat_belly'; npc.flip = true; } } : null);   // угостил — валится на спину
@@ -2669,7 +2674,15 @@ function update(dt) {
   updateCharge();
   updateCoinFx(dt);
   updateAmbience(dt);
+  const px0 = p.x, pz0 = p.z;
   p.update(dt, controls());
+  // мебель, сквозь которую не пройти (block: [полуширина, глубина] у предмета; бар — вид сверху, v0.98): шаг назад по оси, что упёрлась
+  for (const pr of room().props ?? []) {
+    if (!pr.block) continue;
+    const inside = (x, z) => Math.abs(x - pr.x) < pr.block[0] && z > pr.z - pr.block[1] && z < pr.z + 2;
+    if (!inside(p.x, p.z)) continue;
+    if (!inside(px0, p.z)) p.x = px0; else if (!inside(p.x, pz0)) p.z = pz0; else { p.x = px0; p.z = pz0; }
+  }
   // на бегу из-под ступни, которая встала на пол, — облачко пыли
   const fall = Math.floor(p.step * 2);
   if (p.walking && p.state === 'ready' && (p.gaitRun ?? 0) > 0.6 && fall !== p.lastFall) {
@@ -2685,7 +2698,7 @@ function update(dt) {
   handlePlayerEvents();
   updateChokeHint();
   updatePickups(dt);
-  for (const n of game.npcs) if (Math.abs(n.x - p.x) < 80) n.facing = Math.sign(p.x - n.x) || n.facing;
+  for (const n of game.npcs) if (Math.abs(n.x - p.x) < 80 && !n.def.still) n.facing = Math.sign(p.x - n.x) || n.facing;   // сидящие — как сидят
 
   for (const e of game.enemies) {
     if ((e.state === 'dead' && e.t > 2) || e.state === 'gone') continue;
@@ -3421,6 +3434,9 @@ const FACES = {
   ilia: Object.fromEntries(['default', 'happy', 'surprised', 'serious', 'worried', 'sad', 'angry', 'pain', 'awkward']   // v0.80
     .map(m => [m, m === 'default' ? 'assets/portraits/ilia.png' : `assets/portraits/ilia-${m}.png`])),
   boss: { default: 'assets/portraits/boss.png' },
+  // камео главы 2 (v0.98, по фото владельца; одежда — под средневековье)
+  cam_glasses: { default: 'assets/portraits/cam_glasses.png', buzz: 'assets/portraits/cam_glasses-buzz.png' },
+  cam_redhead: { default: 'assets/portraits/cam_redhead.png' }, cam_merc: { default: 'assets/portraits/cam_merc.png' },
   priest: { default: 'assets/portraits/priest.png' }, maid: { default: 'assets/portraits/maid.png' },   // призраки (v0.81)
   trainer: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'serious', 'worried', 'sad', 'annoyed']   // v0.80: настроения как у Лики
     .map(m => [m, m === 'default' ? 'assets/portraits/alkima.png' : `assets/portraits/alkima-${m}.png`])),
@@ -3460,7 +3476,9 @@ function applyLineItems(line) {
     callout(`Получено: ${ITEMS[id]?.name ?? id}`, 'perfect');
     sfx.perfect();
   }
-  if (line.give || line.take) save();
+  // later: [флаг, секунды] — флаг ставится позже, при входе в комнату после этого срока (стрижка у бара, v0.98)
+  if (line.later) (game.flags.later ??= {})[line.later[0]] = (game.flags.playTime ?? 0) + line.later[1];
+  if (line.give || line.take || line.later) save();
 }
 
 // after — что сделать, когда разговор закончится (или сразу, если диалоги выключены)
@@ -3729,14 +3747,23 @@ function closeStory() {
 const shopCtx = ui.shopScene.getContext('2d');
 shopCtx.imageSmoothingEnabled = false;
 const SHOP_MOODS = ['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry', 'blink'];
-const shopArt = { scene: Object.assign(new Image(), { src: 'assets/shop/scene.png' }) };
-for (const m of SHOP_MOODS) shopArt[m] = Object.assign(new Image(), { src: `assets/shop/lika_${m}.png` });
+// картинки лавки: у SHOPS[id].art — свой фон и продавец по пояс (оружейная главы 2, v0.98); без art — лавка Лики
+const shopArts = {};
+function artFor(id) {
+  const a = SHOPS[id]?.art;
+  if (shopArts[id]) return shopArts[id];
+  const img = src => Object.assign(new Image(), { src });
+  const out = shopArts[id] = { scene: img(a?.scene ?? 'assets/shop/scene.png') };
+  for (const m of a?.moods ?? SHOP_MOODS) out[m] = img(`${a?.bust ?? 'assets/shop/lika'}_${m}.png`);
+  return out;
+}
 const SHOP_FLAMES = [[186, 50, 1.2], [32, 106, 0.8], [94, 164, 0.8], [252, 186, 0.7]];   // фонарь и свечи на картине: x, y, сила
 const shopMotes = Array.from({ length: 24 }, () => ({ x: Math.random() * 256, y: Math.random() * 220, v: 2 + Math.random() * 5, p: Math.random() * 6.3 }));
 function drawShopScene(t) {
   const c = shopCtx, sh = game.shop;
   const ok = im => im?.complete && im.naturalWidth;
   c.clearRect(0, 0, 256, 288);
+  const shopArt = artFor(sh.npc.def.shop), flames = sh.data.art ? sh.data.art.flames ?? [] : SHOP_FLAMES;
   if (ok(shopArt.scene)) c.drawImage(shopArt.scene, 0, 0);
   // Лика: дышит (на пиксель вверх-вниз), моргает раз в несколько секунд
   const blink = (!sh.mood || sh.mood === 'default') && (t % 4.3) < 0.13;
@@ -3746,7 +3773,7 @@ function drawShopScene(t) {
   // огонь свечей и фонаря дрожит, вокруг — тёплый свет
   c.save();
   c.globalCompositeOperation = 'lighter';
-  for (const [x, y, k] of SHOP_FLAMES) {
+  for (const [x, y, k] of flames) {
     const f = 0.75 + 0.25 * Math.sin(t * 9 + x) * Math.sin(t * 5.3 + y);
     const gr = c.createRadialGradient(x, y, 0, x, y, 26 * k);
     gr.addColorStop(0, `rgba(255,170,80,${0.32 * f * k})`);
@@ -3769,7 +3796,7 @@ function drawShopScene(t) {
 function openShop(npc) {
   const data = SHOPS[npc.def.shop];
   if (!data) return;
-  game.shop = { npc, data, view: 'main', text: data.hello, shown: 0, mood: data.moods?.hello };
+  game.shop = { npc, data, view: 'main', text: data.hello, shown: 0, mood: data.moods?.hello, back: game.mode === 'vn' ? 'vn' : 'play' };
   game.mode = 'shop';
   ui.shopName.textContent = npc.def.name;
   ui.shop.hidden = false;
@@ -3781,8 +3808,9 @@ function closeShop() {
   game.shop.text = game.shop.data.bye;
   ui.shop.hidden = true;
   callout(game.shop.data.bye.replace('[черновик] ', ''), 'muted');
+  const back = game.shop.back;
   game.shop = null;
-  game.mode = 'play';
+  game.mode = back ?? 'play';   // из картины лавки (оружейная) — обратно в картину
 }
 
 // следующая реплика темы: Найт (knight: true) или Лика с выражением лица
@@ -4915,6 +4943,14 @@ function renderNpc(n, cam) {
     const ok = drawObjNamed(g, n.def.img, x, gy - Math.round(0.6 + 0.6 * Math.sin(game.time * 1.6)), n.facing > 0);   // чуть парит, ниже Найта (владелец)
     g.restore();
     if (ok) return;
+  }
+  if (n.def.img && !n.def.ghost) {
+    // горожане главы 2 (v0.98): картинка PixelLab смотрит влево; imgAlt — другой облик после флага (стрижка)
+    const img = n.def.imgAlt && game.flags[n.def.imgAlt[0]] ? n.def.imgAlt[1] : n.def.img;
+    if (n.def.cut) { g.save(); g.beginPath(); g.rect(x - 40, 0, 80, gy - n.def.cut); g.clip(); }   // за стойкой: видно до пояса
+    drawObjNamed(g, img, x, gy, n.def.faceRight ? n.facing < 0 : n.facing > 0);   // faceRight — картинка смотрит вправо
+    if (n.def.cut) g.restore();
+    return;   // картинки ещё нет (камео рисуется) — пусто, без фигуры-заглушки
   }
   if (n.def.sitImgs) {
     // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой
