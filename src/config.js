@@ -1017,7 +1017,7 @@ export const ROOMS = {
   },
   // ---------- глава 2 (каркас, владелец 17.10): днём; скала с титульного вида → лес → ворота деревни ----------
   cliff: {
-    name: 'Скала над долиной', chapter: 2, tiles: 'forest', tileCount: 1, far: 'assets/backgrounds/cliff/far.png', length: 320, day: true, ceiling: false, torches: [],
+    name: 'Скала над долиной', chapter: 2, tiles: 'cliff', tileCount: 1, far: 'assets/backgrounds/cliff/far.png', length: 320, day: true, ceiling: false, torches: [],
     edges: { right: { to: 'forest1', x: 30, name: 'Тропа в лес' } },
     decor: [{ type: 'spot', x: 120, look: 'look_cliff', name: 'вид на замок' }],
   },
@@ -1049,9 +1049,10 @@ export const ROOMS = {
     encounters: [{ x: 380, enemies: [{ type: 'gobShooter', dx: 150, z: 8 }, { type: 'gobWarrior', dx: 50, z: 22 }, { type: 'gobJumper', dx: 90, z: 32 }] }],
   },
   village_gate: {
-    name: 'У деревни', chapter: 2, tiles: 'forest', tileCount: 1, length: 400, day: true, ceiling: false, torches: [],
+    // v0.98 (владелец): вход в деревню — тропинка, уходящая вдаль между деревьями (на картине, x 252)
+    name: 'У деревни', chapter: 2, tiles: 'village_gate', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'forest3', x: 690, name: 'Бурелом' } },
-    doors: [{ id: 'gate', x: 340, kind: 'none', stairs: true, to: 'village', toDoor: 'in', name: 'Ворота деревни' }],
+    doors: [{ id: 'gate', x: 252, kind: 'none', stairs: true, to: 'village', toDoor: 'in', name: 'Тропа в деревню' }],
   },
   // деревня (проба PixelLab, assets/backgrounds/village): главное в главе 2 — люди, камео, вещи; пока — улица и конец каркаса
   village: {
