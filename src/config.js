@@ -579,6 +579,8 @@ export const TOWNSFOLK = [
   ['vils_13', 'Горожанка', 1],
   ['vils_14', 'Подмастерье', 1],
   ['vils_15', 'Старушка', 1],
+  ['vils_pair', 'Бабушки', 1],      // две бабушки на скамейке — одна картинка со скамьёй (владелец 23.10)
+  ['lib_student', 'Студент', 1],    // студент в библиотеке над бумагами (владелец 23.10)
 ];
 for (const [img, name, sit] of TOWNSFOLK) NPC_TYPES['t_' + img] = { name, img, talk: 't_' + img, still: !!sit };
 // камео (v0.98): спрайт в позе по месту + портрет в разговоре (по фото владельца; одежда — под средневековье)
@@ -595,6 +597,8 @@ Object.assign(NPC_TYPES, {
   lika_town: { name: 'Лика', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika', talk: 'lika_town',
     colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' } },
   cam_lucia: { name: 'Люция', img: 'cam_lucia_tel', imgNight: 'cam_lucia_up', imgDx: 26, still: true, faceRight: true, talk: 'lucia_talk' },   // Люция у телескопа — одна картинка с телескопом (правка эскиза рядом с рыцарем)
+  // библиотекарша Жанет (владелец 23.10, по фото): у стола в библиотеке; E — окно-справочник о механике игры
+  janet: { name: 'Жанет', img: 'cam_janet', still: true, faceRight: true, shop: 'janet', verb: 'говорить' },
   cam_merc: { name: 'Виктор', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
 });
 
@@ -1171,7 +1175,7 @@ export const ROOMS = {
     doors: [
       { id: 'bar', x: 246, kind: 'painted', leaf: [236, 86, 21, 34], mat: { color: '#8a3b2e', dark: '#4a1f1a', light: '#c9774a' }, to: 'town_bar', at: { path: 'out' }, name: 'Бар Härtezeichen' },
       { id: 'armory', x: 709, kind: 'painted', leaf: [694, 86, 30, 34], mat: { color: '#3b4a6a', dark: '#1f2638', light: '#8a9ac0', w: 32 }, to: 'town_armory', name: 'Оружейная' },
-      { id: 'hall', x: 481, kind: 'painted', leaf: [471, 84, 21, 30], locked: 'Ратуша закрыта: «Приём — по средам»' , mat: { color: '#7a2a2a', dark: '#3a1414', light: '#c0a060', w: 28 }, to: 'town_square', name: 'Ратуша' },
+      { id: 'hall', x: 481, kind: 'painted', leaf: [471, 84, 21, 30], mat: { color: '#7a2a2a', dark: '#3a1414', light: '#c0a060', w: 28 }, to: 'town_library', at: { path: 'out' }, name: 'Ратуша · библиотека' },
     ],
     paths: [
       { id: 'down', x: [36, 96], z: [26, 44], keys: ['depthOut'], name: 'Лестница вниз, к развилке', to: 'town_cross', at: { path: 'up' }, blend: true,
@@ -1184,20 +1188,22 @@ export const ROOMS = {
       { type: 'objimg', img: 'sign_bar', x: 247, y: 91 },   // вывеска бара: табличка PixelLab + надпись шрифтом Pirata One (OFL)
       { type: 'objimg', img: 'sign_flowers', x: 132, y: 88 },   // кофейня переехала на набережную — у дома слева теперь цветочная лавка
     ],
+    // клумбы и кадки с деревьями у ратуши нарисованы на картине — по ним не ходят (владелец 23.10)
+    blocks: [{ x: 432, z: 10, block: [18, 10] }, { x: 531, z: 10, block: [16, 10] }, { x: 409, z: 9, block: [7, 9] }, { x: 554, z: 9, block: [8, 9] }],
     props: [
       { type: 'bar_table', x: 292, z: 5 },   // второй столик бара снаружи
       { type: 'pub_table', x: 204.5, z: 5.4 },   // столик Иэна и Ксандры
-      { type: 'fountain', x: 481, z: 26 },   // посередине площади, перед ратушей (владелец)
-      { type: 'town_bench', x: 380, z: 4 }, { type: 'town_bench', x: 790, z: 4 },
+      { type: 'fountain', x: 481, z: 26, block: [19, 11] },   // посередине площади, перед ратушей (владелец); сквозь не пройти
+      { type: 'town_bench', x: 790, z: 4 },
       { type: 'streetlamp', x: 320, z: 44 }, { type: 'streetlamp', x: 640, z: 44 },   // фонари на стыках кусков картины
     ],
     npcs: [
       { type: 'cam_glasses', x: 187, z: 5.5, facing: 1 }, { type: 'cam_redhead', x: 222, z: 5.6, facing: -1 },   // Иэн и Ксандра у бара
       { type: 't_vils_8', x: 280, z: 5.5, facing: 1 }, { type: 't_vils_5', x: 300, z: 5.5 },
-      { type: 't_vils_1', x: 374, z: 4.5 }, { type: 't_vils_6', x: 388, z: 4.5 }, { type: 't_vils_13', x: 790, z: 4.5 },
+      { type: 't_vils_pair', x: 381, z: 4.5 }, { type: 't_vils_13', x: 790, z: 4.5 },
       { type: 't_vil_2', x: 300, z: 26 }, { type: 't_vil_7', x: 560, z: 30 }, { type: 't_vil_9', x: 620, z: 34 },
       { type: 't_vil_12', x: 600, z: 20 }, { type: 't_vil_0', x: 840, z: 14 }, { type: 't_vil_3', x: 140, z: 20 },
-      { type: 't_folk_1', x: 540, z: 12 }, { type: 't_folk_3', x: 108, z: 8 }, { type: 't_folk_11', x: 660, z: 24 }, { type: 't_folk_14', x: 318, z: 8 },
+      { type: 't_folk_1', x: 584, z: 16 }, { type: 't_folk_3', x: 108, z: 8 }, { type: 't_folk_11', x: 660, z: 24 }, { type: 't_folk_14', x: 318, z: 8 },
       { type: 'lika_town', x: 744, z: 6, facing: -1 },   // Лика — у входа в оружейную
     ],
   },
@@ -1214,12 +1220,35 @@ export const ROOMS = {
     props: [
       { type: 'bar2_table0', x: 67, z: 37, block: [16, 10] }, { type: 'bar2_table1', x: 253, z: 35, block: [16, 10] },
       { type: 'bar2_table2', x: 117, z: 64, block: [16, 10] }, { type: 'bar2_table3', x: 207, z: 65, block: [16, 10] },
+      // ещё столики (владелец 23.10: «бар пустоватый»)
+      { type: 'bar2_table1', x: 36, z: 76, block: [16, 10] }, { type: 'bar2_table0', x: 288, z: 76, block: [16, 10] }, { type: 'bar2_table2', x: 282, z: 14, block: [16, 10] },
     ],
     npcs: [
       { type: 'bartender', x: 165, z: 0, lift: 25 },   // за стойкой
       { type: 'cam_merc', x: 86, z: 1, facing: 1 },   // Виктор — у стойки слева
       { type: 't_vils_12', x: 244, z: 35.5, facing: 1 }, { type: 't_vils_2', x: 263, z: 35.5 },
       { type: 't_vils_14', x: 108, z: 64.5, facing: 1 }, { type: 't_vils_4', x: 198, z: 65.5, facing: 1 }, { type: 't_vils_8', x: 217, z: 65.5 },
+      { type: 't_vils_10', x: 27, z: 76.5, facing: 1 }, { type: 't_vils_3', x: 297, z: 76.5 }, { type: 't_vils_7', x: 291, z: 14.5 },
+    ],
+  },
+  // библиотека в ратуше (владелец 23.10): зал как бар — картина пустого зала (PixelLab, полки по задней стене, стол
+  // библиотекаря справа), ряды полок и столы — отдельные предметы (block: между рядами ходить, сквозь — нет).
+  // Жанет у своего стола — окно-справочник о механике (SHOPS.janet); студенты за столами
+  town_library: {
+    name: 'Библиотека', chapter: 2, tiles: 'town_library', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    floorTop: 60, depth: 110, tileLine: 120,
+    paths: [{ id: 'out', x: [8, 36], z: [0, 10], keys: ['depthIn'], name: 'Дверь на площадь', to: 'town_square', at: { door: 'hall' },
+      leaf: [11, 20, 18, 34], pts: [[21, 64, 0.97], [21, 58, 0.93], [21, 52, 0.9]] }],
+    props: [
+      { type: 'lib_shelf', x: 78, z: 26, block: [23, 7] }, { type: 'lib_shelf', x: 134, z: 26, block: [23, 7] },
+      { type: 'lib_shelf', x: 78, z: 84, block: [23, 7] }, { type: 'lib_shelf', x: 134, z: 84, block: [23, 7] },
+      { type: 'lib_table', x: 206, z: 34, block: [14, 7] }, { type: 'lib_table', x: 206, z: 86, block: [14, 7] },
+    ],
+    npcs: [
+      { type: 'janet', x: 248, z: 6 },
+      { type: 't_vils_1', x: 197, z: 34.5, facing: 1 },       // читательница: «Тише, я на самом интересном месте»
+      { type: 't_vils_9', x: 215, z: 86.5 },
+      { type: 't_lib_student', x: 272, z: 64 },                // студент над бумагами — со своим столом
     ],
   },
   // оружейная — картина, как покои принцессы (владелец): два продавца на выбор — Полли (оружие и доспехи), Захария (артефакты)
