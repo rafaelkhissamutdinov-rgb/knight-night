@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v1.01';
+export const VERSION = 'v1.02';
 
 export const CONFIG = {
   width: 320,
@@ -1157,7 +1157,7 @@ export const ROOMS = {
     edges: { left: { to: 'village', x: 290, name: 'Улица' }, right: { to: 'town_crafts', x: 30, name: 'Ремесленная улица' } },
     paths: [
       // широкая лестница слева: два марша между домами, наверху — улица к площади
-      { id: 'up', x: [38, 86], z: [0, 10], keys: ['depthIn'], name: 'Лестница наверх, к площади', to: 'town_square', at: { path: 'down' },
+      { id: 'up', x: [38, 86], z: [0, 10], keys: ['depthIn'], name: 'Лестница наверх, к площади', to: 'town_square', at: { path: 'down' }, blend: true,
         pts: [[60, 117, 0.97], [62, 97, 0.88], [65, 78, 0.78], [67, 60, 0.66], [69, 44, 0.55]] },
       // ступени справа впереди — вниз, к набережной
       { id: 'down', x: [228, 320], z: [14, 44], keys: ['right', 'depthOut'], name: 'Ступени вниз, к набережной', to: 'town_river', at: { edge: 'left', z: 16 },
@@ -1174,7 +1174,7 @@ export const ROOMS = {
       { id: 'hall', x: 481, kind: 'painted', leaf: [471, 84, 21, 30], locked: 'Ратуша закрыта: «Приём — по средам»' , mat: { color: '#7a2a2a', dark: '#3a1414', light: '#c0a060', w: 28 }, to: 'town_square', name: 'Ратуша' },
     ],
     paths: [
-      { id: 'down', x: [36, 96], z: [26, 44], keys: ['depthOut'], name: 'Лестница вниз, к развилке', to: 'town_cross', at: { path: 'up' },
+      { id: 'down', x: [36, 96], z: [26, 44], keys: ['depthOut'], name: 'Лестница вниз, к развилке', to: 'town_cross', at: { path: 'up' }, blend: true,
         pts: [[64, 162, 1], [64, 172, 1.06], [64, 184, 1.12], [64, 198, 1.18]] },
       // арка в правом куске: дорога за ней поднимается на зелёный холм к лесу
       { id: 'lane', x: [878, 924], z: [0, 10], keys: ['depthIn'], name: 'Арка — тропа к лесу', to: 'town_lane', at: { edge: 'left', z: 12 },
@@ -1186,16 +1186,17 @@ export const ROOMS = {
     ],
     props: [
       { type: 'bar_table', x: 292, z: 5 },   // второй столик бара снаружи
-      { type: 'fountain', x: 590, z: 18 },
+      { type: 'pub_table', x: 204.5, z: 5.4 },   // столик Иэна и Ксандры
+      { type: 'fountain', x: 481, z: 26 },   // посередине площади, перед ратушей (владелец)
       { type: 'town_bench', x: 380, z: 4 }, { type: 'town_bench', x: 790, z: 4 },
       { type: 'streetlamp', x: 320, z: 44 }, { type: 'streetlamp', x: 640, z: 44 },   // фонари на стыках кусков картины
     ],
     npcs: [
-      { type: 'cam_glasses', x: 196, z: 5.5, facing: 1 }, { type: 'cam_redhead', x: 215, z: 5.6, facing: -1 },   // Иэн и Ксандра у бара
+      { type: 'cam_glasses', x: 187, z: 5.5, facing: 1 }, { type: 'cam_redhead', x: 222, z: 5.6, facing: -1 },   // Иэн и Ксандра у бара
       { type: 't_vils_8', x: 280, z: 5.5, facing: 1 }, { type: 't_vils_5', x: 300, z: 5.5 },
       { type: 't_vils_1', x: 374, z: 4.5 }, { type: 't_vils_6', x: 388, z: 4.5 }, { type: 't_vils_13', x: 790, z: 4.5 },
       { type: 't_vil_2', x: 300, z: 26 }, { type: 't_vil_7', x: 560, z: 30 }, { type: 't_vil_9', x: 620, z: 34 },
-      { type: 't_vil_12', x: 460, z: 22 }, { type: 't_vil_0', x: 840, z: 14 }, { type: 't_vil_3', x: 140, z: 20 },
+      { type: 't_vil_12', x: 600, z: 20 }, { type: 't_vil_0', x: 840, z: 14 }, { type: 't_vil_3', x: 140, z: 20 },
       { type: 't_folk_1', x: 540, z: 12 }, { type: 't_folk_3', x: 108, z: 8 }, { type: 't_folk_11', x: 660, z: 24 }, { type: 't_folk_14', x: 318, z: 8 },
       { type: 'lika_town', x: 744, z: 6, facing: -1 },   // Лика — у входа в оружейную
     ],

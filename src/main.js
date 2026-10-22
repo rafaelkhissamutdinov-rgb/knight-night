@@ -2502,7 +2502,8 @@ function updatePathPos(tr) {
   const side = Math.abs(c.dx) >= Math.abs(c.dy) * 0.8;
   tr.pos = { x: c.x, y: c.y, s: c.s, facing: c.dx >= 0 ? 1 : -1, depth: side ? null : c.dy < 0 ? 'north' : 'south',
     alpha: tr.dir === 'out' ? Math.max(0, Math.min(1, (L - tr.d) / PATH_FADE)) : Math.min(1, tr.d / PATH_FADE) };
-  tr.fade = tr.dir === 'out' ? 1 - tr.pos.alpha : 1 - tr.pos.alpha;
+  tr.fade = tr.q?.blend ? 0 : 1 - tr.pos.alpha;   // blend — без темноты: кадр перетекает в следующий
+  if (tr.q?.blend && tr.dir === 'in') tr.pos.alpha = Math.min(1, 0.35 + tr.d / PATH_FADE);
   game.player.x = c.x;   // камера — за рыцарем
 }
 function arriveAt(to, at, keys) {
@@ -2530,6 +2531,43 @@ function arriveAt(to, at, keys) {
   game.pathLock = keys;   // держит клавишу, которой пришёл, — не уходить сразу обратно
   if (ui.floorcard.hidden) callout(r.name, 'muted');
 }
+// плавный переход (владелец 23.10: «чтобы не соединялись два кадра»): последний кадр комнаты запоминается и, наезжая
+// туда, куда ушёл рыцарь, растворяется в новой комнате — без затемнения. Включается у тропы флагом blend.
+const BLEND_T = 0.8;
+let blendTmp = null;
+function blendFrom(tr) {
+  const c = document.createElement('canvas');
+  c.width = g.canvas.width; c.height = g.canvas.height;
+  c.getContext('2d').drawImage(g.canvas, 0, 0);
+  const end = tr.G.pts[tr.G.pts.length - 1];
+  game.blend = { img: c, t: 0, ox: (end[0] - game.camX) * S, oy: end[1] * S };
+}
+function renderBlend() {
+  const b = game.blend;
+  if (!b) return;
+  const k = Math.min(1, b.t / BLEND_T), e0 = k * k * (3 - 2 * k), e = e0 * e0 * (3 - 2 * e0);   // круче в середине — двойной кадр мелькает коротко
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.imageSmoothingEnabled = false;
+  // новая комната: камера начинает чуть ближе к тому месту, откуда выходит рыцарь, и отъезжает — одно движение с наездом старой
+  const t = game.transition, from = t?.kind === 'path' && t.dir === 'in' ? t.G.pts[0] : null;
+  if (from) b.nx ??= (from[0] - game.camX) * S, b.ny ??= Math.min(H, from[1]) * S;
+  if (b.nx != null && e < 1) {
+    blendTmp ??= document.createElement('canvas');
+    if (blendTmp.width !== g.canvas.width) { blendTmp.width = g.canvas.width; blendTmp.height = g.canvas.height; }
+    const tg = blendTmp.getContext('2d');
+    tg.clearRect(0, 0, blendTmp.width, blendTmp.height); tg.drawImage(g.canvas, 0, 0);
+    const s2 = 1 + 0.16 * (1 - e);
+    g.translate(b.nx, b.ny); g.scale(s2, s2); g.translate(-b.nx, -b.ny);
+    g.drawImage(blendTmp, 0, 0);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  g.globalAlpha = 1 - e;
+  const sc = 1 + 0.3 * e;
+  g.translate(b.ox, b.oy); g.scale(sc, sc); g.translate(-b.ox, -b.oy);
+  g.drawImage(b.img, 0, 0);
+  g.restore();
+}
 function updatePathTransition(tr, dt) {
   const p = game.player;
   if (tr.black != null) {   // миг полной темноты между комнатами
@@ -2542,6 +2580,7 @@ function updatePathTransition(tr, dt) {
   if (tr.d >= tr.G.len) {
     tr.d = tr.G.len;
     updatePathPos(tr);
+    if (tr.dir === 'out' && tr.q.blend) { blendFrom(tr); sfx.step(); arriveAt(tr.q.to, tr.q.at, ['depthIn', 'depthOut', 'left', 'right'].filter(k => held(k))); return; }
     if (tr.dir === 'out') { tr.black = 0; tr.fade = 1; sfx.step(); return; }
     const end = tr.G.pts[tr.G.pts.length - 1];
     p.x = end[0]; p.z = Math.max(0, Math.min(CONFIG.depth, end[1] - (CONFIG.floorTop + 6)));
@@ -2800,6 +2839,7 @@ function updateView(dt, engaged) {
 }
 
 function update(dt) {
+  if (game.blend && (game.blend.t += dt) >= BLEND_T) game.blend = null;
   if (game.mode === 'play') try { updateAim(); } catch (err) { frameError(performance.now(), err); }  // высота — до нажатий этого кадра
   for (const code of input.take()) {
     try { handlePress(code); } catch (err) { frameError(performance.now(), err); }   // сбой одной клавиши не глотает остальные (Esc)
@@ -4433,6 +4473,7 @@ function render() {
     g.fillRect(0, 0, W, H);
     g.globalAlpha = 1;
   }
+  renderBlend();
   // затемнение при переходе между комнатами; в начале сцены пробуждения — почти полная тьма
   let fade = 0;
   if (tr?.kind === 'door') fade = tr.phase === 'fadeOut' ? tr.t / DOOR_PHASES.fadeOut : tr.phase === 'fadeIn' ? 1 - tr.t / DOOR_PHASES.fadeIn : 0;
