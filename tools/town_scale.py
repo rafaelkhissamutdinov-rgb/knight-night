@@ -26,7 +26,7 @@ for i in range(16):
     if i != 11: JOBS[f'vils_{i}'] = (f'ch2/sitting48_{i:02d}.png', RAW)
 JOBS.update({
     'npc_bartender': ('ch2/bartender_00.png', RAW),
-    'cam_glasses': ('cameo/glasses_sit48_05.png', RAW), 'cam_glasses_buzz': ('cameo/glasses_buzz_sit48_02.png', RAW),
+    'cam_glasses': ('cameo/glasses_sit48_13.png', RAW), 'cam_glasses_buzz': ('cameo/glasses_buzz_sit48_02.png', RAW),
     'cam_redhead': ('cameo/redhead_sit48_01.png', RAW), 'cam_merc': ('cameo/merc_sit48_01.png', RAW),
     'cam_polly_sit': ('cameo/polly_sit48_00.png', RAW), 'cam_tuyaa_sit': ('cameo/tuyaa_sit48_01.png', RAW),
     'prop_fountain': ('obj/fountain_01.png', RAW), 'prop_town_bench': ('obj/bench_00.png', RAW), 'prop_bar_table': ('obj/cafetable_02.png', RAW),
