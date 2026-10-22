@@ -100,7 +100,7 @@ export function drawVibeFx(g, fx, o) {
     if (!S.stars) { g.restore(); return; }
     const N = o.night ?? k, dawn = !!o.dawn, cam = o.cam ?? 0;
     const sk = skyAt(N, dawn);
-    if (sk.a > 0.01) {   // небо: цветной градиент только по маске неба (облака и даль остаются под ним)
+    if (sk.a > 0.01 && !o.painted) {   // небо: цветной градиент только по маске неба (облака и даль остаются под ним)
       const tc = S.tint ??= document.createElement('canvas');
       tc.width = 640; tc.height = 140;
       const tx = tc.getContext('2d');
@@ -123,9 +123,9 @@ export function drawVibeFx(g, fx, o) {
         g.globalCompositeOperation = 'source-over';
       }
     }
-    // звёзды загораются по одной (у каждой свой порог), мерцают
+    // звёзды загораются по одной (у каждой свой порог), мерцают — если ночь не нарисована на картине
     g.globalCompositeOperation = 'lighter';
-    for (const st of S.stars.list) {
+    for (const st of o.painted ? [] : S.stars.list) {
       const on = Math.max(0, Math.min(1, (N - st.thr) / 0.12));
       if (on <= 0) continue;
       g.globalAlpha = on * (0.55 + 0.4 * Math.sin(t * (1.2 + st.ph * 0.3) + st.ph));
@@ -145,7 +145,7 @@ export function drawVibeFx(g, fx, o) {
     }
     // луна: поднимается с ночью
     const mm = S.stars.moon, mon = Math.max(0, Math.min(1, (N - 0.4) / 0.5));
-    if (mon > 0) {
+    if (mon > 0 && !o.painted) {
       const mx = mm.x - cam, my = mm.y + (1 - mon) * 18;
       const gl = g.createRadialGradient(mx, my, 1, mx, my, 24); gl.addColorStop(0, 'rgba(200,215,255,0.32)'); gl.addColorStop(1, 'rgba(200,215,255,0)');
       g.globalAlpha = mon; g.fillStyle = gl; g.fillRect(mx - 24, my - 24, 48, 48);

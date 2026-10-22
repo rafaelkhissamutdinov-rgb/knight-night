@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v1.0';
+export const VERSION = 'v1.01';
 
 export const CONFIG = {
   width: 320,
@@ -592,7 +592,7 @@ Object.assign(NPC_TYPES, {
   cam_tuyaa: { name: 'Туяа', img: 'cam_logpair', imgNight: 'cam_logpair_up', imgDx: 9, still: true, faceRight: true, talk: 'tuyaa_talk' },   // Туяа и Полли на одном бревне — одна картинка
   cam_polly: { name: 'Полли', hidden: true, still: true, talk: 'polly_glade' },
   cam_stasya: { name: 'Стася', img: 'cam_stasya', still: true, faceRight: true, talk: 'stasya_talk' },   // у кофейни: книга и чёрный кофе (облик временный)
-  lika_town: { name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika', talk: 'lika_town',
+  lika_town: { name: 'Лика', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika', talk: 'lika_town',
     colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' } },
   cam_lucia: { name: 'Люция', img: 'cam_lucia_tel', imgNight: 'cam_lucia_up', imgDx: 26, still: true, faceRight: true, talk: 'lucia_talk' },   // Люция у телескопа — одна картинка с телескопом (правка эскиза рядом с рыцарем)
   cam_merc: { name: 'Виктор', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
@@ -1108,7 +1108,7 @@ export const ROOMS = {
     decor: [{ type: 'spot', x: 120, look: 'look_cliff', name: 'вид на замок' }],
   },
   forest1: {
-    name: 'Лесной склон', chapter: 2, tiles: 'forest', tileCount: 1, length: 720, day: true, ceiling: false, torches: [],
+    name: 'Лесной склон', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [0, 1, 0],   /* лес: 0 — основной кусок, 1 — с брёвнами и грибами, 2 — с ручьём, 3 — с хижинами */ length: 720, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'cliff', x: 290, name: 'Скала' }, right: { to: 'forest2', x: 30, name: 'Поляна' } },
     encounters: [
       { x: 300, enemies: [{ type: 'gobWarrior', dx: 70, z: 18 }] },
@@ -1116,20 +1116,20 @@ export const ROOMS = {
     ],
   },
   forest2: {
-    name: 'Поляна', chapter: 2, tiles: 'forest', tileCount: 1, length: 640, day: true, ceiling: false, torches: [],
+    name: 'Поляна', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [1, 0], length: 640, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'forest1', x: 690, name: 'Лесной склон' }, right: { to: 'forest3', x: 30, name: 'Бурелом' } },
     // первый лес — одна дорога к деревне (владелец, 22.10); лагерь гоблинов — в лесу за городом
     encounters: [{ x: 460, enemies: [{ type: 'merc', dx: 60, z: 20 }, { type: 'crossbow', dx: 160, z: 30 }] }],   // мародёры и в лесу
   },
   forest_camp: {
-    name: 'Лагерь гоблинов', chapter: 2, tiles: 'forest', tileCount: 1, length: 560, day: true, ceiling: false, torches: [],
+    name: 'Лагерь гоблинов', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [1, 0], length: 560, day: true, ceiling: false, torches: [],
     paths: [{ id: 'back', x: [24, 80], z: [0, 10], keys: ['depthIn'], name: 'Обратно в глушь', to: 'forest_e3', at: { path: 'camp' }, pts: FOREST_SIDE(50) }],
     props: [{ type: 'campfire', x: 300, z: 18, light: true }, { type: 'chest', id: 'gob', x: 500, z: 3, coins: 40 }],
     encounters: [{ x: 260, enemies: [{ type: 'gobWarrior', dx: 60, z: 14 }, { type: 'gobJumper', dx: 110, z: 30 }, { type: 'gobShooter', dx: 200, z: 8 }] }],
     // босс гоблинов — позже (шаман: призывает слабых скелетов)
   },
   forest3: {
-    name: 'Бурелом', chapter: 2, tiles: 'forest', tileCount: 1, length: 720, day: true, ceiling: false, torches: [],
+    name: 'Бурелом', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [1, 0, 1], length: 720, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'forest2', x: 610, name: 'Поляна' }, right: { to: 'village_gate', x: 30, name: 'К деревне' } },
     encounters: [{ x: 380, enemies: [{ type: 'gobShooter', dx: 150, z: 8 }, { type: 'gobWarrior', dx: 50, z: 22 }, { type: 'gobJumper', dx: 90, z: 32 }] }],
   },
@@ -1157,7 +1157,7 @@ export const ROOMS = {
     edges: { left: { to: 'village', x: 290, name: 'Улица' }, right: { to: 'town_crafts', x: 30, name: 'Ремесленная улица' } },
     paths: [
       // широкая лестница слева: два марша между домами, наверху — улица к площади
-      { id: 'up', x: [38, 86], z: [0, 10], keys: ['depthIn'], name: 'Лестница наверх, к площади', to: 'town_square', at: { edge: 'left', z: 10 },
+      { id: 'up', x: [38, 86], z: [0, 10], keys: ['depthIn'], name: 'Лестница наверх, к площади', to: 'town_square', at: { path: 'down' },
         pts: [[60, 117, 0.97], [62, 97, 0.88], [65, 78, 0.78], [67, 60, 0.66], [69, 44, 0.55]] },
       // ступени справа впереди — вниз, к набережной
       { id: 'down', x: [228, 320], z: [14, 44], keys: ['right', 'depthOut'], name: 'Ступени вниз, к набережной', to: 'town_river', at: { edge: 'left', z: 16 },
@@ -1167,13 +1167,15 @@ export const ROOMS = {
   },
   town_square: {
     name: 'Площадь', chapter: 2, tiles: 'town_square', tileCount: 3, tileSeq: [0, 2, 1], length: 960, day: true, ceiling: false, torches: [],
-    edges: { left: { to: 'town_cross', at: { path: 'up' }, name: 'Лестница вниз, к развилке' } },
+    // с развилки приходят по лестнице снизу (v1.0, владелец: «без склейки»): рыцарь поднимается из-за нижнего края экрана
     doors: [
       { id: 'bar', x: 246, kind: 'painted', leaf: [236, 86, 21, 34], mat: { color: '#8a3b2e', dark: '#4a1f1a', light: '#c9774a' }, to: 'town_bar', at: { path: 'out' }, name: 'Бар Härtezeichen' },
       { id: 'armory', x: 709, kind: 'painted', leaf: [694, 86, 30, 34], mat: { color: '#3b4a6a', dark: '#1f2638', light: '#8a9ac0', w: 32 }, to: 'town_armory', name: 'Оружейная' },
       { id: 'hall', x: 481, kind: 'painted', leaf: [471, 84, 21, 30], locked: 'Ратуша закрыта: «Приём — по средам»' , mat: { color: '#7a2a2a', dark: '#3a1414', light: '#c0a060', w: 28 }, to: 'town_square', name: 'Ратуша' },
     ],
     paths: [
+      { id: 'down', x: [36, 96], z: [26, 44], keys: ['depthOut'], name: 'Лестница вниз, к развилке', to: 'town_cross', at: { path: 'up' },
+        pts: [[64, 162, 1], [64, 172, 1.06], [64, 184, 1.12], [64, 198, 1.18]] },
       // арка в правом куске: дорога за ней поднимается на зелёный холм к лесу
       { id: 'lane', x: [878, 924], z: [0, 10], keys: ['depthIn'], name: 'Арка — тропа к лесу', to: 'town_lane', at: { edge: 'left', z: 12 },
         pts: [[900, 118, 0.95], [902, 108, 0.82], [907, 98, 0.68], [914, 90, 0.56]] },
@@ -1186,6 +1188,7 @@ export const ROOMS = {
       { type: 'bar_table', x: 292, z: 5 },   // второй столик бара снаружи
       { type: 'fountain', x: 590, z: 18 },
       { type: 'town_bench', x: 380, z: 4 }, { type: 'town_bench', x: 790, z: 4 },
+      { type: 'streetlamp', x: 320, z: 44 }, { type: 'streetlamp', x: 640, z: 44 },   // фонари на стыках кусков картины
     ],
     npcs: [
       { type: 'cam_glasses', x: 196, z: 5.5, facing: 1 }, { type: 'cam_redhead', x: 215, z: 5.6, facing: -1 },   // Иэн и Ксандра у бара
@@ -1269,7 +1272,7 @@ export const ROOMS = {
   // ---------- лес за городом (v1.0, владелец 22.10): главная сюжетная часть — больше поворотов в разные комнаты; пока — тот же лес,
   // в каждой боковой комнате своё (потом доработаем). Боковые тропы уходят вглубь между деревьями.
   forest_e1: {
-    name: 'Тракт за воротами', chapter: 2, tiles: 'forest', tileCount: 1, length: 720, day: true, ceiling: false, torches: [],
+    name: 'Тракт за воротами', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [1, 0, 1], length: 720, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'town_gate', at: { path: 'gate' }, name: 'Городские ворота' }, right: { to: 'forest_e2', x: 30, name: 'Развилка в лесу' } },
     paths: [
       { id: 'brook', x: [214, 246], z: [0, 10], keys: ['depthIn'], name: 'Тропинка к ручью', to: 'forest_brook', at: { path: 'back' }, pts: FOREST_SIDE(230) },
@@ -1278,13 +1281,13 @@ export const ROOMS = {
     encounters: [{ x: 430, enemies: [{ type: 'gobWarrior', dx: 70, z: 18 }, { type: 'gobShooter', dx: 150, z: 8 }] }],
   },
   forest_e2: {
-    name: 'Развилка в лесу', chapter: 2, tiles: 'forest', tileCount: 1, length: 720, day: true, ceiling: false, torches: [],
+    name: 'Развилка в лесу', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [0, 1, 0], length: 720, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'forest_e1', x: 690, name: 'Тракт' }, right: { to: 'forest_e3', x: 30, name: 'Глушь' } },
     paths: [{ id: 'stones', x: [344, 376], z: [0, 10], keys: ['depthIn'], name: 'Тропинка к каменному кругу', to: 'forest_stones', at: { path: 'back' }, pts: FOREST_SIDE(360) }],
     encounters: [{ x: 520, enemies: [{ type: 'gobJumper', dx: 50, z: 26 }, { type: 'gobWarrior', dx: 110, z: 10 }, { type: 'gobJumper', dx: 160, z: 34 }] }],
   },
   forest_e3: {
-    name: 'Глушь', chapter: 2, tiles: 'forest', tileCount: 1, length: 640, day: true, ceiling: false, torches: [],
+    name: 'Глушь', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [1, 0], length: 640, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'forest_e2', x: 690, name: 'Развилка в лесу' } },
     paths: [{ id: 'camp', x: [104, 136], z: [0, 10], keys: ['depthIn'], name: 'Тропа к лагерю гоблинов', to: 'forest_camp', at: { path: 'back' }, pts: FOREST_SIDE(120) }],
     doors: [{ id: 'on', x: 610, kind: 'none', stairs: true, to: 'forest_e3', toDoor: 'on', name: 'Дальше по дороге', finish: true,
@@ -1292,21 +1295,21 @@ export const ROOMS = {
     encounters: [{ x: 380, enemies: [{ type: 'merc', dx: 60, z: 20 }, { type: 'crossbow', dx: 170, z: 30 }] }],
   },
   forest_brook: {
-    name: 'У ручья', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
+    name: 'У ручья', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [2, 1], length: 480, day: true, ceiling: false, torches: [],
     paths: [{ id: 'back', x: [24, 84], z: [0, 10], keys: ['depthIn'], name: 'Обратно на тракт', to: 'forest_e1', at: { path: 'brook' }, pts: FOREST_SIDE(60) }],
     props: [{ type: 'chest', id: 'brook', x: 420, z: 3, coins: 25 }],
     encounters: [{ x: 260, enemies: [{ type: 'gobShooter', dx: 120, z: 8 }, { type: 'gobJumper', dx: 60, z: 30 }] }],
     decor: [{ type: 'spot', x: 200, look: 'look_brook', name: 'ручей' }],
   },
   forest_hut: {
-    name: 'Хижина охотника', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
+    name: 'Хижина охотника', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [3, 1], length: 480, day: true, ceiling: false, torches: [],
     paths: [{ id: 'back', x: [24, 84], z: [0, 10], keys: ['depthIn'], name: 'Обратно на тракт', to: 'forest_e1', at: { path: 'hut' }, pts: FOREST_SIDE(60) }],
     props: [{ type: 'campfire', x: 300, z: 18, light: true }, { type: 'chest', id: 'hut', x: 420, z: 3, coins: 30 }],
     vibe: [{ id: 'hut_fire', x: 280, fx: 'embers', fxX: 300, fxZ: 18, sit: { x: 280, z: 20, face: 1 } }],
     decor: [{ type: 'spot', x: 180, look: 'look_hut', name: 'следы у кострища' }],
   },
   forest_stones: {
-    name: 'Каменный круг', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
+    name: 'Каменный круг', chapter: 2, tiles: 'forest', tileCount: 4, tileSeq: [0, 1], length: 480, day: true, ceiling: false, torches: [],
     paths: [{ id: 'back', x: [24, 84], z: [0, 10], keys: ['depthIn'], name: 'Обратно на развилку', to: 'forest_e2', at: { path: 'stones' }, pts: FOREST_SIDE(60) }],
     encounters: [{ x: 240, enemies: [{ type: 'gobWarrior', dx: 60, z: 14 }, { type: 'gobJumper', dx: 110, z: 30 }, { type: 'gobShooter', dx: 190, z: 8 }] }],
     props: [{ type: 'chest', id: 'stones', x: 430, z: 3, coins: 40 }],
@@ -1318,7 +1321,8 @@ export const ROOMS = {
     // Туяа и Полли на бревне, Люция у телескопа (облик выбран владельцем 22.10); «вайбовать» у костра — ночь и звёзды
     props: [{ type: 'campfire', x: 168, z: 26, light: true }],
     npcs: [{ type: 'cam_tuyaa', x: 104, z: 12, facing: 1 }, { type: 'cam_polly', x: 128, z: 12, facing: -1 }, { type: 'cam_lucia', x: 196, z: 8, facing: 1 }],
-    vibe: [{ id: 'glade_night', x: 150, fx: 'night', fxX: 168, fxZ: 26, sit: { x: 150, z: 26, face: 1 }, sitImg: 'knight_sit_fire' }],
+    vibe: [{ id: 'glade_night', x: 150, fx: 'night', fxX: 168, fxZ: 26, sit: { x: 150, z: 26, face: 1 }, sitImg: 'knight_sit_fire',
+      frames: ['assets/backgrounds/town_glade/town_glade_sunset.png', 'assets/backgrounds/town_glade/town_glade_dusk.png', 'assets/backgrounds/town_glade/town_glade_night.png'] }],
   },
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.
