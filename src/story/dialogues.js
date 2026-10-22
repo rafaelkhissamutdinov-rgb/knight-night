@@ -16,7 +16,9 @@ export const SPEAKERS = {
   bartender: { name: 'Бармен' },
   cam_glasses: { name: 'Иэн', portrait: 'cam_glasses' },   // имена — владелец (22.10)
   cam_redhead: { name: 'Ксандра', portrait: 'cam_redhead' },
-  cam_merc: { name: 'Виктор', portrait: 'cam_merc' },   // наёмник, сюжетный (побочные задания, главы 5–6)
+  cam_merc: { name: 'Виктор', portrait: 'cam_merc' },
+  cam_tuyaa: { name: 'Туяа', portrait: 'cam_tuyaa' }, cam_polly: { name: 'Полли', portrait: 'cam_polly' },
+  cam_lucia: { name: 'Люция', portrait: 'cam_lucia' }, cam_zacharia: { name: 'Захария', portrait: 'cam_zacharia' },   // наёмник, сюжетный (побочные задания, главы 5–6)
 };
 for (const [img, name] of TOWNSFOLK) SPEAKERS['town_' + img] = { name };   // горожане главы 2 говорят под своими именами
 
@@ -73,6 +75,15 @@ export const DIALOGUES = {
     { who: 'cam_redhead', text: '[черновик] Мне нравится. Голове теперь, говорит, свежо.' },
   ],
   redhead_talk: [{ who: 'cam_redhead', text: '[черновик] Привет, рыцарь! Садись к нам — третий стул как раз свободен.' }],
+  // поляна с телескопом (владелец, 22.10)
+  tuyaa_talk: [{ who: 'cam_tuyaa', text: '[черновик] О, рыцарь. Садись к огню, если не боишься девичьих разговоров.' }],
+  polly_glade: [{ who: 'cam_polly', text: '[черновик] Отдыхаем. А днём я в оружейной, на площади. Заходи — подберу тебе что-нибудь получше этой ржавчины.' }],
+  // Люция у телескопа — диалог владельца
+  lucia_talk: [
+    { who: 'knight', text: '…' },
+    { who: 'cam_lucia', text: '…' },
+    { who: 'knight', mood: 'aside', text: '(Хочется что-то сказать, но, как назло, в голову ничего не приходит.)' },
+  ],
   merc_talk: [
     { who: 'cam_merc', text: '[черновик] Виктор. Наёмник. Работаю за деньги, вопросов не задаю.' },
     { who: 'cam_merc', text: '[черновик] Работы пока нет. Заходи позже — будет.' },
