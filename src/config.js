@@ -557,6 +557,7 @@ Object.assign(NPC_TYPES, {
   cam_redhead: { name: 'Ксандра', img: 'cam_couple', imgAlt: ['glasses_buzz', 'cam_couple_buzz'], imgDx: 10, still: true, faceRight: true, talk: 'redhead_talk' },   // парочка одной картинкой (PixelLab правкой эскиза рядом с рыцарем — тот же масштаб и детальность)
   cam_tuyaa: { name: 'Туяа', img: 'cam_logpair', imgDx: 9, still: true, faceRight: true, talk: 'tuyaa_talk' },   // Туяа и Полли на одном бревне — одна картинка
   cam_polly: { name: 'Полли', hidden: true, still: true, talk: 'polly_glade' },
+  cam_lucia: { name: 'Люция', img: 'cam_lucia_tel', imgDx: 26, still: true, faceRight: true, talk: 'lucia_talk' },   // Люция у телескопа — одна картинка с телескопом (правка эскиза рядом с рыцарем)
   cam_merc: { name: 'Виктор', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
 });
 
@@ -1182,9 +1183,9 @@ export const ROOMS = {
   town_glade: {
     name: 'Поляна с телескопом', chapter: 2, tiles: 'town_glade', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'town_lane', x: 290, name: 'Тропа к городу' } },
-    // Туяа и Полли на бревне, Люция у телескопа (её облик — на выборе у владельца); «вайбовать» у костра — ночь и звёзды
-    props: [{ type: 'telescope', x: 236, z: 8 }, { type: 'campfire', x: 168, z: 26, light: true }],
-    npcs: [{ type: 'cam_tuyaa', x: 104, z: 12, facing: 1 }, { type: 'cam_polly', x: 128, z: 12, facing: -1 }],
+    // Туяа и Полли на бревне, Люция у телескопа (облик выбран владельцем 22.10); «вайбовать» у костра — ночь и звёзды
+    props: [{ type: 'campfire', x: 168, z: 26, light: true }],
+    npcs: [{ type: 'cam_tuyaa', x: 104, z: 12, facing: 1 }, { type: 'cam_polly', x: 128, z: 12, facing: -1 }, { type: 'cam_lucia', x: 196, z: 8, facing: 1 }],
     vibe: [{ id: 'glade_night', x: 150, fx: 'night', fxX: 168, fxZ: 26, sit: { x: 150, z: 30, face: 1 } }],
   },
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
