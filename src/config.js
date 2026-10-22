@@ -592,7 +592,7 @@ Object.assign(NPC_TYPES, {
   cam_tuyaa: { name: 'Туяа', img: 'cam_logpair', imgNight: 'cam_logpair_up', imgDx: 9, still: true, faceRight: true, talk: 'tuyaa_talk' },   // Туяа и Полли на одном бревне — одна картинка
   cam_polly: { name: 'Полли', hidden: true, still: true, talk: 'polly_glade' },
   cam_stasya: { name: 'Стася', img: 'cam_stasya', still: true, faceRight: true, talk: 'stasya_talk' },   // у кофейни: книга и чёрный кофе (облик временный)
-  lika_town: { name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika', talk: 'lika_town',
+  lika_town: { name: 'Лика', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika', talk: 'lika_town',
     colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' } },
   cam_lucia: { name: 'Люция', img: 'cam_lucia_tel', imgNight: 'cam_lucia_up', imgDx: 26, still: true, faceRight: true, talk: 'lucia_talk' },   // Люция у телескопа — одна картинка с телескопом (правка эскиза рядом с рыцарем)
   cam_merc: { name: 'Виктор', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
@@ -1157,7 +1157,7 @@ export const ROOMS = {
     edges: { left: { to: 'village', x: 290, name: 'Улица' }, right: { to: 'town_crafts', x: 30, name: 'Ремесленная улица' } },
     paths: [
       // широкая лестница слева: два марша между домами, наверху — улица к площади
-      { id: 'up', x: [38, 86], z: [0, 10], keys: ['depthIn'], name: 'Лестница наверх, к площади', to: 'town_square', at: { edge: 'left', z: 10 },
+      { id: 'up', x: [38, 86], z: [0, 10], keys: ['depthIn'], name: 'Лестница наверх, к площади', to: 'town_square', at: { path: 'down' },
         pts: [[60, 117, 0.97], [62, 97, 0.88], [65, 78, 0.78], [67, 60, 0.66], [69, 44, 0.55]] },
       // ступени справа впереди — вниз, к набережной
       { id: 'down', x: [228, 320], z: [14, 44], keys: ['right', 'depthOut'], name: 'Ступени вниз, к набережной', to: 'town_river', at: { edge: 'left', z: 16 },
@@ -1167,13 +1167,15 @@ export const ROOMS = {
   },
   town_square: {
     name: 'Площадь', chapter: 2, tiles: 'town_square', tileCount: 3, tileSeq: [0, 2, 1], length: 960, day: true, ceiling: false, torches: [],
-    edges: { left: { to: 'town_cross', at: { path: 'up' }, name: 'Лестница вниз, к развилке' } },
+    // с развилки приходят по лестнице снизу (v1.0, владелец: «без склейки»): рыцарь поднимается из-за нижнего края экрана
     doors: [
       { id: 'bar', x: 246, kind: 'painted', leaf: [236, 86, 21, 34], mat: { color: '#8a3b2e', dark: '#4a1f1a', light: '#c9774a' }, to: 'town_bar', at: { path: 'out' }, name: 'Бар Härtezeichen' },
       { id: 'armory', x: 709, kind: 'painted', leaf: [694, 86, 30, 34], mat: { color: '#3b4a6a', dark: '#1f2638', light: '#8a9ac0', w: 32 }, to: 'town_armory', name: 'Оружейная' },
       { id: 'hall', x: 481, kind: 'painted', leaf: [471, 84, 21, 30], locked: 'Ратуша закрыта: «Приём — по средам»' , mat: { color: '#7a2a2a', dark: '#3a1414', light: '#c0a060', w: 28 }, to: 'town_square', name: 'Ратуша' },
     ],
     paths: [
+      { id: 'down', x: [36, 96], z: [26, 44], keys: ['depthOut'], name: 'Лестница вниз, к развилке', to: 'town_cross', at: { path: 'up' },
+        pts: [[64, 162, 1], [64, 172, 1.06], [64, 184, 1.12], [64, 198, 1.18]] },
       // арка в правом куске: дорога за ней поднимается на зелёный холм к лесу
       { id: 'lane', x: [878, 924], z: [0, 10], keys: ['depthIn'], name: 'Арка — тропа к лесу', to: 'town_lane', at: { edge: 'left', z: 12 },
         pts: [[900, 118, 0.95], [902, 108, 0.82], [907, 98, 0.68], [914, 90, 0.56]] },
@@ -1318,7 +1320,8 @@ export const ROOMS = {
     // Туяа и Полли на бревне, Люция у телескопа (облик выбран владельцем 22.10); «вайбовать» у костра — ночь и звёзды
     props: [{ type: 'campfire', x: 168, z: 26, light: true }],
     npcs: [{ type: 'cam_tuyaa', x: 104, z: 12, facing: 1 }, { type: 'cam_polly', x: 128, z: 12, facing: -1 }, { type: 'cam_lucia', x: 196, z: 8, facing: 1 }],
-    vibe: [{ id: 'glade_night', x: 150, fx: 'night', fxX: 168, fxZ: 26, sit: { x: 150, z: 26, face: 1 }, sitImg: 'knight_sit_fire' }],
+    vibe: [{ id: 'glade_night', x: 150, fx: 'night', fxX: 168, fxZ: 26, sit: { x: 150, z: 26, face: 1 }, sitImg: 'knight_sit_fire',
+      frames: ['assets/backgrounds/town_glade/town_glade_sunset.png', 'assets/backgrounds/town_glade/town_glade_dusk.png', 'assets/backgrounds/town_glade/town_glade_night.png'] }],
   },
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.

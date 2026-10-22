@@ -1021,20 +1021,19 @@ const VN_SCENES = {
   // оружейная (владелец, 22.10): картина, как покои; два продавца на выбор — клик по продавцу открывает окно торговли
   armory: {
     title: 'Оружейная', img: 'assets/vn/armory_room.png', down: '← На площадь', help: 'выбери, к кому подойти: Полли — оружие и доспехи, Захария — артефакты',
-    figs: [{ img: 'assets/vn/armory_polly.png', x: 150, y: 202 }, { img: 'assets/vn/armory_zacharia.png', x: 404, y: 202 }],
+    // продавцы нарисованы прямо на картине (PixelLab, та же детальность, что комната)
     spots: [
-      { name: 'Полли — оружие и доспехи', shop: 'polly', who: 'Полли', r: [160, 212, 112, 118] },
-      { name: 'Захария — артефакты', shop: 'zacharia', who: 'Захария', r: [412, 212, 104, 118] },
-      { name: 'Стойка с доспехом', look: 'look_armor_stand', r: [196, 176, 48, 50] },
+      { name: 'Полли — оружие и доспехи', shop: 'polly', who: 'Полли', r: [112, 132, 96, 106] },
+      { name: 'Захария — артефакты', shop: 'zacharia', who: 'Захария', r: [430, 126, 108, 112] },
+      { name: 'Доспех на стойке', look: 'look_armor_stand', r: [196, 172, 50, 60] },
     ],
-    lights: [[124, 26, 0.8], [310, 26, 0.8], [500, 26, 0.8]],
+    lights: [[272, 96, 0.9], [124, 26, 0.6], [310, 26, 0.6], [500, 26, 0.6]],
   },
   // кофейня «Vertrauen» (временная картина — эскиз владельца позже): бариста за стойкой; клик — окно, как у Лики
   cafe: {
     title: 'Кофейня Vertrauen', img: 'assets/vn/cafe_room.png', down: '← На набережную', help: 'наведи на бариста — заказать; на вещи — осмотреть',
-    figs: [{ img: 'assets/vn/cafe_shahbanu.png', x: 452, y: 160, clip: 238 }],
     spots: [
-      { name: 'Шахбану — бариста', shop: 'cafe', who: 'Шахбану', r: [462, 160, 96, 80] },
+      { name: 'Шахбану — бариста', shop: 'cafe', who: 'Шахбану', r: [496, 150, 78, 92] },
       { name: 'Окно', look: 'look_cafe_window', r: [66, 90, 96, 146] },
       { name: 'Столик', look: 'look_cafe_table', r: [250, 236, 120, 80] },
     ],
@@ -2332,6 +2331,25 @@ function drawCatGlow(cam) {
   }
 }
 // слой поверх живого света: живая картинка вайба и эффекты боя (src/combatfx.js) — светятся сами
+// смена времени суток кадрами (v1.0, владелец 23.10: «покадрово, без полосы»): у места вайба frames — картины той же поляны
+// на закате, в сумерках и ночью; переход — плавное смешение соседних кадров по ходу ночи (k), обратно — так же, рассветом
+const timeFrameImgs = {};
+function drawTimeFrames(cam) {
+  const v = game.vibeFx, fr = v?.spot.frames;
+  if (!fr) return;
+  const imgs = fr.map(src => (timeFrameImgs[src] ??= Object.assign(new Image(), { src })));
+  if (!imgs.every(im => im.complete && im.naturalWidth)) return;
+  const k = Math.max(0, Math.min(1, v.k)), e = k * k * (3 - 2 * k), seg = e * imgs.length;   // 0 — день, 1 — последний кадр
+  g.save();
+  g.imageSmoothingEnabled = false;
+  for (let i = 0; i < imgs.length; i++) {
+    const a = Math.max(0, Math.min(1, seg - i));   // кадр i проявляется поверх предыдущего
+    if (a <= 0) break;
+    g.globalAlpha = a;
+    g.drawImage(imgs[i], -cam, 0, room().length, H);
+  }
+  g.restore();
+}
 function renderOverlayFx() {
   const busy = !!game.vibeFx || combatFxBusy() || !!game.catGlow?.length;
   if (busy || fxCanvas.dataset.dirty) { fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); delete fxCanvas.dataset.dirty; }
@@ -2353,7 +2371,7 @@ function renderVibeFx(cam) {
   if ((v.k <= 0 && !game.vibe) || !(room().vibe ?? []).includes(v.spot)) { game.vibeFx = null; return; }
   const sp = v.spot, k = v.k * v.k * (3 - 2 * v.k);
   const src = vibeSource(sp, cam);
-  drawVibeFx(fx, sp.fx, { night: v.k, dawn: v.dawn, cam, sky: sp.fx === 'night' ? tileSets[room().tiles]?.[0] : null, sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, win: src.win, hole: src.hole, sun: sp.sun, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+  drawVibeFx(fx, sp.fx, { night: v.k, dawn: v.dawn, painted: !!sp.frames, cam, sky: sp.fx === 'night' ? tileSets[room().tiles]?.[0] : null, sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, win: src.win, hole: src.hole, sun: sp.sun, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
 }
 // откуда свет у места вайба (v0.83): окно — ближайшее к месту убранство-окно, пролом — убранство roofhole (их рамки на экране)
 function vibeSource(sp, cam) {
@@ -3603,7 +3621,7 @@ const FACES = {
   // камео главы 2 (v0.98, по фото владельца; одежда — под средневековье)
   cam_glasses: { default: 'assets/portraits/cam_glasses.png', buzz: 'assets/portraits/cam_glasses-buzz.png' },
   cam_redhead: { default: 'assets/portraits/cam_redhead.png' }, cam_merc: { default: 'assets/portraits/cam_merc.png' },
-  cam_tuyaa: { default: 'assets/portraits/cam_tuyaa.png' }, cam_polly: { default: 'assets/portraits/cam_polly.png' }, cam_zacharia: { default: 'assets/portraits/cam_zacharia.png' }, cam_lucia: { default: 'assets/portraits/cam_lucia.png' },
+  cam_tuyaa: { default: 'assets/portraits/cam_tuyaa.png' }, cam_polly: { default: 'assets/portraits/cam_polly.png' }, cam_zacharia: { default: 'assets/portraits/cam_zacharia.png' }, cam_lucia: { default: 'assets/portraits/cam_lucia.png' }, cam_stasya: { default: 'assets/portraits/cam_stasya.png' }, cam_shahbanu: { default: 'assets/portraits/cam_shahbanu.png' },
   priest: { default: 'assets/portraits/priest.png' }, maid: { default: 'assets/portraits/maid.png' },   // призраки (v0.81)
   trainer: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'serious', 'worried', 'sad', 'annoyed']   // v0.80: настроения как у Лики
     .map(m => [m, m === 'default' ? 'assets/portraits/alkima.png' : `assets/portraits/alkima-${m}.png`])),
@@ -4255,6 +4273,7 @@ function render() {
   }
   const bg = bgFor(game.room), bk = bg.k ?? 1;
   g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
+  drawTimeFrames(cam);   // «вайбовать» на поляне: закат → сумерки → ночь — настоящими кадрами картины (PixelLab)
   // карта объёма фона (рельеф стен, нормали предметов) — под живой свет; предметы на полу допишут свои по ходу кадра
   if (light && bg.normal) light.normalCtx.drawImage(bg.normal, cam * bk, 0, W * bk, H * bk, 0, 0, W * S, H * S);
   if (light) pairNormals(g, light.normalCtx);
@@ -5414,10 +5433,10 @@ function sceneLights() {
 // тёмные комнаты (камера, привал) — тоже живым светом (v0.67): почти ночь, светят портал, костёр и выход
 const DARK_AMBIENT = [0.16, 0.14, 0.2];
 const DAY_AMBIENT = [1.02, 1, 0.96];
-const NIGHT_AMBIENT = [0.2, 0.24, 0.42];
+const NIGHT_AMBIENT = [0.5, 0.56, 0.78];   // ночь нарисована на самой картине — свет только чуть приглушает людей и даёт место костру
 const nightK = () => { const v = game.vibeFx; if (v?.spot.fx !== 'night') return 0; const k = Math.max(0, Math.min(1, v.k)); return k * k * (3 - 2 * k); };
 // свет поляны по времени: день → закат (тёплый) → ночь; обратно — через розовый рассвет
-const SUNSET_AMBIENT = [1.04, 0.74, 0.58], DAWN_AMBIENT = [0.92, 0.74, 0.82];
+const SUNSET_AMBIENT = [1.02, 0.9, 0.8], DAWN_AMBIENT = [0.96, 0.88, 0.92];
 function nightAmbient(base, k, dawn) {
   const mid = dawn ? DAWN_AMBIENT : SUNSET_AMBIENT, m = dawn ? 0.42 : 0.36;
   const lerp = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);

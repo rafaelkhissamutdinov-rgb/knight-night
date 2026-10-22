@@ -354,7 +354,7 @@ function finishRoom(g, room, length, height, floorTop, rand, tiled) {
 
 // Дверь в задней стене: деревянная, решётчатая (камера) или железная.
 export function drawDoor(g, d, floorTop, tiled = false) {
-  if (d.kind === 'none') return;  // проход без двери (например, у подножия лестницы)
+  if (d.kind === 'none' || d.kind === 'painted') return;  // проход без двери / дверь нарисована на самой картине (v1.0)
   const im = tiled && objImg('door_' + (['bars', 'iron', 'hole'].includes(d.kind) ? d.kind : 'wood'));
   if (im) { drawObj(g, im, d.x, floorTop); return; }   // низ двери — ровно на линии пола
   if (d.kind === 'hole') {
