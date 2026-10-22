@@ -555,7 +555,7 @@ Object.assign(NPC_TYPES, {
   cam_glasses: { name: 'Иэн', hidden: true, still: true,   // сидит с Ксандрой — их общая картинка у неё (cam_couple)
     talks: [{ id: 'glasses_after', if: 'glasses_buzz' }, { id: 'glasses_wait', if: 'glasses_asked' }], talk: 'glasses_meet' },
   cam_redhead: { name: 'Ксандра', img: 'cam_couple', imgAlt: ['glasses_buzz', 'cam_couple_buzz'], imgDx: 10, still: true, faceRight: true, talk: 'redhead_talk' },   // парочка одной картинкой (PixelLab правкой эскиза рядом с рыцарем — тот же масштаб и детальность)
-  cam_tuyaa: { name: 'Туяа', img: 'cam_logpair', imgDx: 10, still: true, faceRight: true, talk: 'tuyaa_talk' },   // Туяа и Полли на одном бревне — одна картинка
+  cam_tuyaa: { name: 'Туяа', img: 'cam_logpair', imgDx: 9, still: true, faceRight: true, talk: 'tuyaa_talk' },   // Туяа и Полли на одном бревне — одна картинка
   cam_polly: { name: 'Полли', hidden: true, still: true, talk: 'polly_glade' },
   cam_merc: { name: 'Виктор', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
 });
