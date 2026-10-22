@@ -42,6 +42,7 @@ const KEYS = {
 };
 // где на экране земля под бойцом на глубине z, и высота удара над ней
 const groundY = z => CONFIG.floorTop + 6 + z;
+const BASE_FLOOR = CONFIG.floorTop, BASE_DEPTH = CONFIG.depth;   // у комнаты может быть своя линия пола и глубина (бар — вид сверху, v0.98)
 const HIT_UP = { high: 34, mid: 22, low: 9 };
 const clashY = (h, z) => groundY(z) - HIT_UP[h];
 const near = (a, b) => Math.abs(a.z - b.z) <= CONFIG.depthReach;
@@ -163,6 +164,8 @@ function loadRoom(id, at) {
   game.climb = null;
   game.blueFireAt = null;
   game.coinFx = [];
+  CONFIG.floorTop = ROOMS[id].floorTop ?? BASE_FLOOR;
+  CONFIG.depth = ROOMS[id].depth ?? BASE_DEPTH;
   game.flags['map_' + id] = true;  // для карты: где побывал
   for (const [f, at] of Object.entries(game.flags.later ?? {})) if ((game.flags.playTime ?? 0) >= at) { game.flags[f] = true; delete game.flags.later[f]; }
   const floor = ROOMS[id].floor ?? 1;
