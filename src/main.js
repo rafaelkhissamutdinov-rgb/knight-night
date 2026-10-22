@@ -4944,11 +4944,12 @@ function renderNpc(n, cam) {
     g.restore();
     if (ok) return;
   }
+  if (n.def.hidden) return;   // рисуется вместе с другим (общая картинка)
   if (n.def.img && !n.def.ghost) {
     // горожане главы 2 (v0.98): картинка PixelLab смотрит влево; imgAlt — другой облик после флага (стрижка)
     const img = n.def.imgAlt && game.flags[n.def.imgAlt[0]] ? n.def.imgAlt[1] : n.def.img;
     if (n.def.cut) { g.save(); g.beginPath(); g.rect(x - 40, 0, 80, gy - n.def.cut); g.clip(); }   // за стойкой: видно до пояса
-    drawObjNamed(g, img, x, gy, n.def.faceRight ? n.facing < 0 : n.facing > 0);   // faceRight — картинка смотрит вправо
+    drawObjNamed(g, img, x + (n.def.imgDx ?? 0), gy, n.def.faceRight ? n.facing < 0 : n.facing > 0);   // faceRight — картинка смотрит вправо; imgDx — сдвиг картинки
     if (n.def.cut) g.restore();
     return;   // картинки ещё нет (камео рисуется) — пусто, без фигуры-заглушки
   }
