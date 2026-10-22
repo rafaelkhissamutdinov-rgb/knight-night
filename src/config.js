@@ -532,6 +532,22 @@ export const MAP = {
 
 // горожане главы 2 (v0.98): временные фигуры PixelLab — на их места встанут камео знакомых владельца (облик, имена, реплики)
 export const TOWNSFOLK = [
+  ['folk_0', 'Жонглёр', 0],   // v1.0: горожане-«приколы»
+  ['folk_1', 'Бард', 0],
+  ['folk_2', 'Рыбник', 0],
+  ['folk_3', 'Цветочница', 0],
+  ['folk_4', 'Стражник', 0],
+  ['folk_5', 'Торговец с курицей', 0],
+  ['folk_6', 'Пекарь', 0],
+  ['folk_7', 'Барабанщик', 0],
+  ['folk_8', 'Гадалка', 0],
+  ['folk_9', 'Водонос', 0],
+  ['folk_10', 'Шут', 0],
+  ['folk_11', 'Фонарщик', 0],
+  ['folk_12', 'Кузнец', 0],
+  ['folk_13', 'Алхимик', 0],
+  ['folk_14', 'Трактирщик', 0],
+  ['folk_15', 'Крестьянин', 0],
   ['vil_0', 'Старик', 0],
   ['vil_1', 'Служанка', 0],
   ['vil_2', 'Пекарь', 0],
@@ -1176,7 +1192,8 @@ export const ROOMS = {
       { type: 't_vils_8', x: 280, z: 5.5, facing: 1 }, { type: 't_vils_5', x: 300, z: 5.5 },
       { type: 't_vils_1', x: 374, z: 4.5 }, { type: 't_vils_6', x: 388, z: 4.5 }, { type: 't_vils_13', x: 790, z: 4.5 },
       { type: 't_vil_2', x: 300, z: 26 }, { type: 't_vil_7', x: 560, z: 30 }, { type: 't_vil_9', x: 620, z: 34 },
-      { type: 't_vil_12', x: 460, z: 22 }, { type: 't_vil_0', x: 840, z: 14 }, { type: 't_vil_3', x: 140, z: 20 }, { type: 't_vil_15', x: 520, z: 10 },
+      { type: 't_vil_12', x: 460, z: 22 }, { type: 't_vil_0', x: 840, z: 14 }, { type: 't_vil_3', x: 140, z: 20 },
+      { type: 't_folk_1', x: 540, z: 12 }, { type: 't_folk_3', x: 108, z: 8 }, { type: 't_folk_11', x: 660, z: 24 }, { type: 't_folk_14', x: 318, z: 8 },
       { type: 'lika_town', x: 744, z: 6, facing: -1 },   // Лика — у входа в оружейную
     ],
   },
@@ -1212,27 +1229,28 @@ export const ROOMS = {
     doors: [{ id: 'cafe', x: 111, kind: 'painted', leaf: [103, 82, 16, 36], mat: { color: '#d88aa0', dark: '#8a4a5a', light: '#f6d2dc' }, to: 'town_cafe', name: 'Кофейня Vertrauen' }],
     npcs: [
       { type: 'cam_stasya', x: 150, z: 6.5, facing: 1 },   // Стася — у кофейни за столиком: книга и чёрный кофе
-      { type: 't_vil_13', x: 240, z: 22 }, { type: 't_vils_0', x: 290, z: 4 },
+      { type: 't_folk_9', x: 240, z: 22 }, { type: 't_vils_0', x: 290, z: 4 },
     ],
     decor: [{ type: 'spot', x: 240, look: 'look_bridge', name: 'мост через канал' }],
   },
   town_mill: {
     name: 'У мельницы', chapter: 2, tiles: 'town_mill', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'town_river', x: 290, name: 'Набережная' } },
-    npcs: [{ type: 't_vil_5', x: 120, z: 10 }, { type: 't_vils_10', x: 210, z: 4 }, { type: 't_vil_9', x: 260, z: 26 }],
+    npcs: [{ type: 't_vil_5', x: 120, z: 10 }, { type: 't_vils_10', x: 210, z: 4 }, { type: 't_vil_9', x: 260, z: 26 }, { type: 't_folk_15', x: 70, z: 18 }],
     decor: [{ type: 'spot', x: 50, look: 'look_mill', name: 'мельничное колесо' }, { type: 'spot', x: 250, look: 'look_ducks', name: 'утки' }],
   },
   // прямо от развилки — три улицы и ворота
   town_crafts: {
     name: 'Ремесленная улица', chapter: 2, tiles: 'town_crafts', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'town_cross', x: 290, name: 'Развилка' }, right: { to: 'town_market', x: 30, name: 'Рынок' } },
-    npcs: [{ type: 't_vil_2', x: 200, z: 6 }, { type: 't_vil_8', x: 280, z: 8 }, { type: 't_vil_10', x: 90, z: 18 }],
+    npcs: [{ type: 't_folk_6', x: 200, z: 6 }, { type: 't_folk_12', x: 282, z: 6 }, { type: 't_vil_10', x: 90, z: 18 }, { type: 't_folk_7', x: 140, z: 30 }],
     decor: [{ type: 'spot', x: 285, look: 'look_forge', name: 'кузница' }, { type: 'spot', x: 205, look: 'look_bakery', name: 'пекарня' }],
   },
   town_market: {
     name: 'Рынок', chapter: 2, tiles: 'town_market', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'town_crafts', x: 290, name: 'Ремесленная улица' }, right: { to: 'town_gate', x: 30, name: 'Городские ворота' } },
-    npcs: [{ type: 't_vil_15', x: 230, z: 4 }, { type: 't_vil_4', x: 120, z: 6 }, { type: 't_vil_11', x: 70, z: 24 }, { type: 't_vil_7', x: 280, z: 18 }, { type: 't_vils_7', x: 300, z: 4 }],
+    npcs: [{ type: 't_vil_15', x: 230, z: 4 }, { type: 't_vil_4', x: 120, z: 6 }, { type: 't_vils_7', x: 300, z: 4 },
+      { type: 't_folk_0', x: 170, z: 26 }, { type: 't_folk_5', x: 260, z: 12 }, { type: 't_folk_8', x: 40, z: 8 }, { type: 't_folk_10', x: 110, z: 34 }, { type: 't_folk_2', x: 300, z: 22 }, { type: 't_folk_13', x: 70, z: 22 }],
     decor: [{ type: 'spot', x: 140, look: 'look_well', name: 'колодец' }],
   },
   town_gate: {
@@ -1241,7 +1259,7 @@ export const ROOMS = {
     // ворота открыты: дорога за ними уходит в лес
     paths: [{ id: 'gate', x: [210, 248], z: [0, 12], keys: ['depthIn'], name: 'Ворота — дорога в лес', to: 'forest_e1', at: { edge: 'left', z: 14 },
       pts: [[228, 119, 0.95], [229, 110, 0.8], [230, 102, 0.66], [231, 96, 0.54]] }],
-    npcs: [{ type: 't_vil_14', x: 160, z: 8 }],
+    npcs: [{ type: 't_folk_4', x: 196, z: 4 }, { type: 't_vil_14', x: 120, z: 14 }],
   },
   town_lane: {
     name: 'Тропа к лесу', chapter: 2, tiles: 'town_lane', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
