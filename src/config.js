@@ -1123,7 +1123,7 @@ export const ROOMS = {
   },
   forest_camp: {
     name: 'Лагерь гоблинов', chapter: 2, tiles: 'forest', tileCount: 1, length: 560, day: true, ceiling: false, torches: [],
-    paths: [{ id: 'back', x: [34, 66], z: [0, 10], keys: ['depthIn'], name: 'Обратно в глушь', to: 'forest_e3', at: { path: 'camp' }, pts: FOREST_SIDE(50) }],
+    paths: [{ id: 'back', x: [24, 80], z: [0, 10], keys: ['depthIn'], name: 'Обратно в глушь', to: 'forest_e3', at: { path: 'camp' }, pts: FOREST_SIDE(50) }],
     props: [{ type: 'campfire', x: 300, z: 18, light: true }, { type: 'chest', id: 'gob', x: 500, z: 3, coins: 40 }],
     encounters: [{ x: 260, enemies: [{ type: 'gobWarrior', dx: 60, z: 14 }, { type: 'gobJumper', dx: 110, z: 30 }, { type: 'gobShooter', dx: 200, z: 8 }] }],
     // босс гоблинов — позже (шаман: призывает слабых скелетов)
@@ -1293,21 +1293,21 @@ export const ROOMS = {
   },
   forest_brook: {
     name: 'У ручья', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
-    paths: [{ id: 'back', x: [44, 76], z: [0, 10], keys: ['depthIn'], name: 'Обратно на тракт', to: 'forest_e1', at: { path: 'brook' }, pts: FOREST_SIDE(60) }],
+    paths: [{ id: 'back', x: [24, 84], z: [0, 10], keys: ['depthIn'], name: 'Обратно на тракт', to: 'forest_e1', at: { path: 'brook' }, pts: FOREST_SIDE(60) }],
     props: [{ type: 'chest', id: 'brook', x: 420, z: 3, coins: 25 }],
     encounters: [{ x: 260, enemies: [{ type: 'gobShooter', dx: 120, z: 8 }, { type: 'gobJumper', dx: 60, z: 30 }] }],
     decor: [{ type: 'spot', x: 200, look: 'look_brook', name: 'ручей' }],
   },
   forest_hut: {
     name: 'Хижина охотника', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
-    paths: [{ id: 'back', x: [44, 76], z: [0, 10], keys: ['depthIn'], name: 'Обратно на тракт', to: 'forest_e1', at: { path: 'hut' }, pts: FOREST_SIDE(60) }],
+    paths: [{ id: 'back', x: [24, 84], z: [0, 10], keys: ['depthIn'], name: 'Обратно на тракт', to: 'forest_e1', at: { path: 'hut' }, pts: FOREST_SIDE(60) }],
     props: [{ type: 'campfire', x: 300, z: 18, light: true }, { type: 'chest', id: 'hut', x: 420, z: 3, coins: 30 }],
     vibe: [{ id: 'hut_fire', x: 280, fx: 'embers', fxX: 300, fxZ: 18, sit: { x: 280, z: 20, face: 1 } }],
     decor: [{ type: 'spot', x: 180, look: 'look_hut', name: 'следы у кострища' }],
   },
   forest_stones: {
     name: 'Каменный круг', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
-    paths: [{ id: 'back', x: [44, 76], z: [0, 10], keys: ['depthIn'], name: 'Обратно на развилку', to: 'forest_e2', at: { path: 'stones' }, pts: FOREST_SIDE(60) }],
+    paths: [{ id: 'back', x: [24, 84], z: [0, 10], keys: ['depthIn'], name: 'Обратно на развилку', to: 'forest_e2', at: { path: 'stones' }, pts: FOREST_SIDE(60) }],
     encounters: [{ x: 240, enemies: [{ type: 'gobWarrior', dx: 60, z: 14 }, { type: 'gobJumper', dx: 110, z: 30 }, { type: 'gobShooter', dx: 190, z: 8 }] }],
     props: [{ type: 'chest', id: 'stones', x: 430, z: 3, coins: 40 }],
     decor: [{ type: 'spot', x: 330, look: 'look_stones', name: 'камни с узором' }],
