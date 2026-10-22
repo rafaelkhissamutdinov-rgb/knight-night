@@ -2864,7 +2864,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.cat && game.flags.fujin_fed ? 'погладить' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : game.pathNear ? pathHint(game.pathNear) : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk(), nearVibe());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? npc.def.verb ?? 'лавка' : npc.def.cat && game.flags.fujin_fed ? 'погладить' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : game.pathNear ? pathHint(game.pathNear) : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk(), nearVibe());
   } else if (game.arena?.open) {
     const d = game.doorNear;
     hint(d ? (d.locked ? d.locked : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : game.time - game.arena.t0 < 4 ? 'Можно не драться — проскочи рывком (пробел) сквозь врагов' : '');
@@ -2892,7 +2892,8 @@ function update(dt) {
   const px0 = p.x, pz0 = p.z;
   p.update(dt, controls());
   // мебель, сквозь которую не пройти (block: [полуширина, глубина] у предмета; бар — вид сверху, v0.98): шаг назад по оси, что упёрлась
-  for (const pr of room().props ?? []) {
+  // blocks у комнаты — то же для нарисованного на картине (клумбы, кадки у ратуши): { x, z, block }
+  for (const pr of [...(room().props ?? []), ...(room().blocks ?? [])]) {
     if (!pr.block) continue;
     const inside = (x, z) => Math.abs(x - pr.x) < pr.block[0] && z > pr.z - pr.block[1] && z < pr.z + 2;
     if (!inside(p.x, p.z)) continue;
@@ -3978,7 +3979,7 @@ function artFor(id) {
   const a = SHOPS[id]?.art;
   if (shopArts[id]) return shopArts[id];
   const img = src => Object.assign(new Image(), { src });
-  const out = shopArts[id] = { scene: img(a?.scene ?? 'assets/shop/scene.png') };
+  const out = shopArts[id] = { scene: img(a?.scene ?? 'assets/shop/scene.png'), fg: a?.fg && img(a.fg) };
   for (const m of a?.moods ?? SHOP_MOODS) out[m] = img(`${a?.bust ?? 'assets/shop/lika'}_${m}.png`);
   return out;
 }
@@ -3994,7 +3995,9 @@ function drawShopScene(t) {
   const blink = (!sh.mood || sh.mood === 'default') && (t % 4.3) < 0.13;
   const bust = shopArt[blink ? 'blink' : sh.mood] ?? shopArt.default;
   const im = ok(bust) ? bust : shopArt.default;
-  if (ok(im)) c.drawImage(im, 48, 109 + (Math.sin(t * 1.8) > 0.6 ? -1 : 0));
+  const [bx, by] = sh.data.art?.at ?? [48, 109];   // где стоит продавец; стойка (fg) рисуется поверх — он за ней, а не перед
+  if (ok(im)) c.drawImage(im, bx, by + (!sh.data.art?.still && Math.sin(t * 1.8) > 0.6 ? -1 : 0));
+  if (ok(shopArt.fg)) c.drawImage(shopArt.fg, 0, 0);
   // огонь свечей и фонаря дрожит, вокруг — тёплый свет
   c.save();
   c.globalCompositeOperation = 'lighter';
@@ -4068,6 +4071,7 @@ function shopView(view) {
 function shopOptions() {
   const sh = game.shop, d = sh.data;
   const back = { label: 'Назад', go: () => shopView('main') };
+  if (d.guide) return guideOptions(sh, d, back);
   if (sh.view === 'buy') return [
     ...d.items.map(it => {
       const item = ITEMS[it.id];
@@ -4085,6 +4089,37 @@ function shopOptions() {
   return [
     { label: 'Купить', go: () => shopView('buy') },
     { label: 'Поговорить', go: () => shopView('talk') },
+    { label: 'Уйти', go: closeShop },
+  ];
+}
+
+// библиотекарша Жанет (владелец 23.10): ничего не продаёт — рассказывает о механике игры по разделам.
+// Вещи, которых рыцарь ещё не видел (нет в сумке и не продаются в лавках), — «???»: книги о них Жанет пока не нашла
+function guideSeen(id) {
+  return owns(id) || Object.values(SHOPS).some(s => s.items?.some(it => it.id === id));
+}
+function guideEntries(cat) {
+  if (cat.facts) return cat.facts.map(f => ({ label: f.name, icon: f.icon, text: f.text }));
+  if (cat.sets) return Object.entries(SETS).map(([k, st]) => {
+    const seen = st.pieces.some(guideSeen);
+    return { label: seen ? st.name : '???', icon: seen ? st.pieces[0] : null, text: seen ? `${game.shop.data.setText?.[k] ?? ''} Части: ${st.pieces.map(id => ITEMS[id].name).join(', ')}.${st.worn ? ' Вместе — ' + st.worn + '.' : ''}` : null };
+  });
+  return Object.keys(ITEMS).filter(cat.has).map(id => {
+    const seen = guideSeen(id);
+    return { label: seen ? ITEMS[id].name : '???', icon: seen ? id : null, text: seen ? (ITEM_TEXTS[id] ?? ITEMS[id].name) : null };
+  });
+}
+function guideOptions(sh, d, back) {
+  if (sh.view === 'talk') {
+    if (sh.queue?.length) return [{ label: 'Дальше ▸', go: nextShopLine }, { label: 'Хватит', go: () => shopView('talk') }];
+    return [...d.talk.map(t => ({ label: t.topic, go: () => { sh.queue = t.lines.slice(); nextShopLine(); } })), back];
+  }
+  const cat = d.guide.find(c => c.id === sh.view);
+  if (cat) return [...guideEntries(cat).map(e => ({ label: e.label, icon: e.icon, muted: !e.text, guide: true,
+    go: () => shopSay(e.text ?? d.unknown, e.text ? null : d.moods?.unknown) })), back];
+  return [
+    { label: 'Поговорить', go: () => shopView('talk') },
+    ...d.guide.map(c => ({ label: c.name, icon: c.icon, go: () => { shopView(c.id); shopSay(c.intro, c.mood); } })),
     { label: 'Уйти', go: closeShop },
   ];
 }
@@ -4111,7 +4146,7 @@ function buyItem(it) {
 }
 
 function renderShop() {
-  ui.shopCoins.textContent = `Монеты: ${game.coins}`;
+  ui.shopCoins.textContent = game.shop.data.guide ? '' : `Монеты: ${game.coins}`;
   ui.shopMenu.innerHTML = '';
   ui.shopMenu.classList.toggle('dense', shopOptions().length > 8);
   shopOptions().forEach((o, i) => {
@@ -4119,7 +4154,7 @@ function renderShop() {
     b.type = 'button';
     const picked = o.hover && game.shop.sel === i;
     b.className = (o.muted ? 'muted' : '') + (picked ? ' sel' : '');
-    const right = picked && !o.muted ? `купить · ${o.right}` : o.right;
+    const right = picked && !o.muted && o.right ? `купить · ${o.right}` : o.right;
     b.innerHTML = `<span class="item-name">${itemIcon(o.icon)}${i + 1}. ${o.label}</span>${right ? `<span>${right}</span>` : ''}`;
     // v0.91 (отзыв тестера: «нажала — сразу купилось»): товар — первый клик выбирает и показывает описание, второй — покупка
     b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); shopPick(o, i); });
@@ -5593,4 +5628,4 @@ requestAnimationFrame(frame);
 
 // для автотестов в браузере
 window.knightNight = game;
-window.knightNightDebug = { groundY, input, ROOMS, bgFor, musicInfo, startTalk, readPage };   // для ботов-тестеров
+window.knightNightDebug = { groundY, input, ROOMS, bgFor, musicInfo, startTalk, readPage, openShop: (shop, name) => openShop({ def: { shop, name } }) };   // для ботов-тестеров
