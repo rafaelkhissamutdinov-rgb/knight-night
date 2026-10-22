@@ -411,7 +411,7 @@ const world = {
     // целится и по глубине: туда, где рыцарь стоит в момент выстрела, — попадание совпадает с тем, что видно
     const T = Math.max(0.12, Math.abs(game.player.x - x) / e.def.arrowSpeed);
     const vz = (game.player.z - e.z) / T;
-    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3, bolt: !!e.def.crossbow });
+    game.arrows.push({ who: e.def.name, x, y: clashY(height, e.z), z: e.z, vz, vx: e.facing * e.def.arrowSpeed, vy: 0, height, damage: e.def.damage, resolved: false, falling: false, life: 3, bolt: !!e.def.crossbow, stone: !!e.def.goblin });
   },
   swallow(slime) {
     const p = game.player;
@@ -600,7 +600,8 @@ function playerStrike(atk) {
     touched = true;
     // кинжал: удар в спину — враг отвернулся или рыцарь только что проскочил мимо него рывком (v0.82)
     const back = atk.backstab && e.kind !== 'slime' && e.kind !== 'boss' && isBackstab(e.x, e.facing, p.x, game.time - (e.slipAt ?? -9), DAGGER.slipWindow);
-    const hitAtk = back ? { ...atk, damage: atk.damage * DAGGER.backstab, pierce: true, name: 'В спину!' } : atk;
+    const pw = attackPower();
+    const hitAtk = back ? { ...atk, damage: atk.damage * DAGGER.backstab * pw, pierce: true, name: 'В спину!' } : pw !== 1 ? { ...atk, damage: atk.damage * pw } : atk;
     const { out, dmg } = e.receiveAttack(hitAtk);
     if (back && (out === 'hit' || out === 'counter')) { game.stats.backstab = (game.stats.backstab ?? 0) + 1; flash('#ffffff', 0.15); }
     if (e.kind === 'trainer' && (out === 'hit' || out === 'counter')) tutorialEvent({ type: out, height: atk.height, key: atk.key });
@@ -1017,7 +1018,31 @@ const VN_SCENES = {
     ],
     candle: [220, 231],
   },
+  // оружейная (владелец, 22.10): картина, как покои; два продавца на выбор — клик по продавцу открывает окно торговли
+  armory: {
+    title: 'Оружейная', img: 'assets/vn/armory_room.png', down: '← На площадь', help: 'выбери, к кому подойти: Полли — оружие и доспехи, Захария — артефакты',
+    figs: [{ img: 'assets/vn/armory_polly.png', x: 150, y: 202 }, { img: 'assets/vn/armory_zacharia.png', x: 404, y: 202 }],
+    spots: [
+      { name: 'Полли — оружие и доспехи', shop: 'polly', who: 'Полли', r: [160, 212, 112, 118] },
+      { name: 'Захария — артефакты', shop: 'zacharia', who: 'Захария', r: [412, 212, 104, 118] },
+      { name: 'Стойка с доспехом', look: 'look_armor_stand', r: [196, 176, 48, 50] },
+    ],
+    lights: [[124, 26, 0.8], [310, 26, 0.8], [500, 26, 0.8]],
+  },
+  // кофейня «Vertrauen» (временная картина — эскиз владельца позже): бариста за стойкой; клик — окно, как у Лики
+  cafe: {
+    title: 'Кофейня Vertrauen', img: 'assets/vn/cafe_room.png', down: '← На набережную', help: 'наведи на бариста — заказать; на вещи — осмотреть',
+    figs: [{ img: 'assets/vn/cafe_shahbanu.png', x: 452, y: 160, clip: 238 }],
+    spots: [
+      { name: 'Шахбану — бариста', shop: 'cafe', who: 'Шахбану', r: [462, 160, 96, 80] },
+      { name: 'Окно', look: 'look_cafe_window', r: [66, 90, 96, 146] },
+      { name: 'Столик', look: 'look_cafe_table', r: [250, 236, 120, 80] },
+    ],
+    lights: [[134, 92, 0.7], [462, 108, 0.7], [508, 92, 0.7]],
+  },
 };
+const vnFigs = {};
+const vnFig = src => (vnFigs[src] ??= Object.assign(new Image(), { src }));
 let vnImg = null;
 function openVN(id) {
   const sc = VN_SCENES[id];
@@ -1054,13 +1079,16 @@ function openVN(id) {
   }
   if (!vnImg || !vnImg.src.endsWith(sc.img)) { vnImg = new Image(); vnImg.src = sc.img; }
   el.querySelector('.vn-title').textContent = sc.title;
+  el.querySelector('.vn-finish').hidden = !sc.finish;             // «Завершить миссию» — только у покоев
+  el.querySelector('.close-btn').textContent = sc.down ?? '↓ Спуститься';
+  el.querySelector('.vn-help').textContent = sc.help ?? 'наведи на вещь и нажми — осмотреть';
   el.hidden = false;
   el.classList.remove('out', 'black');
   void el.offsetWidth;
   el.classList.add('in');
   game.vn = { id, hover: -1, t: 0 };
   game.mode = 'vn';
-  game.flags.map_princess = true;
+  if (id === 'princess') game.flags.map_princess = true;
   hint('');
   sfx.door();
   requestAnimationFrame(vnLoop);
@@ -1078,7 +1106,8 @@ function vnLook(i) {
   const s = VN_SCENES[game.vn.id].spots[i];
   if (!s) return;
   game.vn.hover = -1; vnLabel();
-  startTalk(s.look);
+  if (s.shop) openShop({ def: { shop: s.shop, name: s.who ?? s.name } });   // продавец на картине — окно торговли
+  else startTalk(s.look);
 }
 function vnPress(code) {
   if (code === 'Escape') vnDown();
@@ -1127,15 +1156,24 @@ function vnLoop(now) {
   c.fillStyle = '#05040a';
   c.fillRect(0, 0, 640, 360);
   if (vnImg?.complete && vnImg.naturalWidth) c.drawImage(vnImg, 0, 0, 640, 360);
-  // живое: свеча на тумбочке дрожит, в лунном свете плавает пыль
-  const [cx, cy] = sc.candle, fl = 0.8 + 0.2 * Math.sin(t * 9) * Math.sin(t * 5.3 + 1);
+  for (const f of sc.figs ?? []) {   // продавцы на картине; clip — нижняя граница (за стойкой видно до пояса); дышат
+    const im = vnFig(f.img);
+    if (!im.complete || !im.naturalWidth) continue;
+    const by = Math.sin(t * 1.8 + f.x) > 0.6 ? -1 : 0;
+    if (f.clip) { c.save(); c.beginPath(); c.rect(0, 0, 640, f.clip); c.clip(); c.drawImage(im, f.x, f.y + by); c.restore(); }
+    else c.drawImage(im, f.x, f.y + by);
+  }
+  // живое: свеча / лампы дрожат (lights: [x, y, сила]), в свете плавает пыль
   c.save();
   c.globalCompositeOperation = 'lighter';
-  const gr = c.createRadialGradient(cx, cy, 1, cx, cy, 46 * fl);
-  gr.addColorStop(0, `rgba(255,190,110,${0.32 * fl})`);
-  gr.addColorStop(1, 'rgba(255,190,110,0)');
-  c.fillStyle = gr;
-  c.fillRect(cx - 50, cy - 50, 100, 100);
+  for (const [cx, cy, pw = 1] of sc.lights ?? [[...sc.candle, 1]]) {
+    const fl = 0.8 + 0.2 * Math.sin(t * 9 + cx) * Math.sin(t * 5.3 + 1 + cy);
+    const gr = c.createRadialGradient(cx, cy, 1, cx, cy, 46 * fl * pw);
+    gr.addColorStop(0, `rgba(255,190,110,${0.32 * fl * Math.min(1, pw)})`);
+    gr.addColorStop(1, 'rgba(255,190,110,0)');
+    c.fillStyle = gr;
+    c.fillRect(cx - 50 * pw, cy - 50 * pw, 100 * pw, 100 * pw);
+  }
   for (let i = 0; i < 26; i++) {
     const x = (i * 97 + t * (6 + i % 5)) % 640, y = 70 + ((i * 53 + t * (3 + i % 3) * (i % 2 ? 1 : -1)) % 260 + 260) % 260;
     c.fillStyle = `rgba(230,220,255,${0.12 + 0.1 * Math.sin(t * 1.3 + i)})`;
@@ -1891,7 +1929,10 @@ function roomBounds() {
   const L = room().length, edges = room().edges ?? {};
   return [edges.left ? 8 : 16, edges.right ? L - 8 : room().limitRight ?? L - 16];
 }
-const lockedArena = () => game.arena && !game.arena.open;
+const fleeOK = () => !!ITEMS[game.equip?.feet]?.flee;   // крестовые сапоги (v1.0): из боя можно уйти
+const lockedArena = () => game.arena && !game.arena.open && !fleeOK();
+// сила удара от снаряжения (червонный доспех, v1.0): произведение power надетых вещей
+const attackPower = () => Object.values(game.equip ?? {}).reduce((k, id) => k * (ITEMS[id]?.power ?? 1), 1) * (game.boost?.power ?? 1);
 
 // место для музыки (v0.89): у каждого может быть свой трек — ZONE_TRACK в src/audio.js
 function musicZone() {
@@ -2306,11 +2347,13 @@ function renderVibeFx(cam) {
   const v = game.vibeFx;
   const now = performance.now() / 1000, dt = Math.min(0.25, now - (v.last ?? now));   // по времени, а не по кадрам
   v.last = now;
-  v.k = game.vibe ? Math.min(1, v.k + dt / 2.5) : v.k - dt / 1.2;
+  const slow = v.spot.fx === 'night';   // ночь на поляне: закат ≈ 10 с, рассвет ≈ 6 с (владелец: медленнее и красивее)
+  v.k = game.vibe ? Math.min(1, v.k + dt / (slow ? 10 : 2.5)) : v.k - dt / (slow ? 6 : 1.2);
+  v.dawn = !game.vibe;
   if ((v.k <= 0 && !game.vibe) || !(room().vibe ?? []).includes(v.spot)) { game.vibeFx = null; return; }
   const sp = v.spot, k = v.k * v.k * (3 - 2 * v.k);
   const src = vibeSource(sp, cam);
-  drawVibeFx(fx, sp.fx, { cam, sky: sp.fx === 'night' ? tileSets[room().tiles]?.[0] : null, sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, win: src.win, hole: src.hole, sun: sp.sun, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+  drawVibeFx(fx, sp.fx, { night: v.k, dawn: v.dawn, cam, sky: sp.fx === 'night' ? tileSets[room().tiles]?.[0] : null, sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, win: src.win, hole: src.hole, sun: sp.sun, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
 }
 // откуда свет у места вайба (v0.83): окно — ближайшее к месту убранство-окно, пролом — убранство roofhole (их рамки на экране)
 function vibeSource(sp, cam) {
@@ -2349,7 +2392,7 @@ function updateDoors(dt) {
   const d = p.ready && !lockedArena() && !game.tutorial ? doorAt(p) : null;
   game.doorNear = d;
   if (game.doorLock && !held('depthIn')) game.doorLock = false;  // вышел из двери — сначала отпусти W
-  if (!d || !held('depthIn') || p.z > 1 || game.doorLock) { game.doorPush = 0; return; }
+  if (!d || !held('depthIn') || p.z > (d.leaf ? 7 : 1) || game.doorLock) { game.doorPush = 0; return; }
   game.doorPush += dt;
   if (game.doorPush < 0.12) return;
   game.doorPush = 0;
@@ -2391,6 +2434,107 @@ function updateEdges() {
   else if (edges.right && p.x >= L - 10 && held('right')) game.transition = { kind: 'edge', edge: edges.right, dir: 1, phase: 'out', t: 0 };
 }
 
+// Переходы по нарисованной дороге (v1.0, владелец 22.10: «идти по тропинке — отдаляться от экрана, а не в бок»):
+// рыцарь идёт по тропе, лестнице или мосту так, как они нарисованы, вдали уменьшается и тает; в другой комнате выходит
+// из её дали навстречу. paths у комнаты: { id, x: [x0, x1], z: [z0, z1], keys: ['depthIn'], name,
+//   pts: [[x, y, масштаб], ...] — первая точка на полу, последняя в дали (y — экранная, как groundY),
+//   to, at: { path: id } — выйти из дали по тропе той комнаты | { edge: 'left' | 'right', z } — войти с края | { x, z } }
+// Край комнаты тоже может вести к тропе: edges.left = { to, at: { path } }.
+const PATH_KEY = { depthIn: 'W ↑', depthOut: 'S ↓', right: 'D →', left: 'A ←' };
+const pathHint = q => `${q.keys.map(k => PATH_KEY[k]).join(' / ')} — ${q.name}`;
+const PATH_V = 38;          // шаг по тропе, px/с при масштабе 1 (вдали медленнее — так видит глаз)
+const PATH_FADE = 20;       // последние px пути — тает и темнеет экран
+function pathAt(p) {
+  return (room().paths ?? []).find(q => (!q.needs || game.flags[q.needs]) && p.x >= q.x[0] && p.x <= q.x[1]
+    && p.z >= (q.z?.[0] ?? -99) && p.z <= (q.z?.[1] ?? 99)) ?? null;
+}
+function updatePaths() {
+  const p = game.player;
+  game.pathNear = null;
+  if (lockedArena() || game.tutorial || !p.ready) return;
+  const q = pathAt(p);
+  game.pathNear = q;
+  if (game.pathLock) { if (game.pathLock.some(k => held(k))) return; game.pathLock = null; }
+  if (q && q.keys.some(k => held(k))) startPath(q.pts, { kind: 'out', q });
+}
+// длины отрезков и точка на пути по пройденному расстоянию: x, y, масштаб и направление шага
+function pathGeom(pts) {
+  const seg = pts.slice(1).map((b, i) => Math.hypot(b[0] - pts[i][0], b[1] - pts[i][1]));
+  return { pts, seg, len: seg.reduce((a, b) => a + b, 0) };
+}
+function pathPoint(G, d) {
+  const { pts, seg } = G;
+  let i = 0;
+  while (i < seg.length - 1 && d > seg[i]) { d -= seg[i]; i++; }
+  const a = pts[i], b = pts[i + 1] ?? a, u = seg[i] ? Math.max(0, Math.min(1, d / seg[i])) : 1;
+  const sa = a[2] ?? 1, sb = b[2] ?? sa;
+  return { x: a[0] + (b[0] - a[0]) * u, y: a[1] + (b[1] - a[1]) * u, s: sa + (sb - sa) * u, dx: b[0] - a[0], dy: b[1] - a[1] };
+}
+function startPath(pts, o) {
+  const p = game.player;
+  // от того места, где стоит, — к началу тропы, дальше по ней
+  const all = o.kind === 'out' ? [[p.x, groundY(p.z), 1], ...pts] : pts;
+  game.transition = { kind: 'path', dir: o.kind, q: o.q, G: pathGeom(all), d: 0, t: 0, step: p.step ?? 0 };
+  p.sheathed = true;
+  p.walking = true;
+  updatePathPos(game.transition);
+}
+function updatePathPos(tr) {
+  const c = pathPoint(tr.G, tr.d), L = tr.G.len;
+  const side = Math.abs(c.dx) >= Math.abs(c.dy) * 0.8;
+  tr.pos = { x: c.x, y: c.y, s: c.s, facing: c.dx >= 0 ? 1 : -1, depth: side ? null : c.dy < 0 ? 'north' : 'south',
+    alpha: tr.dir === 'out' ? Math.max(0, Math.min(1, (L - tr.d) / PATH_FADE)) : Math.min(1, tr.d / PATH_FADE) };
+  tr.fade = tr.dir === 'out' ? 1 - tr.pos.alpha : 1 - tr.pos.alpha;
+  game.player.x = c.x;   // камера — за рыцарем
+}
+function arriveAt(to, at, keys) {
+  const r = ROOMS[to];
+  const q = at?.path && (r.paths ?? []).find(x => x.id === at.path);
+  if (q) {
+    const pts = [...q.pts].reverse();
+    loadRoom(to, { x: pts[pts.length - 1][0], z: pts[pts.length - 1][1] - (CONFIG.floorTop + 6) });
+    // floorTop у комнаты свой — пересчитать после загрузки
+    game.player.z = Math.max(0, pts[pts.length - 1][1] - (CONFIG.floorTop + 6));
+    startPath(pts, { kind: 'in', q });
+  } else if (at?.door) {
+    // выходит из нарисованной двери: створка открывается, шаг к нам, поворот
+    const d = (r.doors ?? []).find(x => x.id === at.door);
+    loadRoom(to, { x: d.x, z: -7 });
+    game.transition = { kind: 'door', door: d, phase: 'fadeIn', t: 0, x0: d.x, z0: -7 };
+  } else if (at?.edge) {
+    const L = r.length, dir = at.edge === 'left' ? 1 : -1;
+    loadRoom(to, { x: dir > 0 ? 14 : L - 14, z: at.z ?? 12, facing: dir });
+    game.transition = { kind: 'edge', edge: { to }, dir, phase: 'in', t: 0 };
+  } else {
+    loadRoom(to, { x: at?.x ?? 40, z: at?.z ?? 10 });
+    game.transition = { kind: 'edge', edge: { to }, dir: 1, phase: 'in', t: 0 };
+  }
+  game.pathLock = keys;   // держит клавишу, которой пришёл, — не уходить сразу обратно
+  if (ui.floorcard.hidden) callout(r.name, 'muted');
+}
+function updatePathTransition(tr, dt) {
+  const p = game.player;
+  if (tr.black != null) {   // миг полной темноты между комнатами
+    tr.black += dt;
+    if (tr.black >= 0.12) arriveAt(tr.q.to, tr.q.at, ['depthIn', 'depthOut', 'left', 'right'].filter(k => held(k)));
+    return;
+  }
+  tr.d += PATH_V * Math.max(0.55, tr.pos?.s ?? 1) * dt;
+  tr.step += dt * 1.6;
+  if (tr.d >= tr.G.len) {
+    tr.d = tr.G.len;
+    updatePathPos(tr);
+    if (tr.dir === 'out') { tr.black = 0; tr.fade = 1; sfx.step(); return; }
+    const end = tr.G.pts[tr.G.pts.length - 1];
+    p.x = end[0]; p.z = Math.max(0, Math.min(CONFIG.depth, end[1] - (CONFIG.floorTop + 6)));
+    p.facing = tr.pos.facing; p.walking = false; p.step = 0;
+    game.transition = null;
+    save();
+    return;
+  }
+  updatePathPos(tr);
+}
+
 const DOOR_PHASES = { turn: 0.35, walkIn: 0.5, fadeOut: 0.22, fadeIn: 0.22, walkOut: 0.5, turnOut: 0.3 };   // створка видна, пока поворачивается
 const EDGE_PHASES = { out: 0.3, in: 0.3 };
 const STAIR_PHASES = { out: 0.4, in: 0.35 };
@@ -2423,6 +2567,7 @@ function updateTransition(dt) {
   const tr = game.transition;
   const p = game.player;
   tr.t += dt;
+  if (tr.kind === 'path') { updatePathTransition(tr, dt); return; }
   if (tr.kind === 'fall') {
     // прыжок в пролом: падает вниз за край экрана, темнота, падает сверху в другой комнате, пыль
     if (tr.phase === 'drop') {
@@ -2520,6 +2665,10 @@ function updateTransition(dt) {
     p.facing = tr.dir;
     p.step += dt * v / strideCycle(p.gaitRun ?? 0);
     p.walking = true;
+    if (tr.phase === 'out' && tr.t >= EDGE_PHASES.out && tr.edge.at) {
+      arriveAt(tr.edge.to, tr.edge.at, [tr.dir > 0 ? 'right' : 'left']);   // край ведёт к тропе или к краю другой комнаты
+      return;
+    }
     if (tr.phase === 'out' && tr.t >= EDGE_PHASES.out) {
       loadRoom(tr.edge.to, { x: tr.edge.x - tr.dir * 18, z: p.z, facing: tr.dir });
       tr.phase = 'in';
@@ -2546,6 +2695,14 @@ function updateTransition(dt) {
   if (tr.t < T) return;
   tr.t = 0;
   const next = { turn: 'walkIn', walkIn: 'fadeOut', fadeOut: 'fadeIn', fadeIn: 'walkOut', walkOut: 'turnOut', turnOut: null }[tr.phase];
+  if (tr.phase === 'fadeOut' && tr.door.at) { arriveAt(tr.door.to, tr.door.at, ['depthIn']); return; }
+  if (tr.phase === 'fadeOut' && ROOMS[tr.door.to]?.vn) {
+    game.transition = null;
+    p.x = tr.door.x; p.z = 3; p.facing = 1; p.step = 0;
+    game.view = 'side';
+    openVN(ROOMS[tr.door.to].vn);
+    return;
+  }
   if (tr.phase === 'fadeOut') {
     const to = ROOMS[tr.door.to];
     const out = to.doors.find(d => d.id === tr.door.toDoor);
@@ -2649,7 +2806,7 @@ function update(dt) {
     const npc = nearNpc();
     const d = game.doorNear;
     const near = nearChest();
-    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.cat && game.flags.fujin_fed ? 'погладить' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk(), nearVibe());
+    hint(near ? (near.pick ? `E — взять: ${ITEMS[near.pick].name}` : 'E — открыть сундук') : npc ? `E — ${npc.def.shop ? 'лавка' : npc.def.cat && game.flags.fujin_fed ? 'погладить' : npc.def.verb ?? 'говорить'}: ${npc.def.alias && !game.flags[npc.def.known] ? npc.def.alias : npc.def.name}` : game.pathNear ? pathHint(game.pathNear) : d ? (d.locked ? `${d.locked}` : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : nearAltar() ? (canSanctify() ? 'E — освятить воду в чаше' : game.flags[nearAltar().altar] && cupOnAltar() ? 'E — взять чашу с алтаря' : game.flags[nearAltar().altar] ? 'E — осмотреть: алтарь' : hasItem('silver_cup') ? 'E — поставить Серебряную чашу на алтарь' : 'E — осмотреть: алтарь') : nearRest() ? `E — отдохнуть ${nearRest().rest.name} (сохранение)` : nearLook()?.fill && hasItem('silver_cup') && !game.flags[nearLook().fill] ? 'E — набрать воды в чашу' : nearLook() ? `E — осмотреть: ${nearLook().name}${nearLook().type === 'cracks' ? ' · ЛКМ — ударить' : ''}` : hintWalk(), nearVibe());
   } else if (game.arena?.open) {
     const d = game.doorNear;
     hint(d ? (d.locked ? d.locked : d.fall || d.stairs ? `W — ${d.name}` : `W у двери — войти: ${d.name ?? 'дверь'}`) : game.time - game.arena.t0 < 4 ? 'Можно не драться — проскочи рывком (пробел) сквозь врагов' : '');
@@ -2757,8 +2914,9 @@ function update(dt) {
   if (lockedArena()) for (const e of game.enemies) {
     if (e.group === game.arena.index && e.state !== 'flee' && e.state !== 'yield') e.x = Math.max(lo - 10, Math.min(hi + 10, e.x));
   }
-  updateDoors(dt);
-  updateEdges();
+  updatePaths();
+  if (!game.transition) updateDoors(dt);
+  if (!game.transition) updateEdges();
 
   if (game.god && p.hp < CONFIG.playerHp) { p.hp = CONFIG.playerHp; renderHearts(); }   // админка: бессмертие
   if (p.hp <= 0 && p.state !== 'swallowed') die();
@@ -2908,12 +3066,20 @@ function useItem(id) {
   const item = ITEMS[id];
   const p = game.player;
   if (!item?.use) return false;
-  if (item.use.heal && p.hp >= CONFIG.playerHp) { callout('Здоровье полное', 'muted'); return false; }
+  if (item.use.heal && !item.use.boost && p.hp >= CONFIG.playerHp) { callout('Здоровье полное', 'muted'); return false; }
   game.bag.splice(game.bag.indexOf(id), 1);
   const heal = Math.min(item.use.heal ?? 0, CONFIG.playerHp - p.hp);
   p.hp += heal;
   renderHearts();
   game.stats.potions++;
+  if (item.use.boost) {   // кофе и чай (v1.0): бодрость на время — быстрее шаг и / или сильнее удар
+    game.boost = { ...item.use.boost, until: game.time + item.use.boost.time, name: item.name };
+    applyArmor();
+    sparks(p.x, groundY(p.z) - 20, 10, ['#e8c38a', '#fff1d0'], 50);
+    sfx.ward();
+    callout(`${item.name}${heal ? `  +${heal} ♥` : ''} · бодрость ${item.use.boost.time} с`, 'perfect');
+    return true;
+  }
   sparks(p.x, groundY(p.z) - 20, 10, ['#7bd88f', '#d4ffd9'], 50);
   sfx.ward();
   callout(`${item.name}  +${heal} ♥`, 'perfect');
@@ -4017,7 +4183,7 @@ function checkSets() {
   for (const [key, set] of Object.entries(SETS)) {
     const all = set.pieces.every(id => owns(id));
     if (all && !game.flags['set_found_' + key]) { game.flags['set_found_' + key] = true; setTimeout(() => callout(`${set.name}: все части у тебя! Надень их (I)`, 'counter'), 900); }
-    if (setWorn(set) && !game.flags['set_worn_' + key]) { game.flags['set_worn_' + key] = true; setTimeout(() => callout(`${set.name} надет целиком: быстрее шаг`, 'counter'), 300); }
+    if (setWorn(set) && !game.flags['set_worn_' + key]) { game.flags['set_worn_' + key] = true; setTimeout(() => callout(`${set.name} надет целиком: ${set.worn ?? 'бонус'}`, 'counter'), 300); }
   }
 }
 
@@ -4026,7 +4192,7 @@ const WORN = ['head', 'armor', 'feet'];
 const applyArmor = () => {
   let k = WORN.reduce((m, s) => m * (ITEMS[game.equip[s]]?.speed ?? 1), 1);
   for (const set of Object.values(SETS)) if (set.bonus?.speed && setWorn(set)) k *= set.bonus.speed;
-  game.player.speedMult = k;
+  game.player.speedMult = k * (game.boost?.speed ?? 1);
 };
 
 // Щит — от надетой брони (ITEMS[...].shield)
@@ -4049,6 +4215,7 @@ function renderHearts() {
 
 // щит восстанавливается, если по рыцарю какое-то время не попадали
 function updateShield(dt) {
+  if (game.boost && game.time > game.boost.until) { game.boost = null; applyArmor(); callout('Бодрость прошла', 'muted'); }
   const sm = shieldMax();
   if (game.shield >= sm || game.time - (game.hitAt ?? -99) < CONFIG.shieldRegenDelay) return;
   const before = Math.floor(game.shield);
@@ -4107,7 +4274,18 @@ function render() {
   if (tr?.kind === 'door' && (!r.image || r.tile)) {
     // проём открывается, пока рыцарь входит и выходит
     const k = { turn: Math.min(1, tr.t / DOOR_PHASES.turn), walkIn: 1, fadeOut: 1, fadeIn: 1, walkOut: 1, turnOut: 1 - Math.min(1, tr.t / DOOR_PHASES.turnOut) }[tr.phase];
-    drawDoorOpen(g, tr.door, CONFIG.floorTop, cam, k);
+    if (tr.door.leaf) drawPaintedDoor(g, bgFor(game.room), tr.door, cam, k);
+    else drawDoorOpen(g, tr.door, CONFIG.floorTop, cam, k);
+  }
+  for (const d of r.doors ?? []) if (d.mat && (!d.needs || game.flags[d.needs])) drawDoormat(g, d, cam);
+  if (tr?.kind === 'path' && tr.q?.leaf) {   // тропа к нарисованной двери: створка открывается, пока подходит (и закрывается за спиной)
+    const u = tr.d / tr.G.len, kk = tr.dir === 'out' ? Math.min(1, Math.max(0, (u - 0.45) / 0.35)) : Math.min(1, Math.max(0, 1 - (u - 0.1) / 0.4));
+    drawPaintedDoor(g, bgFor(game.room), tr.q, cam, kk);
+  }
+  if (game.pathNear && !tr && Math.floor(game.time * 3) % 2 === 0) {
+    // стрелка над началом тропы / лестницы: туда можно пройти
+    const q = game.pathNear, a = q.pts[Math.min(1, q.pts.length - 1)];
+    heightIcon(q.keys.includes('depthOut') && !q.keys.includes('depthIn') ? 'low' : 'high', a[0] - cam, a[1] - 22 * (a[2] ?? 1), PAL.gold);
   }
   if (game.doorNear && !tr && Math.floor(game.time * 3) % 2 === 0) {
     // стрелка над дверью: можно войти
@@ -4127,7 +4305,7 @@ function render() {
   const hidePlayer = game.mode === 'title' || (game.cutscene && game.cutscene.t < WAKE.flash);
   const actors = [...game.enemies.filter(e => e.state !== 'gone'), ...game.npcs, ...(hidePlayer ? [] : [game.player])];
   for (const a of actors) {
-    if (a === game.player && a.state === 'swallowed') continue;
+    if (a === game.player && (a.state === 'swallowed' || tr?.kind === 'path')) continue;
     g.globalAlpha = a.state === 'dead' ? 0.3 : 0.55;
     const gy = groundY(Math.max(0, a.z));
     rect(g, a.x - cam - 7, gy - 1, 14, 2, '#0d0b14');
@@ -4171,7 +4349,13 @@ function render() {
   }
   if (light) pairNormals(g, null);
   renderChokeHold(cam);
-  for (const a of game.arrows) drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck, a.bolt);
+  for (const a of game.arrows) {
+    if (a.stone) {   // камень из рогатки гоблина (v1.0): серый камешек с тенью и коротким следом
+      const x = Math.round(a.x - cam), y = Math.round(a.y);
+      if (!a.stuck) { g.globalAlpha = 0.35; rect(g, x - Math.sign(a.vx) * 3, y, 2, 1, '#c9c2b4'); g.globalAlpha = 1; }
+      rect(g, x - 1, y - 1, 3, 3, '#3a3530'); rect(g, x, y - 1, 2, 2, '#8a8478'); rect(g, x, y - 1, 1, 1, '#c9c2b4');
+    } else drawArrow(g, a.x - cam, a.y, a.vx, a.vy, a.stuck, a.bolt);
+  }
   for (const w of game.waves) renderWave(w, cam);
   for (const s of game.particles) {
     if (!s.heart) { rect(g, s.x - cam, s.y, 1, 1, s.color); continue; }
@@ -4234,6 +4418,7 @@ function render() {
   let fade = 0;
   if (tr?.kind === 'door') fade = tr.phase === 'fadeOut' ? tr.t / DOOR_PHASES.fadeOut : tr.phase === 'fadeIn' ? 1 - tr.t / DOOR_PHASES.fadeIn : 0;
   if (tr?.kind === 'edge') fade = tr.phase === 'out' ? tr.t / EDGE_PHASES.out : 1 - tr.t / EDGE_PHASES.in;
+  if (tr?.kind === 'path') fade = tr.black != null ? 1 : tr.fade ?? 0;
   if (tr?.kind === 'stairs') fade = tr.phase === 'out' ? tr.t / STAIR_PHASES.out : tr.phase === 'in' ? 1 - tr.t / STAIR_PHASES.in : tr.phase === 'climb' ? Math.max(0, (tr.t / CLIMB_T - 0.85) / 0.15) : 0;
   if (game.cutscene && game.cutscene.t < WAKE.flash) fade = Math.max(fade, 0.55);
   if (game.ending) fade = Math.max(fade, game.ending.black ?? 0);
@@ -4453,10 +4638,58 @@ function renderPuffs(cam) {
   g.globalAlpha = 1;
 }
 
+// покадровые враги (v1.0, гоблины): анимации PixelLab по состояниям — стойка, шаг, замах → удар, боль, смерть.
+// assets/sprites/<тип>/<анимация>_<n>.png (смотрят вправо) + <тип>.json: { anims: { key: { n, w, h, foot, cx } } }
+const ANIM_ENEMIES = {
+  gobWarrior: { strikeAt: 7 },
+  gobJumper: { strikeAt: 7 },
+  gobShooter: { windup: [0, 8, 7, 6, 5, 4, 3, 2], strike: [1, 1, 0] },   // рогатка: тянет резинку, выстрел — кадр 1
+};
+const animSets = {};
+function animSet(type) {
+  if (!ANIM_ENEMIES[type]) return null;
+  const s = animSets[type] ??= { meta: null, imgs: {} };
+  if (!s.meta && !s.loading) {
+    s.loading = true;
+    fetch(`assets/sprites/${type}/${type}.json`).then(r => r.json()).then(m => {
+      for (const [k, a] of Object.entries(m.anims)) for (let i = 0; i < a.n; i++) s.imgs[k + i] = Object.assign(new Image(), { src: `assets/sprites/${type}/${k}_${i}.png` });
+      s.meta = m;
+    }).catch(() => {});
+  }
+  return s.meta && Object.values(s.imgs).every(im => im.complete) ? s : null;
+}
+function animFrame(e, s) {
+  const A = s.meta.anims, cfg = ANIM_ENEMIES[e.type], at = cfg.strikeAt ?? Math.floor(A.attack.n * 0.7);
+  const pick = (k, i) => [k, Math.max(0, Math.min(A[k].n - 1, Math.floor(i)))];
+  if (e.state === 'dead') return pick('death', e.t * 12);
+  const wk = Math.min(0.999, e.t / Math.max(0.05, e.windupTime ?? e.def.windup));
+  if (e.state === 'windup') return cfg.windup ? pick('attack', cfg.windup[Math.floor(wk * cfg.windup.length)]) : pick('attack', Math.min(at - 1, wk * at));
+  if (e.state === 'strike') return cfg.strike ? pick('attack', cfg.strike[Math.min(cfg.strike.length - 1, Math.floor(e.t / 0.08))]) : pick('attack', at + (e.t / 0.16) * (A.attack.n - at));
+  if (e.state === 'stagger' || e.state === 'hurt' || e.state === 'reel') return pick('hurt', e.t * 12);
+  const walking = e.step !== e.animStep; e.animStep = e.step;
+  if (walking || e.state === 'approach') return pick('walk', ((e.step / 6.3) % 1 + 1) % 1 * A.walk.n);
+  return pick('idle', (game.time * 5 + e.x * 0.1) % A.idle.n);
+}
+function drawAnimEnemy(e, s, ex, GROUND, alpha) {
+  const [k, i] = animFrame(e, s), a = s.meta.anims[k], im = s.imgs[k + i];
+  const S2 = 1 / S;   // картинка — в пикселях экрана (как у Найта), мир — вдвое крупнее
+  g.save();
+  g.globalAlpha = alpha;
+  g.imageSmoothingEnabled = false;
+  g.translate(Math.round(ex), Math.round(GROUND - (e.airY ?? 0)));
+  if (e.facing < 0) g.scale(-1, 1);
+  g.drawImage(im, -a.cx * S2, -a.foot * S2, a.w * S2, a.h * S2);
+  if (e.flashT > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = alpha * 0.55; g.drawImage(im, -a.cx * S2, -a.foot * S2, a.w * S2, a.h * S2); }
+  g.restore();
+  return { tipX: ex + e.facing * 14, tipY: GROUND - 18 };
+}
+
 function renderEnemy(e, cam) {
   if (e.state === 'gone') return;
   const ex = e.x - cam;
   if (ex < -50 || ex > W + 50) return;
+  const as = animSet(e.type);
+  if (e.state === 'dead' && as) { if (e.t < 2) drawAnimEnemy(e, as, ex, groundY(e.z), Math.max(0, Math.min(1, 1 - (e.t - 1.2) / 0.8))); return; }
   if (e.state === 'dead' && e.kind !== 'slime') { renderDeath(e, ex); return; }
   // спящий скелет лежит грудой костей; проснулся — встаёт (фигура вытягивается вверх)
   const riser = e.def.skull && e.kind !== 'ghost' && !e.def.noRise && !e.noRise;
@@ -4518,7 +4751,7 @@ function renderEnemy(e, cam) {
       });
       g.globalAlpha = alpha;
     }
-    const tip = sprite ? drawSprite(e.type, g, {
+    const tip = as ? drawAnimEnemy(e, as, ex, GROUND, alpha) : sprite ? drawSprite(e.type, g, {
       x: ex, ground: GROUND, facing: e.facing, pose: e.pose, state: walking ? 'ready' : 'attack', walking, step: depth ? game.time * 1.5 : e.step / 6.3, turn, depth,
       time: game.time, airY: e.airY, weaponLen: e.def.weapon ?? 17, weapon: enemyWeapon(e), bowDraw: e.bowDraw ?? 0,
       bladeHidden: !!e.disarmed, flash: e.flashT > 0, frame: e.endFrame ?? (riseK < 1 ? 'pose_kneel' : undefined), anim: e.endFrame ? undefined : enemyAnim(e),
@@ -4756,6 +4989,14 @@ function renderPlayer(cam) {
   const GROUND = groundY(p.z) + Math.round(game.fallY ?? 0);  // падение сквозь пролом
   const colors = p.state === 'hurt' && p.t < 0.08 ? flashColors(KNIGHT_COLORS) : KNIGHT_COLORS;
   const sprite = knightReady();
+  if (game.transition?.kind === 'path' && game.transition.pos && sprite) {
+    // по нарисованной тропе: вдаль — меньше и бледнее, шаги со спины / спереди / сбоку по направлению дороги
+    const c = game.transition.pos;
+    if (c.alpha <= 0.01) return;
+    drawKnight(g, { x: c.x - cam, ground: c.y, facing: c.facing, depth: c.depth, pose: POSES.sheathed, state: 'ready', walking: true,
+      step: game.transition.step, time: game.time, alpha: c.alpha, scale: c.s, sheathed: true, sheath: c.depth ? null : { kind: p.weapon, len: (p.arms.length ?? 17) * 2 } });
+    return;
+  }
   if (game.climb && sprite) {
     // по ступеням: шаги сбоку, наискось вверх или вниз; оружие в ножнах
     const c = game.climb;
@@ -4813,7 +5054,7 @@ function renderPlayer(cam) {
     return;
   }
   // посадка по месту (владелец, 17.10): на скамье, диване, в кресле — сидит на сиденье; у костра и камина — на земле, как Илиа
-  const sitImg = game.rest ? ((game.rest.spot.rest.seat ?? 0) > 0 ? 'knight_sit_seat' : 'knight_sit_ground') : game.vibe?.spot.sit ? 'knight_sit_ground' : null;
+  const sitImg = game.rest ? ((game.rest.spot.rest.seat ?? 0) > 0 ? 'knight_sit_seat' : 'knight_sit_ground') : game.vibe?.spot.sit ? game.vibe.spot.sitImg ?? 'knight_sit_ground' : null;
   if (game.vibe && sprite && game.vibe.t > (game.vibe.spot.sit ? 0.6 : 0.25)) {   // «вайбовать»: сидит (sit у места) или стоит спиной к нам и смотрит вдаль
     if (sitImg && drawObjNamed(g, sitImg, px, GROUND, p.facing < 0)) return;
     drawKnight(g, game.vibe.spot.sit ? { x: px, ground: GROUND, facing: p.facing, frame: 'pose_kneel' } : { x: px, ground: GROUND, facing: 1, frame: 'back' });
@@ -4950,7 +5191,10 @@ function renderNpc(n, cam) {
     // горожане главы 2 (v0.98): картинка PixelLab смотрит влево; imgAlt — другой облик после флага (стрижка)
     const img = n.def.imgAlt && game.flags[n.def.imgAlt[0]] ? n.def.imgAlt[1] : n.def.img;
     if (n.def.cut) { g.save(); g.beginPath(); g.rect(x - 40, 0, 80, gy - n.def.cut); g.clip(); }   // за стойкой: видно до пояса
-    drawObjNamed(g, img, x + (n.def.imgDx ?? 0), gy, n.def.faceRight ? n.facing < 0 : n.facing > 0);   // faceRight — картинка смотрит вправо; imgDx — сдвиг картинки
+    const flipX = n.def.faceRight ? n.facing < 0 : n.facing > 0;
+    drawObjNamed(g, img, x + (n.def.imgDx ?? 0), gy, flipX);   // faceRight — картинка смотрит вправо; imgDx — сдвиг картинки
+    const nu = n.def.imgNight ? Math.max(0, Math.min(1, (nightK() - 0.45) / 0.25)) : 0;   // ночью (вайб на поляне) — смотрят на звёзды
+    if (nu > 0) { g.globalAlpha = nu; drawObjNamed(g, n.def.imgNight, x + (n.def.imgDx ?? 0), gy, flipX); g.globalAlpha = 1; }
     if (n.def.cut) g.restore();
     return;   // картинки ещё нет (камео рисуется) — пусто, без фигуры-заглушки
   }
@@ -5005,6 +5249,36 @@ function windupHint(e, x, y) {
 }
 
 // ▲ верх, ━ середина, ▼ низ; s — масштаб (2 — с тёмной обводкой)
+// дверь, нарисованная на картине (v1.0): створка вырезается из самой картины (leaf: [x, y, w, h]) и поворачивается на петлях,
+// за ней — тёплый свет комнаты
+function drawPaintedDoor(g, bg, d, cam, k) {
+  if (k <= 0.02 || !bg) return;
+  const [x, y, w, h] = d.leaf, K = bg.k ?? 1, X = Math.round(x - cam);
+  g.save();
+  g.imageSmoothingEnabled = false;
+  g.fillStyle = d.inside ?? '#1c130b';
+  g.fillRect(X, y, w, h);
+  const gl = g.createLinearGradient(0, y + h, 0, y);
+  gl.addColorStop(0, `rgba(255,196,120,${0.45 * k})`); gl.addColorStop(1, 'rgba(255,196,120,0.05)');
+  g.fillStyle = gl; g.fillRect(X, y, w, h);
+  const e = k * k * (3 - 2 * k), th = e * 1.32, ww = Math.max(1, Math.round(w * Math.cos(th)));
+  const lx = d.hinge === 'right' ? X + w - ww : X;
+  g.drawImage(bg, x * K, y * K, w * K, h * K, lx, y, ww, h);
+  g.globalAlpha = 0.55 * Math.sin(th); g.fillStyle = '#000'; g.fillRect(lx, y, ww, h);
+  g.globalAlpha = 1;
+  if (th > 0.2) { g.fillStyle = '#2a1a10'; g.fillRect(d.hinge === 'right' ? lx - 1 : lx + ww, y, 1, h); }   // торец створки
+  g.restore();
+}
+// коврик у входа (v1.0, владелец: «понятнее, где дверь»): на мостовой перед нарисованной дверью
+function drawDoormat(g, d, cam) {
+  const m = d.mat, w = m.w ?? 24, x = Math.round(d.x - cam - w / 2), y = groundY(m.z ?? 1) - 3;
+  const c = m.color ?? '#8a3b2e', dk = m.dark ?? '#4a1f1a', lt = m.light ?? '#c9774a';
+  rect(g, x + 1, y, w - 2, 1, dk);                       // дальний край уже — пол виден чуть сверху
+  rect(g, x, y + 1, w, 4, dk);
+  rect(g, x + 1, y + 1, w - 2, 3, c);
+  rect(g, x + 3, y + 2, w - 6, 1, lt);                   // узор
+  for (let i = 0; i < w; i += 2) rect(g, x + i, y + 5, 1, 1, lt);   // бахрома
+}
 function heightIcon(h, x, y, c, s = 1) {
   x = Math.round(x);
   y = Math.round(y);
@@ -5094,7 +5368,7 @@ function sceneLights() {
   for (const n of game.npcs ?? []) if (n.def?.ghost) add(n.x, groundY(n.z) - 14, 90, [0.55, 0.8, 1], 0.7 + 0.1 * Math.sin(t * 2.3 + n.x), 16);   // душа светится
   for (const n of game.npcs ?? []) if (n.def?.cat && r.dark) add(n.x, groundY(n.z) - 8 - (n.lift ?? 0), 38, [0.72, 0.72, 0.95], 0.4, 12);   // Фуджин виден в темноте (v0.85)
   for (const pr of r.props ?? []) {
-    if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark || nightK() > 0.3 ? 180 : 130, WARM, (r.dark || nightK() > 0.3 ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
+    if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark ? 180 : 130 + 60 * nightK(), WARM, (r.dark ? 1.5 : 1 + 0.6 * nightK()) + (0.12 + 0.1 * nightK()) * Math.sin(t * 9 + pr.x) + 0.06 * nightK() * Math.sin(t * 23 + 1), 20);
     // костёр в тёмной комнате (v0.89): тёплое пятно и на стене за ним — иначе светится только пол у огня
     if ((pr.type === 'campfire' || pr.type === 'campfire_pot') && r.dark) add(pr.x, CONFIG.floorTop - 14, 150, WARM, 0.75 + 0.1 * Math.sin(t * 7 + pr.x * 0.7), 40);
     else if (pr.type === 'candles' && !pr.lights) add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
@@ -5142,13 +5416,20 @@ const DARK_AMBIENT = [0.16, 0.14, 0.2];
 const DAY_AMBIENT = [1.02, 1, 0.96];
 const NIGHT_AMBIENT = [0.2, 0.24, 0.42];
 const nightK = () => { const v = game.vibeFx; if (v?.spot.fx !== 'night') return 0; const k = Math.max(0, Math.min(1, v.k)); return k * k * (3 - 2 * k); };
+// свет поляны по времени: день → закат (тёплый) → ночь; обратно — через розовый рассвет
+const SUNSET_AMBIENT = [1.04, 0.74, 0.58], DAWN_AMBIENT = [0.92, 0.74, 0.82];
+function nightAmbient(base, k, dawn) {
+  const mid = dawn ? DAWN_AMBIENT : SUNSET_AMBIENT, m = dawn ? 0.42 : 0.36;
+  const lerp = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);
+  return k < m ? lerp(base, mid, k / m) : lerp(mid, NIGHT_AMBIENT, (k - m) / (1 - m));
+}
 function applyLight() {
   if (!light) return;
   const r = game.mode === 'title' || game.mode === 'map' ? null : room();
   if (!r) { light.off(); return; }
   // тёмная комната с ambient (v0.80, библиотека): полутьма видна и без свечей, каждая зажжённая свеча (lights) светлеет
   let amb = r.day ? DAY_AMBIENT : r.dark ? (r.ambient ?? DARK_AMBIENT) : AMBIENT;   // глава 2 — день
-  const nk = nightK(); if (nk > 0) amb = amb.map((v, i) => v + (NIGHT_AMBIENT[i] - v) * nk);   // «вайбовать» на поляне — ночь
+  const nk = nightK(); if (nk > 0) amb = nightAmbient(amb, nk, !!game.vibeFx?.dawn);   // «вайбовать» на поляне — закат, ночь, рассвет
   if (r.ambient) { const lit = (r.props ?? []).filter(pr => pr.lights && game.flags[pr.lights]).length; amb = amb.map(v => Math.min(0.62, v + lit * 0.045)); }
   light.draw(sceneLights(), amb, true);
 }

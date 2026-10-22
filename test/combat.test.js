@@ -570,16 +570,33 @@ test('комнаты: двери ведут друг к другу, края и 
   for (const [id, r] of Object.entries(ROOMS)) {
     for (const d of r.doors ?? []) {
       if (d.finish || (d.locked && !d.key && !d.requires && !d.needs)) continue;  // глухие запертые двери и выход-финиш
+      if (d.at || ROOMS[d.to]?.vn) { assert.ok(ROOMS[d.to], `${id}:${d.id}`); continue; }   // дверь к тропе / картине (v1.0)
       if (d.oneWay) { assert.ok(ROOMS[d.to]?.doors?.find(x => x.id === d.toDoor), `${id}:${d.id} → ${d.to}:${d.toDoor}`); continue; }  // пролом — только вниз
       const back = ROOMS[d.to]?.doors?.find(x => x.id === d.toDoor);
       assert.ok(back, `${id}:${d.id} → ${d.to}:${d.toDoor}`);
       assert.equal(back.to, id, `обратная дверь ${d.to}:${back.id} ведёт в ${id}`);
       assert.ok(d.x > 16 && d.x < r.length - 16);
     }
+    // v1.0: края, тропы (paths) и двери могут вести к краю, тропе или двери другой комнаты (at) — у той должен быть путь обратно
+    const leadsBack = (to, from) => [...Object.values(to.edges ?? {}), ...(to.paths ?? []), ...(to.doors ?? [])].some(x => x.to === from);
+    const atOK = (to, at, what) => {
+      if (!at) return;
+      if (at.path) assert.ok(to.paths?.find(x => x.id === at.path), `${what}: нет тропы ${at.path}`);
+      if (at.door) assert.ok(to.doors?.find(x => x.id === at.door), `${what}: нет двери ${at.door}`);
+      if (at.edge) assert.ok(to.edges?.[at.edge], `${what}: нет края ${at.edge}`);
+    };
     for (const [side, edge] of Object.entries(r.edges ?? {})) {
       const to = ROOMS[edge.to];
       assert.ok(to, `${id} ${side}`);
+      if (edge.at) { atOK(to, edge.at, `край ${id} ${side}`); assert.ok(leadsBack(to, id), `край ${id} ${side} — обратный проход`); continue; }
       assert.ok(to.edges?.[side === 'left' ? 'right' : 'left']?.to === id, `край ${id} ${side} — обратный проход`);
+    }
+    for (const q of r.paths ?? []) {
+      const to = ROOMS[q.to];
+      assert.ok(to, `тропа ${id}:${q.id}`);
+      assert.ok(q.pts.length >= 2 && q.keys.length, `тропа ${id}:${q.id}`);
+      atOK(to, q.at, `тропа ${id}:${q.id}`);
+      assert.ok(leadsBack(to, id), `тропа ${id}:${q.id} — обратный проход`);
     }
     for (const enc of r.encounters ?? []) for (const en of enc.enemies) assert.ok(ENEMY_TYPES[en.type], en.type);
   }
@@ -683,9 +700,11 @@ test('щит брони принимает урон первым', async () => {
 
 test('сеты: части и награда есть в ITEMS, части лежат в комнатах', async () => {
   const { SETS, ITEMS, ROOMS } = await import('../src/config.js');
+  const { SHOPS } = await import('../src/story/dialogues.js');
   const picks = Object.values(ROOMS).flatMap(r => (r.props ?? []).map(p => p.pick).filter(Boolean));
   for (const set of Object.values(SETS)) {
-    for (const id of set.pieces) { assert.ok(ITEMS[id]?.slot, 'часть надевается: ' + id); assert.ok(picks.includes(id), 'часть лежит в комнате: ' + id); }
+    const sold = Object.values(SHOPS).flatMap(sh => sh.items.map(i => i.id));   // тузы (v1.0) продаются в лавках
+    for (const id of set.pieces) { assert.ok(ITEMS[id]?.slot, 'часть надевается: ' + id); assert.ok(picks.includes(id) || sold.includes(id), 'часть лежит в комнате или продаётся: ' + id); }
   }
 });
 

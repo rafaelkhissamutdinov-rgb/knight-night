@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.99';
+export const VERSION = 'v1.0';
 
 export const CONFIG = {
   width: 320,
@@ -475,12 +475,28 @@ export const ITEMS = {
   silver_cup: { name: 'Серебряная чаша', artifact: true },
   // из Ризницы за алтарём Часовни: идеальное парирование лечит; слот амулета один — туз или чётки
   rosary: { name: 'Чётки монаха', slot: 'amulet', parryHeal: { heal: 1, cooldown: 8 } },
+  // четыре туза (владелец, 22.10): бубновый — из главы 1; червонный доспех продаёт Полли, крестовые сапоги — Захария;
+  // пиковый шлем — позже. Три туза вместе — «Сет» (как в покере: три одинаковые карты); что даёт — владелец решит позже
+  heart_armor: { name: 'Червонный доспех', slot: 'armor', shield: 3, power: 1.3, price: 60, set: 'aces' },   // как обычный, но удар сильнее
+  club_boots: { name: 'Крестовые сапоги', slot: 'feet', flee: true, price: 45, set: 'aces' },   // можно уйти из любого боя
+  // кофейня «Vertrauen» (владелец: виды кофе, бусты, пара чаёв, матча) — бодрость на время [черновик чисел]
+  coffee_black: { name: 'Чёрный кофе', price: 4, use: { boost: { speed: 1.12, time: 40 } } },
+  coffee_milk: { name: 'Кофе с молоком', price: 5, use: { heal: 1, boost: { speed: 1.08, time: 40 } } },
+  coffee_spice: { name: 'Пряный кофе с корицей', price: 7, use: { boost: { speed: 1.1, power: 1.1, time: 45 } } },
+  boost_honey: { name: 'Медовый буст', price: 9, use: { heal: 2, boost: { power: 1.15, time: 30 } } },
+  tea_herb: { name: 'Травяной чай', price: 4, use: { heal: 2 } },
+  tea_berry: { name: 'Ягодный чай', price: 5, use: { heal: 2, boost: { speed: 1.05, time: 30 } } },
+  matcha: { name: 'Матча', price: 8, use: { heal: 1, boost: { speed: 1.15, power: 1.1, time: 60 } } },
+  // оружейная: Полли — оружие и доспехи, Захария — артефакты (остальные товары владелец придумает позже)
+  polly_whetstone: { name: 'Точильный камень', price: 12, use: { boost: { power: 1.2, time: 60 } } },
+  zach_charm: { name: 'Оберег из клыка', price: 20, slot: 'amulet', ward: { absorb: 2, cooldown: 8 } },
 };
 export const SLOTS = [['weapon', 'Оружие'], ['head', 'Голова'], ['armor', 'Броня'], ['feet', 'Ноги'], ['amulet', 'Амулет'], ['spell', 'Заклинание'], ['skill', 'Навык']];
 // Сеты (v0.80): части надеваются по отдельности; надеты все — бонус (bonus.speed — множитель ходьбы, вдобавок к частям).
 // gives — прежняя цельная броня (для старых сохранений: раскладывается обратно на части)
 export const SETS = {
-  marauder: { name: 'Комплект мародёра', pieces: ['mar_scarf', 'mar_jacket', 'mar_boots'], bonus: { speed: 1.05 }, gives: 'armor_marauder' },
+  marauder: { name: 'Комплект мародёра', pieces: ['mar_scarf', 'mar_jacket', 'mar_boots'], bonus: { speed: 1.05 }, gives: 'armor_marauder', worn: 'быстрее шаг' },
+  aces: { name: 'Сет', pieces: ['diamond_ace', 'heart_armor', 'club_boots'], bonus: {}, worn: 'три туза — комбинация (что даёт — позже)' },   // [черновик] бонус придумает владелец
 };
 export const START_EQUIP = { weapon: 'sword_old', head: 'helm_old', armor: 'armor_old', feet: 'boots_old', amulet: null, spell: null, skill: null };
 
@@ -552,15 +568,22 @@ for (const [img, name, sit] of TOWNSFOLK) NPC_TYPES['t_' + img] = { name, img, t
 // камео (v0.98): спрайт в позе по месту + портрет в разговоре (по фото владельца; одежда — под средневековье)
 Object.assign(NPC_TYPES, {
   bartender: { name: 'Бармен', img: 'npc_bartender', talk: 'bartender_talk', cut: 16 },   // за стойкой — видно до пояса
-  cam_glasses: { name: 'Иэн', hidden: true, still: true,   // сидит с Ксандрой — их общая картинка у неё (cam_couple)
+  // Иэн и Ксандра (v1.0, владелец: «переделай под остальных людей»): каждый — своя фигура в холсте 48, как горожане;
+  // Иэн за столом с кружкой (стрижка — imgAlt после флага), Ксандра напротив на стуле
+  cam_glasses: { name: 'Иэн', img: 'cam_ian', imgAlt: ['glasses_buzz', 'cam_ian_buzz'], still: true, faceRight: true,
     talks: [{ id: 'glasses_after', if: 'glasses_buzz' }, { id: 'glasses_wait', if: 'glasses_asked' }], talk: 'glasses_meet' },
-  cam_redhead: { name: 'Ксандра', img: 'cam_couple', imgAlt: ['glasses_buzz', 'cam_couple_buzz'], imgDx: 10, still: true, faceRight: true, talk: 'redhead_talk' },   // парочка одной картинкой (PixelLab правкой эскиза рядом с рыцарем — тот же масштаб и детальность)
-  cam_tuyaa: { name: 'Туяа', img: 'cam_logpair', imgDx: 9, still: true, faceRight: true, talk: 'tuyaa_talk' },   // Туяа и Полли на одном бревне — одна картинка
+  cam_redhead: { name: 'Ксандра', img: 'cam_xandra', still: true, talk: 'redhead_talk' },
+  cam_tuyaa: { name: 'Туяа', img: 'cam_logpair', imgNight: 'cam_logpair_up', imgDx: 9, still: true, faceRight: true, talk: 'tuyaa_talk' },   // Туяа и Полли на одном бревне — одна картинка
   cam_polly: { name: 'Полли', hidden: true, still: true, talk: 'polly_glade' },
-  cam_lucia: { name: 'Люция', img: 'cam_lucia_tel', imgDx: 26, still: true, faceRight: true, talk: 'lucia_talk' },   // Люция у телескопа — одна картинка с телескопом (правка эскиза рядом с рыцарем)
+  cam_stasya: { name: 'Стася', img: 'cam_stasya', still: true, faceRight: true, talk: 'stasya_talk' },   // у кофейни: книга и чёрный кофе (облик временный)
+  lika_town: { name: 'Лика', shop: 'lika', face: 'lika', short: true, bob: true, coat: true, sprite: 'lika', talk: 'lika_town',
+    colors: { armor: '#574f44', armorDark: '#3a352d', tabard: '#797260', belt: '#2d2a24', helm: '#e7bd9e', visor: '#2b2e38', hair: '#2b2e38', hairLight: '#3d4150', blush: '#bb6554', boots: '#2d2a24', blade: '#b9c2cc', hilt: '#6b4532' } },
+  cam_lucia: { name: 'Люция', img: 'cam_lucia_tel', imgNight: 'cam_lucia_up', imgDx: 26, still: true, faceRight: true, talk: 'lucia_talk' },   // Люция у телескопа — одна картинка с телескопом (правка эскиза рядом с рыцарем)
   cam_merc: { name: 'Виктор', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
 });
 
+// боковая тропа в лесу (v1.0): уходит вглубь между деревьями — чуть вбок, вверх и меньше
+const FOREST_SIDE = x => [[x, 119, 0.95], [x + 3, 110, 0.8], [x + 7, 102, 0.66], [x + 10, 96, 0.54]];
 export const ROOMS = {
   cell: {
     name: 'Камера с порталом', length: 320, dark: true, tiles: 'dungeon', tileCount: 3, torches: [], columns: false, cobwebs: true, gate: 'right',
@@ -1079,13 +1102,12 @@ export const ROOMS = {
   forest2: {
     name: 'Поляна', chapter: 2, tiles: 'forest', tileCount: 1, length: 640, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'forest1', x: 690, name: 'Лесной склон' }, right: { to: 'forest3', x: 30, name: 'Бурелом' } },
-    // боковая тропа — к лагерю гоблинов (шаг и затемнение, без проёма)
-    doors: [{ id: 'camp', x: 330, kind: 'none', stairs: true, to: 'forest_camp', toDoor: 'out', name: 'Тропа в сторону' }],
+    // первый лес — одна дорога к деревне (владелец, 22.10); лагерь гоблинов — в лесу за городом
     encounters: [{ x: 460, enemies: [{ type: 'merc', dx: 60, z: 20 }, { type: 'crossbow', dx: 160, z: 30 }] }],   // мародёры и в лесу
   },
   forest_camp: {
     name: 'Лагерь гоблинов', chapter: 2, tiles: 'forest', tileCount: 1, length: 560, day: true, ceiling: false, torches: [],
-    doors: [{ id: 'out', x: 50, kind: 'none', stairs: true, to: 'forest2', toDoor: 'camp', name: 'Обратно на поляну' }],
+    paths: [{ id: 'back', x: [34, 66], z: [0, 10], keys: ['depthIn'], name: 'Обратно в глушь', to: 'forest_e3', at: { path: 'camp' }, pts: FOREST_SIDE(50) }],
     props: [{ type: 'campfire', x: 300, z: 18, light: true }, { type: 'chest', id: 'gob', x: 500, z: 3, coins: 40 }],
     encounters: [{ x: 260, enemies: [{ type: 'gobWarrior', dx: 60, z: 14 }, { type: 'gobJumper', dx: 110, z: 30 }, { type: 'gobShooter', dx: 200, z: 8 }] }],
     // босс гоблинов — позже (шаман: призывает слабых скелетов)
@@ -1096,52 +1118,66 @@ export const ROOMS = {
     encounters: [{ x: 380, enemies: [{ type: 'gobShooter', dx: 150, z: 8 }, { type: 'gobWarrior', dx: 50, z: 22 }, { type: 'gobJumper', dx: 90, z: 32 }] }],
   },
   village_gate: {
-    // v0.98 (владелец): вход в деревню — тропинка, уходящая вдаль между деревьями (на картине, x 252)
+    // v0.98 (владелец): вход в деревню — тропинка, уходящая вдаль между деревьями (на картине, x ≈ 252);
+    // v1.0: идёт по ней, уменьшаясь, — и выходит на улицу деревни
     name: 'У деревни', chapter: 2, tiles: 'village_gate', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'forest3', x: 690, name: 'Бурелом' } },
-    doors: [{ id: 'gate', x: 252, kind: 'none', stairs: true, to: 'village', toDoor: 'in', name: 'Тропа в деревню' }],
+    paths: [{ id: 'gate', x: [234, 272], z: [0, 14], keys: ['depthIn'], name: 'Тропа в деревню', to: 'village', at: { edge: 'left', z: 12 },
+      pts: [[252, 119, 0.94], [254, 107, 0.78], [256, 95, 0.62], [258, 85, 0.5]] }],
   },
-  // деревня (проба PixelLab, assets/backgrounds/village): главное в главе 2 — люди, камео, вещи; пока — улица и конец каркаса
+  // деревня (проба PixelLab, assets/backgrounds/village): улица перед городом
   village: {
     name: 'Деревня', chapter: 2, tiles: 'village', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
-    doors: [{ id: 'in', x: 30, kind: 'none', stairs: true, to: 'village_gate', toDoor: 'gate', name: 'К лесу' }],
-    edges: { right: { to: 'town_cross', x: 30, name: 'Развилка' } },
+    edges: { left: { to: 'village_gate', at: { path: 'gate' }, name: 'К лесу' }, right: { to: 'town_cross', x: 30, name: 'Развилка' } },
     npcs: [{ type: 't_vil_4', x: 120, z: 6 }, { type: 't_vil_10', x: 220, z: 20 }],
     decor: [{ type: 'spot', x: 160, look: 'look_village', name: 'улица' }],
   },
-  // ---------- город (v0.98, план владельца 22.10): улица → развилка (наверх — площадь, прямо — выход из города, вниз — нижний квартал);
-  // площадь: фонтан, скамейки, кофейня «Vertrauen» (ждёт эскиза владельца), бар «Härtezeichen», оружейная; над площадью — тропа к поляне с телескопом
+  // ---------- город (v1.0, владелец 22.10): ходить свободно — улица переходит в улицу (края комнат), лестницы и тропы —
+  // по картинке (paths: рыцарь идёт по нарисованным ступеням, вдали меньше). Без трущоб и руин — разные районы:
+  // развилка → наверх площадь (большая: три куска) → арка → тропа → поляна; вниз — набережная с кофейней → мельница;
+  // прямо — ремесленная улица → рынок → городские ворота → лес за городом
   town_cross: {
     name: 'Развилка', chapter: 2, tiles: 'town_cross', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
-    edges: { left: { to: 'village', x: 290, name: 'Улица' } },
-    doors: [
-      { id: 'up', x: 56, kind: 'none', stairs: true, to: 'town_square', toDoor: 'down', name: 'Наверх, к площади' },
-      { id: 'down', x: 262, kind: 'none', stairs: true, to: 'town_lower', toDoor: 'up', name: 'Вниз, в нижний квартал' },
-      { id: 'out', x: 308, kind: 'none', stairs: true, to: 'town_cross', toDoor: 'up', name: 'Выход из города', finish: true,
-        finishTitle: 'Глава 2 — пока всё (черновик)', finishText: 'Дорога из города — позже. Загляни на площадь, в бар и на поляну над городом.' },
+    edges: { left: { to: 'village', x: 290, name: 'Улица' }, right: { to: 'town_crafts', x: 30, name: 'Ремесленная улица' } },
+    paths: [
+      // широкая лестница слева: два марша между домами, наверху — улица к площади
+      { id: 'up', x: [38, 86], z: [0, 10], keys: ['depthIn'], name: 'Лестница наверх, к площади', to: 'town_square', at: { edge: 'left', z: 10 },
+        pts: [[60, 117, 0.97], [62, 97, 0.88], [65, 78, 0.78], [67, 60, 0.66], [69, 44, 0.55]] },
+      // ступени справа впереди — вниз, к набережной
+      { id: 'down', x: [228, 320], z: [14, 44], keys: ['right', 'depthOut'], name: 'Ступени вниз, к набережной', to: 'town_river', at: { edge: 'left', z: 16 },
+        pts: [[244, 134, 1], [264, 149, 1.04], [284, 164, 1.08], [304, 181, 1.12]] },
     ],
-    npcs: [{ type: 't_vil_6', x: 150, z: 14 }, { type: 't_vil_1', x: 205, z: 8 }],
+    npcs: [{ type: 't_vil_6', x: 150, z: 14 }, { type: 't_vil_1', x: 200, z: 8 }],
   },
   town_square: {
-    name: 'Площадь', chapter: 2, tiles: 'town_square', tileCount: 2, tileSeq: [0, 1], length: 640, day: true, ceiling: false, torches: [],
+    name: 'Площадь', chapter: 2, tiles: 'town_square', tileCount: 3, tileSeq: [0, 2, 1], length: 960, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'town_cross', at: { path: 'up' }, name: 'Лестница вниз, к развилке' } },
     doors: [
-      { id: 'down', x: 22, kind: 'none', stairs: true, to: 'town_cross', toDoor: 'up', name: 'Лестница вниз, к развилке' },
-      { id: 'bar', x: 245, kind: 'none', stairs: true, to: 'town_bar', toDoor: 'out', name: 'Бар Härtezeichen' },
-      { id: 'armory', x: 355, kind: 'none', stairs: true, to: 'town_armory', toDoor: 'out', name: 'Оружейная' },
-      { id: 'lane', x: 580, kind: 'none', stairs: true, to: 'town_lane', toDoor: 'down', name: 'Арка — тропа к лесу' },
+      { id: 'bar', x: 246, kind: 'painted', leaf: [236, 86, 21, 34], mat: { color: '#8a3b2e', dark: '#4a1f1a', light: '#c9774a' }, to: 'town_bar', at: { path: 'out' }, name: 'Бар Härtezeichen' },
+      { id: 'armory', x: 709, kind: 'painted', leaf: [694, 86, 30, 34], mat: { color: '#3b4a6a', dark: '#1f2638', light: '#8a9ac0', w: 32 }, to: 'town_armory', name: 'Оружейная' },
+      { id: 'hall', x: 481, kind: 'painted', leaf: [471, 84, 21, 30], locked: 'Ратуша закрыта: «Приём — по средам»' , mat: { color: '#7a2a2a', dark: '#3a1414', light: '#c0a060', w: 28 }, to: 'town_square', name: 'Ратуша' },
     ],
-    decor: [{ type: 'objimg', img: 'sign_bar', x: 247, y: 91 }],   // вывеска бара: табличка PixelLab + надпись шрифтом Pirata One (OFL)
+    paths: [
+      // арка в правом куске: дорога за ней поднимается на зелёный холм к лесу
+      { id: 'lane', x: [878, 924], z: [0, 10], keys: ['depthIn'], name: 'Арка — тропа к лесу', to: 'town_lane', at: { edge: 'left', z: 12 },
+        pts: [[900, 118, 0.95], [902, 108, 0.82], [907, 98, 0.68], [914, 90, 0.56]] },
+    ],
+    decor: [
+      { type: 'objimg', img: 'sign_bar', x: 247, y: 91 },   // вывеска бара: табличка PixelLab + надпись шрифтом Pirata One (OFL)
+      { type: 'objimg', img: 'sign_flowers', x: 132, y: 88 },   // кофейня переехала на набережную — у дома слева теперь цветочная лавка
+    ],
     props: [
-      { type: 'bar_table', x: 292, z: 5 },   // второй столик бара снаружи (у парочки стол — на их картинках)
-      { type: 'fountain', x: 322, z: 16 },
-      { type: 'town_bench', x: 430, z: 4 }, { type: 'town_bench', x: 510, z: 4 },
+      { type: 'bar_table', x: 292, z: 5 },   // второй столик бара снаружи
+      { type: 'fountain', x: 590, z: 18 },
+      { type: 'town_bench', x: 380, z: 4 }, { type: 'town_bench', x: 790, z: 4 },
     ],
     npcs: [
-      { type: 'cam_redhead', x: 194, z: 5.5, facing: 1 }, { type: 'cam_glasses', x: 222, z: 5.5, facing: -1 },   // парочка за одним столом у бара (камео)
+      { type: 'cam_glasses', x: 196, z: 5.5, facing: 1 }, { type: 'cam_redhead', x: 215, z: 5.6, facing: -1 },   // Иэн и Ксандра у бара
       { type: 't_vils_8', x: 280, z: 5.5, facing: 1 }, { type: 't_vils_5', x: 300, z: 5.5 },
-      { type: 't_vils_1', x: 424, z: 4.5 }, { type: 't_vils_6', x: 438, z: 4.5 }, { type: 't_vils_13', x: 510, z: 4.5 },
-      { type: 't_vil_2', x: 280, z: 26 }, { type: 't_vil_7', x: 360, z: 28 }, { type: 't_vil_9', x: 345, z: 32 },
-      { type: 't_vil_12', x: 470, z: 22 }, { type: 't_vil_0', x: 560, z: 14 }, { type: 't_vil_3', x: 140, z: 20 },
+      { type: 't_vils_1', x: 374, z: 4.5 }, { type: 't_vils_6', x: 388, z: 4.5 }, { type: 't_vils_13', x: 790, z: 4.5 },
+      { type: 't_vil_2', x: 300, z: 26 }, { type: 't_vil_7', x: 560, z: 30 }, { type: 't_vil_9', x: 620, z: 34 },
+      { type: 't_vil_12', x: 460, z: 22 }, { type: 't_vil_0', x: 840, z: 14 }, { type: 't_vil_3', x: 140, z: 20 }, { type: 't_vil_15', x: 520, z: 10 },
+      { type: 'lika_town', x: 744, z: 6, facing: -1 },   // Лика — у входа в оружейную
     ],
   },
   // бар — вид чуть сверху, как в Undertale (владелец, 22.10): низкая задняя стена, большой пол; стойка, табуреты и столы — предметы
@@ -1151,7 +1187,9 @@ export const ROOMS = {
     // столы вырезаны из неё в отдельные предметы (z-порядок, block — сквозь не пройти); бармен — за стойкой (видно до пояса)
     name: 'Бар Härtezeichen', chapter: 2, tiles: 'town_bar', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     floorTop: 87, depth: 83, tileLine: 174,
-    doors: [{ id: 'out', x: 52, kind: 'none', stairs: true, to: 'town_square', toDoor: 'bar', name: 'На площадь' }],
+    // дверь — на задней стене слева: подойти к ней, створка открывается — и на площадь
+    paths: [{ id: 'out', x: [34, 70], z: [0, 10], keys: ['depthIn'], name: 'Дверь на площадь', to: 'town_square', at: { door: 'bar' },
+      leaf: [43, 22, 17, 33], pts: [[52, 80, 0.96], [52, 68, 0.92], [52, 58, 0.9]] }],
     props: [
       { type: 'bar2_table0', x: 67, z: 37, block: [16, 10] }, { type: 'bar2_table1', x: 253, z: 35, block: [16, 10] },
       { type: 'bar2_table2', x: 117, z: 64, block: [16, 10] }, { type: 'bar2_table3', x: 207, z: 65, block: [16, 10] },
@@ -1163,22 +1201,98 @@ export const ROOMS = {
       { type: 't_vils_14', x: 108, z: 64.5, facing: 1 }, { type: 't_vils_4', x: 198, z: 65.5, facing: 1 }, { type: 't_vils_8', x: 217, z: 65.5 },
     ],
   },
-  town_armory: {
-    name: 'Оружейная', chapter: 2, tiles: 'town_armory', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
-    doors: [{ id: 'out', x: 22, kind: 'none', stairs: true, to: 'town_square', toDoor: 'armory', name: 'На площадь' }],
-    npcs: [{ type: 't_vil_8', x: 180, z: 6 }],   // оружейник; лавка — позже
+  // оружейная — картина, как покои принцессы (владелец): два продавца на выбор — Полли (оружие и доспехи), Захария (артефакты)
+  town_armory: { name: 'Оружейная', chapter: 2, vn: 'armory', length: 320, day: true, tiles: 'town_armory', tileCount: 1, ceiling: false, torches: [] },
+  // кофейня «Vertrauen» — картина (временная, по своему эскизу; владелец пришлёт свой): бариста Шахбану
+  town_cafe: { name: 'Кофейня Vertrauen', chapter: 2, vn: 'cafe', length: 320, day: true, tiles: 'town_river', tileCount: 1, ceiling: false, torches: [] },
+  // вниз от развилки — набережная канала: розовая кофейня со стеклянной витриной, горбатый мост
+  town_river: {
+    name: 'Набережная', chapter: 2, tiles: 'town_river', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'town_cross', at: { path: 'down' }, name: 'Ступени наверх, к развилке' }, right: { to: 'town_mill', x: 30, name: 'К мельнице' } },
+    doors: [{ id: 'cafe', x: 111, kind: 'painted', leaf: [103, 82, 16, 36], mat: { color: '#d88aa0', dark: '#8a4a5a', light: '#f6d2dc' }, to: 'town_cafe', name: 'Кофейня Vertrauen' }],
+    npcs: [
+      { type: 'cam_stasya', x: 150, z: 6.5, facing: 1 },   // Стася — у кофейни за столиком: книга и чёрный кофе
+      { type: 't_vil_13', x: 240, z: 22 }, { type: 't_vils_0', x: 290, z: 4 },
+    ],
+    decor: [{ type: 'spot', x: 240, look: 'look_bridge', name: 'мост через канал' }],
   },
-  town_lower: {
-    name: 'Нижний квартал', chapter: 2, tiles: 'town_lower', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
-    doors: [{ id: 'up', x: 30, kind: 'none', stairs: true, to: 'town_cross', toDoor: 'down', name: 'Наверх, к развилке' }],
-    // кофейня «Vertrauen» (бариста Шахбану) — здесь, вниз от развилки (владелец); фасад и столик — по эскизу владельца
-    npcs: [{ type: 't_vil_13', x: 140, z: 8 }, { type: 't_vil_11', x: 230, z: 20 }, { type: 't_vils_3', x: 290, z: 4 }],
+  town_mill: {
+    name: 'У мельницы', chapter: 2, tiles: 'town_mill', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'town_river', x: 290, name: 'Набережная' } },
+    npcs: [{ type: 't_vil_5', x: 120, z: 10 }, { type: 't_vils_10', x: 210, z: 4 }, { type: 't_vil_9', x: 260, z: 26 }],
+    decor: [{ type: 'spot', x: 50, look: 'look_mill', name: 'мельничное колесо' }, { type: 'spot', x: 250, look: 'look_ducks', name: 'утки' }],
+  },
+  // прямо от развилки — три улицы и ворота
+  town_crafts: {
+    name: 'Ремесленная улица', chapter: 2, tiles: 'town_crafts', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'town_cross', x: 290, name: 'Развилка' }, right: { to: 'town_market', x: 30, name: 'Рынок' } },
+    npcs: [{ type: 't_vil_2', x: 200, z: 6 }, { type: 't_vil_8', x: 280, z: 8 }, { type: 't_vil_10', x: 90, z: 18 }],
+    decor: [{ type: 'spot', x: 285, look: 'look_forge', name: 'кузница' }, { type: 'spot', x: 205, look: 'look_bakery', name: 'пекарня' }],
+  },
+  town_market: {
+    name: 'Рынок', chapter: 2, tiles: 'town_market', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'town_crafts', x: 290, name: 'Ремесленная улица' }, right: { to: 'town_gate', x: 30, name: 'Городские ворота' } },
+    npcs: [{ type: 't_vil_15', x: 230, z: 4 }, { type: 't_vil_4', x: 120, z: 6 }, { type: 't_vil_11', x: 70, z: 24 }, { type: 't_vil_7', x: 280, z: 18 }, { type: 't_vils_7', x: 300, z: 4 }],
+    decor: [{ type: 'spot', x: 140, look: 'look_well', name: 'колодец' }],
+  },
+  town_gate: {
+    name: 'Городские ворота', chapter: 2, tiles: 'town_gate', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'town_market', x: 290, name: 'Рынок' } },
+    // ворота открыты: дорога за ними уходит в лес
+    paths: [{ id: 'gate', x: [210, 248], z: [0, 12], keys: ['depthIn'], name: 'Ворота — дорога в лес', to: 'forest_e1', at: { edge: 'left', z: 14 },
+      pts: [[228, 119, 0.95], [229, 110, 0.8], [230, 102, 0.66], [231, 96, 0.54]] }],
+    npcs: [{ type: 't_vil_14', x: 160, z: 8 }],
   },
   town_lane: {
     name: 'Тропа к лесу', chapter: 2, tiles: 'town_lane', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
-    doors: [{ id: 'down', x: 30, kind: 'none', stairs: true, to: 'town_square', toDoor: 'lane', name: 'Арка — на площадь' }],
-    edges: { right: { to: 'town_glade', x: 30, name: 'Поляна' } },
+    edges: { left: { to: 'town_square', at: { path: 'lane' }, name: 'Арка — на площадь' }, right: { to: 'town_glade', x: 30, name: 'Поляна' } },
     npcs: [{ type: 't_vil_14', x: 200, z: 12 }],
+  },
+  // ---------- лес за городом (v1.0, владелец 22.10): главная сюжетная часть — больше поворотов в разные комнаты; пока — тот же лес,
+  // в каждой боковой комнате своё (потом доработаем). Боковые тропы уходят вглубь между деревьями.
+  forest_e1: {
+    name: 'Тракт за воротами', chapter: 2, tiles: 'forest', tileCount: 1, length: 720, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'town_gate', at: { path: 'gate' }, name: 'Городские ворота' }, right: { to: 'forest_e2', x: 30, name: 'Развилка в лесу' } },
+    paths: [
+      { id: 'brook', x: [214, 246], z: [0, 10], keys: ['depthIn'], name: 'Тропинка к ручью', to: 'forest_brook', at: { path: 'back' }, pts: FOREST_SIDE(230) },
+      { id: 'hut', x: [650, 682], z: [0, 10], keys: ['depthIn'], name: 'Тропинка к хижине', to: 'forest_hut', at: { path: 'back' }, pts: FOREST_SIDE(666) },
+    ],
+    encounters: [{ x: 430, enemies: [{ type: 'gobWarrior', dx: 70, z: 18 }, { type: 'gobShooter', dx: 150, z: 8 }] }],
+  },
+  forest_e2: {
+    name: 'Развилка в лесу', chapter: 2, tiles: 'forest', tileCount: 1, length: 720, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'forest_e1', x: 690, name: 'Тракт' }, right: { to: 'forest_e3', x: 30, name: 'Глушь' } },
+    paths: [{ id: 'stones', x: [344, 376], z: [0, 10], keys: ['depthIn'], name: 'Тропинка к каменному кругу', to: 'forest_stones', at: { path: 'back' }, pts: FOREST_SIDE(360) }],
+    encounters: [{ x: 520, enemies: [{ type: 'gobJumper', dx: 50, z: 26 }, { type: 'gobWarrior', dx: 110, z: 10 }, { type: 'gobJumper', dx: 160, z: 34 }] }],
+  },
+  forest_e3: {
+    name: 'Глушь', chapter: 2, tiles: 'forest', tileCount: 1, length: 640, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'forest_e2', x: 690, name: 'Развилка в лесу' } },
+    paths: [{ id: 'camp', x: [104, 136], z: [0, 10], keys: ['depthIn'], name: 'Тропа к лагерю гоблинов', to: 'forest_camp', at: { path: 'back' }, pts: FOREST_SIDE(120) }],
+    doors: [{ id: 'on', x: 610, kind: 'none', stairs: true, to: 'forest_e3', toDoor: 'on', name: 'Дальше по дороге', finish: true,
+      finishTitle: 'Глава 2 — пока всё (черновик)', finishText: 'Дальше — главная сюжетная дорога главы 2. Загляни в боковые тропы леса и в город.' }],
+    encounters: [{ x: 380, enemies: [{ type: 'merc', dx: 60, z: 20 }, { type: 'crossbow', dx: 170, z: 30 }] }],
+  },
+  forest_brook: {
+    name: 'У ручья', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
+    paths: [{ id: 'back', x: [44, 76], z: [0, 10], keys: ['depthIn'], name: 'Обратно на тракт', to: 'forest_e1', at: { path: 'brook' }, pts: FOREST_SIDE(60) }],
+    props: [{ type: 'chest', id: 'brook', x: 420, z: 3, coins: 25 }],
+    encounters: [{ x: 260, enemies: [{ type: 'gobShooter', dx: 120, z: 8 }, { type: 'gobJumper', dx: 60, z: 30 }] }],
+    decor: [{ type: 'spot', x: 200, look: 'look_brook', name: 'ручей' }],
+  },
+  forest_hut: {
+    name: 'Хижина охотника', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
+    paths: [{ id: 'back', x: [44, 76], z: [0, 10], keys: ['depthIn'], name: 'Обратно на тракт', to: 'forest_e1', at: { path: 'hut' }, pts: FOREST_SIDE(60) }],
+    props: [{ type: 'campfire', x: 300, z: 18, light: true }, { type: 'chest', id: 'hut', x: 420, z: 3, coins: 30 }],
+    vibe: [{ id: 'hut_fire', x: 280, fx: 'embers', fxX: 300, fxZ: 18, sit: { x: 280, z: 20, face: 1 } }],
+    decor: [{ type: 'spot', x: 180, look: 'look_hut', name: 'следы у кострища' }],
+  },
+  forest_stones: {
+    name: 'Каменный круг', chapter: 2, tiles: 'forest', tileCount: 1, length: 480, day: true, ceiling: false, torches: [],
+    paths: [{ id: 'back', x: [44, 76], z: [0, 10], keys: ['depthIn'], name: 'Обратно на развилку', to: 'forest_e2', at: { path: 'stones' }, pts: FOREST_SIDE(60) }],
+    encounters: [{ x: 240, enemies: [{ type: 'gobWarrior', dx: 60, z: 14 }, { type: 'gobJumper', dx: 110, z: 30 }, { type: 'gobShooter', dx: 190, z: 8 }] }],
+    props: [{ type: 'chest', id: 'stones', x: 430, z: 3, coins: 40 }],
+    decor: [{ type: 'spot', x: 330, look: 'look_stones', name: 'камни с узором' }],
   },
   town_glade: {
     name: 'Поляна с телескопом', chapter: 2, tiles: 'town_glade', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
@@ -1186,7 +1300,7 @@ export const ROOMS = {
     // Туяа и Полли на бревне, Люция у телескопа (облик выбран владельцем 22.10); «вайбовать» у костра — ночь и звёзды
     props: [{ type: 'campfire', x: 168, z: 26, light: true }],
     npcs: [{ type: 'cam_tuyaa', x: 104, z: 12, facing: 1 }, { type: 'cam_polly', x: 128, z: 12, facing: -1 }, { type: 'cam_lucia', x: 196, z: 8, facing: 1 }],
-    vibe: [{ id: 'glade_night', x: 150, fx: 'night', fxX: 168, fxZ: 26, sit: { x: 150, z: 30, face: 1 } }],
+    vibe: [{ id: 'glade_night', x: 150, fx: 'night', fxX: 168, fxZ: 26, sit: { x: 150, z: 26, face: 1 }, sitImg: 'knight_sit_fire' }],
   },
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.
