@@ -514,6 +514,50 @@ export const MAP = {
 };
 
 
+// горожане главы 2 (v0.98): временные фигуры PixelLab — на их места встанут камео знакомых владельца (облик, имена, реплики)
+export const TOWNSFOLK = [
+  ['vil_0', 'Старик', 0],
+  ['vil_1', 'Служанка', 0],
+  ['vil_2', 'Пекарь', 0],
+  ['vil_3', 'Книжник', 0],
+  ['vil_4', 'Купец', 0],
+  ['vil_5', 'Старушка', 0],
+  ['vil_6', 'Батрак', 0],
+  ['vil_7', 'Подавальщица', 0],
+  ['vil_8', 'Оружейник', 0],
+  ['vil_9', 'Мальчишка', 0],
+  ['vil_10', 'Горожанка', 0],
+  ['vil_11', 'Странник', 0],
+  ['vil_12', 'Девушка в капюшоне', 0],
+  ['vil_13', 'Прачка', 0],
+  ['vil_14', 'Путник', 0],
+  ['vil_15', 'Лавочник', 0],
+  ['vils_0', 'Старик', 1],
+  ['vils_1', 'Читательница', 1],
+  ['vils_2', 'Горожанин', 1],
+  ['vils_3', 'Бабушка', 1],
+  ['vils_4', 'Парень', 1],
+  ['vils_5', 'Горожанка', 1],
+  ['vils_6', 'Дед', 1],
+  ['vils_7', 'Горожанка', 1],
+  ['vils_8', 'Мясник', 1],
+  ['vils_9', 'Травница', 1],
+  ['vils_10', 'Студент', 1],
+  ['vils_12', 'Лесоруб', 1],
+  ['vils_13', 'Горожанка', 1],
+  ['vils_14', 'Подмастерье', 1],
+  ['vils_15', 'Старушка', 1],
+];
+for (const [img, name, sit] of TOWNSFOLK) NPC_TYPES['t_' + img] = { name, img, talk: 't_' + img, still: !!sit };
+// камео (v0.98): спрайт в позе по месту + портрет в разговоре (по фото владельца; одежда — под средневековье)
+Object.assign(NPC_TYPES, {
+  bartender: { name: 'Бармен', img: 'npc_bartender', talk: 'bartender_talk', cut: 17 },   // за стойкой — видно до пояса
+  cam_glasses: { name: 'Парень в очках', img: 'cam_glasses', imgAlt: ['glasses_buzz', 'cam_glasses_buzz'], still: true, faceRight: true,   // сидит за столом (стол — на картинке)
+    talks: [{ id: 'glasses_after', if: 'glasses_buzz' }, { id: 'glasses_wait', if: 'glasses_asked' }], talk: 'glasses_meet' },
+  cam_redhead: { name: 'Рыжая девушка', img: 'cam_redhead', still: true, faceRight: true, talk: 'redhead_talk' },
+  cam_merc: { name: 'Наёмник', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
+});
+
 export const ROOMS = {
   cell: {
     name: 'Камера с порталом', length: 320, dark: true, tiles: 'dungeon', tileCount: 3, torches: [], columns: false, cobwebs: true, gate: 'right',
@@ -1056,13 +1100,79 @@ export const ROOMS = {
   },
   // деревня (проба PixelLab, assets/backgrounds/village): главное в главе 2 — люди, камео, вещи; пока — улица и конец каркаса
   village: {
-    name: 'Деревня', chapter: 2, tiles: 'village', tileCount: 1, length: 320, day: true, ceiling: false, torches: [], limitRight: 300,
-    doors: [
-      { id: 'in', x: 30, kind: 'none', stairs: true, to: 'village_gate', toDoor: 'gate', name: 'К лесу' },
-      { id: 'on', x: 290, kind: 'none', stairs: true, to: 'village', toDoor: 'in', name: 'Дальше по улице', finish: true,
-        finishTitle: 'Глава 2 — каркас (черновик)', finishText: 'Рыцарь дошёл до деревни, которую видно из замка. Дальше — деревня: люди, камео, вещи.' },
-    ],
+    name: 'Деревня', chapter: 2, tiles: 'village', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    doors: [{ id: 'in', x: 30, kind: 'none', stairs: true, to: 'village_gate', toDoor: 'gate', name: 'К лесу' }],
+    edges: { right: { to: 'town_cross', x: 30, name: 'Развилка' } },
+    npcs: [{ type: 't_vil_4', x: 120, z: 6 }, { type: 't_vil_10', x: 220, z: 20 }],
     decor: [{ type: 'spot', x: 160, look: 'look_village', name: 'улица' }],
+  },
+  // ---------- город (v0.98, план владельца 22.10): улица → развилка (наверх — площадь, прямо — выход из города, вниз — нижний квартал);
+  // площадь: фонтан, скамейки, кофейня «Vertrauen» (ждёт эскиза владельца), бар «Härtezeichen», оружейная; над площадью — тропа к поляне с телескопом
+  town_cross: {
+    name: 'Развилка', chapter: 2, tiles: 'town_cross', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'village', x: 290, name: 'Улица' } },
+    doors: [
+      { id: 'up', x: 56, kind: 'none', stairs: true, to: 'town_square', toDoor: 'down', name: 'Наверх, к площади' },
+      { id: 'down', x: 262, kind: 'none', stairs: true, to: 'town_lower', toDoor: 'up', name: 'Вниз, в нижний квартал' },
+      { id: 'out', x: 308, kind: 'none', stairs: true, to: 'town_cross', toDoor: 'up', name: 'Выход из города', finish: true,
+        finishTitle: 'Глава 2 — пока всё (черновик)', finishText: 'Дорога из города — позже. Загляни на площадь, в бар и на поляну над городом.' },
+    ],
+    npcs: [{ type: 't_vil_6', x: 150, z: 14 }, { type: 't_vil_1', x: 205, z: 8 }],
+  },
+  town_square: {
+    name: 'Площадь', chapter: 2, tiles: 'town_square', tileCount: 2, tileSeq: [0, 1], length: 640, day: true, ceiling: false, torches: [],
+    doors: [
+      { id: 'down', x: 22, kind: 'none', stairs: true, to: 'town_cross', toDoor: 'up', name: 'Лестница вниз, к развилке' },
+      { id: 'bar', x: 245, kind: 'none', stairs: true, to: 'town_bar', toDoor: 'out', name: 'Бар «Härtezeichen»' },
+      { id: 'armory', x: 355, kind: 'none', stairs: true, to: 'town_armory', toDoor: 'out', name: 'Оружейная' },
+      { id: 'lane', x: 580, kind: 'none', stairs: true, to: 'town_lane', toDoor: 'down', name: 'Арка — тропа к лесу' },
+    ],
+    decor: [{ type: 'signtext', x: 245, y: 70, w: 64, text: '„Härtezeichen“' }],
+    props: [
+      { type: 'bar_table', x: 292, z: 5 },   // второй столик бара снаружи (у парочки стол — на их картинках)
+      { type: 'fountain', x: 322, z: 16 },
+      { type: 'town_bench', x: 430, z: 4 }, { type: 'town_bench', x: 510, z: 4 },
+    ],
+    npcs: [
+      { type: 'cam_redhead', x: 196, z: 5.5, facing: 1 }, { type: 'cam_glasses', x: 212, z: 5.5, facing: -1 },   // парочка за одним столом у бара (камео)
+      { type: 't_vils_8', x: 280, z: 5.5, facing: 1 }, { type: 't_vils_5', x: 300, z: 5.5 },
+      { type: 't_vils_1', x: 424, z: 4.5 }, { type: 't_vils_6', x: 438, z: 4.5 }, { type: 't_vils_13', x: 510, z: 4.5 },
+      { type: 't_vil_2', x: 280, z: 26 }, { type: 't_vil_7', x: 360, z: 28 }, { type: 't_vil_9', x: 345, z: 32 },
+      { type: 't_vil_12', x: 470, z: 22 }, { type: 't_vil_0', x: 560, z: 14 }, { type: 't_vil_3', x: 140, z: 20 },
+    ],
+  },
+  town_bar: {
+    name: 'Бар «Härtezeichen»', chapter: 2, tiles: 'town_bar', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    doors: [{ id: 'out', x: 22, kind: 'none', stairs: true, to: 'town_square', toDoor: 'bar', name: 'На площадь' }],
+    npcs: [
+      { type: 'bartender', x: 170, z: 0, lift: 18 },
+      { type: 'cam_merc', x: 96, z: 3, facing: 1 },   // сюжетный наёмник — у стойки слева
+      { type: 't_vils_12', x: 292, z: 14 }, { type: 't_vils_2', x: 30, z: 16, facing: 1 },
+    ],
+  },
+  town_armory: {
+    name: 'Оружейная', chapter: 2, tiles: 'town_armory', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    doors: [{ id: 'out', x: 22, kind: 'none', stairs: true, to: 'town_square', toDoor: 'armory', name: 'На площадь' }],
+    npcs: [{ type: 't_vil_8', x: 180, z: 6 }],   // оружейник; лавка — позже
+  },
+  town_lower: {
+    name: 'Нижний квартал', chapter: 2, tiles: 'town_lower', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    doors: [{ id: 'up', x: 30, kind: 'none', stairs: true, to: 'town_cross', toDoor: 'down', name: 'Наверх, к развилке' }],
+    // кофейня «Vertrauen» (бариста Шахбану) — здесь, вниз от развилки (владелец); фасад и столик — по эскизу владельца
+    npcs: [{ type: 't_vil_13', x: 140, z: 8 }, { type: 't_vil_11', x: 230, z: 20 }, { type: 't_vils_3', x: 290, z: 4 }],
+  },
+  town_lane: {
+    name: 'Тропа к лесу', chapter: 2, tiles: 'town_lane', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    doors: [{ id: 'down', x: 30, kind: 'none', stairs: true, to: 'town_square', toDoor: 'lane', name: 'Арка — на площадь' }],
+    edges: { right: { to: 'town_glade', x: 30, name: 'Поляна' } },
+    npcs: [{ type: 't_vil_14', x: 200, z: 12 }],
+  },
+  town_glade: {
+    name: 'Поляна с телескопом', chapter: 2, tiles: 'town_glade', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    edges: { left: { to: 'town_lane', x: 290, name: 'Тропа к городу' } },
+    props: [{ type: 'log_seat', x: 120, z: 10 }, { type: 'telescope', x: 210, z: 8 }],
+    // камео (по фото владельца): один сидит на бревне, другой — у телескопа; пока временные фигуры
+    npcs: [{ type: 't_vils_10', x: 120, z: 10.5, facing: 1 }, { type: 't_vil_3', x: 228, z: 8 }],
   },
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.

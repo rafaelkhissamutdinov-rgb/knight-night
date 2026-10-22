@@ -164,6 +164,7 @@ function loadRoom(id, at) {
   game.blueFireAt = null;
   game.coinFx = [];
   game.flags['map_' + id] = true;  // для карты: где побывал
+  for (const [f, at] of Object.entries(game.flags.later ?? {})) if ((game.flags.playTime ?? 0) >= at) { game.flags[f] = true; delete game.flags.later[f]; }
   const floor = ROOMS[id].floor ?? 1;
   if (FLOOR_NAMES[floor] && !game.flags['card_' + floor]) {
     // первый раз на этом этаже — заставка
@@ -185,7 +186,7 @@ function loadRoom(id, at) {
   game.visited.push(id);
   const r = ROOMS[id];
   game.enemies = spawnRoom(id);
-  game.npcs = (r.npcs ?? []).filter(n => flagsOK(n.needs) && ![].concat(n.ifNot ?? []).some(f => game.flags[f])).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: -1 }));
+  game.npcs = (r.npcs ?? []).filter(n => flagsOK(n.needs) && ![].concat(n.ifNot ?? []).some(f => game.flags[f])).map(n => ({ ...n, npc: true, def: NPC_TYPES[n.type], facing: n.facing ?? -1 }));
   // кот Фуджин (владелец): при каждом входе — в другом месте и в другой позе (spots: x, z, lift, img)
   for (const n of game.npcs) if (n.spots) {
     const ok = n.spots.filter(s => hasObj(s.img));
@@ -1787,7 +1788,7 @@ function handlePress(code) {
     }
     const npc = nearNpc();
     if (npc) {
-      npc.facing = Math.sign(p.x - npc.x) || -1;
+      if (!npc.def.still) npc.facing = Math.sign(p.x - npc.x) || -1;
       if (npc.def.shop) openShop(npc);
       else if (npc.def.cat && game.flags.fujin_fed) petCat(npc);   // накормлен — можно погладить (владелец, 17.10)
       else startTalk(npcTalkId(npc.def), npc.def.cat ? () => { if (game.flags.fujin_fed && !npc.belly) { Object.assign(npc, npc.def.bellyAt); npc.belly = true; npc.img = 'cat_belly'; npc.flip = true; } } : null);   // угостил — валится на спину
@@ -2685,7 +2686,7 @@ function update(dt) {
   handlePlayerEvents();
   updateChokeHint();
   updatePickups(dt);
-  for (const n of game.npcs) if (Math.abs(n.x - p.x) < 80) n.facing = Math.sign(p.x - n.x) || n.facing;
+  for (const n of game.npcs) if (Math.abs(n.x - p.x) < 80 && !n.def.still) n.facing = Math.sign(p.x - n.x) || n.facing;   // сидящие — как сидят
 
   for (const e of game.enemies) {
     if ((e.state === 'dead' && e.t > 2) || e.state === 'gone') continue;
@@ -3421,6 +3422,9 @@ const FACES = {
   ilia: Object.fromEntries(['default', 'happy', 'surprised', 'serious', 'worried', 'sad', 'angry', 'pain', 'awkward']   // v0.80
     .map(m => [m, m === 'default' ? 'assets/portraits/ilia.png' : `assets/portraits/ilia-${m}.png`])),
   boss: { default: 'assets/portraits/boss.png' },
+  // камео главы 2 (v0.98, по фото владельца; одежда — под средневековье)
+  cam_glasses: { default: 'assets/portraits/cam_glasses.png', buzz: 'assets/portraits/cam_glasses-buzz.png' },
+  cam_redhead: { default: 'assets/portraits/cam_redhead.png' }, cam_merc: { default: 'assets/portraits/cam_merc.png' },
   priest: { default: 'assets/portraits/priest.png' }, maid: { default: 'assets/portraits/maid.png' },   // призраки (v0.81)
   trainer: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'serious', 'worried', 'sad', 'annoyed']   // v0.80: настроения как у Лики
     .map(m => [m, m === 'default' ? 'assets/portraits/alkima.png' : `assets/portraits/alkima-${m}.png`])),
@@ -3460,7 +3464,9 @@ function applyLineItems(line) {
     callout(`Получено: ${ITEMS[id]?.name ?? id}`, 'perfect');
     sfx.perfect();
   }
-  if (line.give || line.take) save();
+  // later: [флаг, секунды] — флаг ставится позже, при входе в комнату после этого срока (стрижка у бара, v0.98)
+  if (line.later) (game.flags.later ??= {})[line.later[0]] = (game.flags.playTime ?? 0) + line.later[1];
+  if (line.give || line.take || line.later) save();
 }
 
 // after — что сделать, когда разговор закончится (или сразу, если диалоги выключены)
@@ -4915,6 +4921,14 @@ function renderNpc(n, cam) {
     const ok = drawObjNamed(g, n.def.img, x, gy - Math.round(0.6 + 0.6 * Math.sin(game.time * 1.6)), n.facing > 0);   // чуть парит, ниже Найта (владелец)
     g.restore();
     if (ok) return;
+  }
+  if (n.def.img && !n.def.ghost) {
+    // горожане главы 2 (v0.98): картинка PixelLab смотрит влево; imgAlt — другой облик после флага (стрижка)
+    const img = n.def.imgAlt && game.flags[n.def.imgAlt[0]] ? n.def.imgAlt[1] : n.def.img;
+    if (n.def.cut) { g.save(); g.beginPath(); g.rect(x - 40, 0, 80, gy - n.def.cut); g.clip(); }   // за стойкой: видно до пояса
+    drawObjNamed(g, img, x, gy, n.def.faceRight ? n.facing < 0 : n.facing > 0);   // faceRight — картинка смотрит вправо
+    if (n.def.cut) g.restore();
+    return;   // картинки ещё нет (камео рисуется) — пусто, без фигуры-заглушки
   }
   if (n.def.sitImgs) {
     // сидит (Лика на бочке): в покое кадры медленно меняются, рыцарь подошёл — машет рукой

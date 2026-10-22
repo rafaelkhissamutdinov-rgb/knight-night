@@ -332,6 +332,18 @@ function sign(g, d) {
   rect(g, x0 + w - 13, top + 4, 5, 6, '#c8384a'); rect(g, x0 + w - 12, top + 2, 3, 2, '#d8d0c0');
 }
 
+// вывеска с надписью (v0.98, бар «Härtezeichen» — «твёрдый знак» по-немецки, шутка владельца)
+function signText(g, d) {
+  const w = d.w ?? 56, x0 = Math.round(d.x - w / 2), top = d.y ?? 70, h = 11;
+  rect(g, x0 + 3, top - 4, 1, 4, IRON); rect(g, x0 + w - 4, top - 4, 1, 4, IRON);
+  rect(g, x0, top, w, h, '#2a1a12'); rect(g, x0 + 1, top + 1, w - 2, h - 2, '#4a2e1e'); rect(g, x0 + 1, top + 1, w - 2, 1, '#6b4532');
+  g.save();
+  g.font = `bold ${d.size ?? 7}px Georgia, "Times New Roman", serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#1a0f0a'; g.fillText(d.text, d.x + 0.5, top + h / 2 + 1);
+  g.fillStyle = d.color ?? '#e8c46a'; g.fillText(d.text, d.x, top + h / 2 + 0.5);
+  g.restore();
+}
+
 // записка на гвозде
 function note(g, d) {
   const x0 = Math.round(d.x - 5), top = d.y ?? 52;
@@ -437,6 +449,7 @@ export function drawDecor(g, d, floorTop) {
     case 'note': return note(g, d);
     case 'shelf': return shelf(g, d);
     case 'sign': return sign(g, d);
+    case 'signtext': return signText(g, d);
     case 'ivy': return ivy(g, d);
     case 'banner': return banner(g, d);
     case 'window': return windowArch(g, d);
