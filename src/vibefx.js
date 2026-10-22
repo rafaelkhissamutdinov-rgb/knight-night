@@ -12,6 +12,19 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 let state = null;
 
 export function resetVibeFx() { state = null; }
+// звёзды — только в небе картины: пиксель голубой и светлый, вокруг тоже небо (не листва); луна — в самом широком просвете
+function skyStars(img) {
+  if (!img?.complete || !img.naturalWidth) return null;
+  const c = document.createElement('canvas'); c.width = 160; c.height = 33;   // небо выше дальних гор: мир 320×66 с шагом 2
+  const x2 = c.getContext('2d', { willReadFrequently: true }); x2.drawImage(img, 0, 0, 640, 132, 0, 0, 160, 33);
+  const d = x2.getImageData(0, 0, 160, 33).data, sky = (x, y) => { if (x < 0 || y < 0 || x >= 160 || y >= 33) return false; const i = (y * 160 + x) * 4, r = d[i], gg = d[i + 1], b = d[i + 2]; return b > r + 25 && b > 120 && gg > r; };
+  const clear = (x, y, n) => { for (let dy = -n; dy <= n; dy++) for (let dx = -n; dx <= n; dx++) if (!sky(x + dx, y + dy)) return false; return true; };
+  const list = [];
+  for (let y = 0; y < 33; y++) for (let x = 0; x < 160; x++) if (clear(x, y, 1) && Math.random() < 0.09) list.push({ x: x * 2 + Math.floor(Math.random() * 2), y: y * 2 + Math.floor(Math.random() * 2), ph: rnd(0, 6.28), s: Math.random() < 0.12 ? 2 : 1 });
+  let moon = { x: 200, y: 20 }, best = -1;
+  for (let y = 4; y < 22; y++) for (let x = 80; x < 150; x++) { let n = 0; while (n < 8 && clear(x, y, n + 1)) n++; if (n > best || (n === best && x > moon.x / 2)) { best = n; moon = { x: x * 2, y: y * 2 }; } }
+  return { list, moon };
+}
 
 function px(g, x, y, w, h, c, a = 1) {
   g.globalAlpha = Math.max(0, Math.min(1, a));
@@ -58,6 +71,22 @@ export function drawVibeFx(g, fx, o) {
   const S = state, W = wind(t);
   g.save();
 
+  if (fx === 'night') {
+    // ночь на поляне (глава 2, владелец): темноту и свет костра даёт живой свет (applyLight в main.js),
+    // здесь — только звёзды и луна, и только там, где на картине небо (o.sky — кусок фона 640×360)
+    if (!S.stars) S.stars = skyStars(o.sky);
+    if (!S.stars) { g.restore(); return; }
+    g.globalCompositeOperation = 'lighter';
+    for (const s of S.stars.list) { g.globalAlpha = k * (0.5 + 0.4 * Math.sin(t * 1.6 + s.ph)); g.fillStyle = '#dfe8ff'; g.fillRect(s.x - (o.cam ?? 0), s.y, s.s, s.s); }
+    const m = S.stars.moon, mx = m.x - (o.cam ?? 0), my = m.y;
+    const grd = g.createRadialGradient(mx, my, 1, mx, my, 22); grd.addColorStop(0, 'rgba(200,215,255,0.35)'); grd.addColorStop(1, 'rgba(200,215,255,0)');
+    g.globalAlpha = k; g.fillStyle = grd; g.fillRect(mx - 22, my - 22, 44, 44);
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = '#eef2ff'; g.beginPath(); g.arc(mx, my, 4, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#c9d3f0'; g.fillRect(mx - 1, my - 2, 2, 1); g.fillRect(mx + 1, my + 1, 1, 1);
+    g.restore();
+    return;
+  }
   if (fx === 'birds') {
     // свечение заката — там, где оно на картине (даль неподвижна), дышит медленно
     const sun = o.sun ?? { x: 300, y: 54 };

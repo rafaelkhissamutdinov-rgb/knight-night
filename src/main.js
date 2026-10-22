@@ -2310,7 +2310,7 @@ function renderVibeFx(cam) {
   if ((v.k <= 0 && !game.vibe) || !(room().vibe ?? []).includes(v.spot)) { game.vibeFx = null; return; }
   const sp = v.spot, k = v.k * v.k * (3 - 2 * v.k);
   const src = vibeSource(sp, cam);
-  drawVibeFx(fx, sp.fx, { sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, win: src.win, hole: src.hole, sun: sp.sun, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
+  drawVibeFx(fx, sp.fx, { cam, sky: sp.fx === 'night' ? tileSets[room().tiles]?.[0] : null, sx: (sp.fxX ?? sp.x) - cam, fireX: (sp.fxX ?? sp.x) - cam, win: src.win, hole: src.hole, sun: sp.sun, top: sp.fxTop, z: sp.fxZ, k, t: game.time, vt: game.time - v.t0, dt, floor: CONFIG.floorTop, gy: groundY });
 }
 // откуда свет у места вайба (v0.83): окно — ближайшее к месту убранство-окно, пролом — убранство roofhole (их рамки на экране)
 function vibeSource(sp, cam) {
@@ -3437,6 +3437,7 @@ const FACES = {
   // камео главы 2 (v0.98, по фото владельца; одежда — под средневековье)
   cam_glasses: { default: 'assets/portraits/cam_glasses.png', buzz: 'assets/portraits/cam_glasses-buzz.png' },
   cam_redhead: { default: 'assets/portraits/cam_redhead.png' }, cam_merc: { default: 'assets/portraits/cam_merc.png' },
+  cam_tuyaa: { default: 'assets/portraits/cam_tuyaa.png' }, cam_polly: { default: 'assets/portraits/cam_polly.png' }, cam_zacharia: { default: 'assets/portraits/cam_zacharia.png' },
   priest: { default: 'assets/portraits/priest.png' }, maid: { default: 'assets/portraits/maid.png' },   // призраки (v0.81)
   trainer: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'serious', 'worried', 'sad', 'annoyed']   // v0.80: настроения как у Лики
     .map(m => [m, m === 'default' ? 'assets/portraits/alkima.png' : `assets/portraits/alkima-${m}.png`])),
@@ -5093,7 +5094,7 @@ function sceneLights() {
   for (const n of game.npcs ?? []) if (n.def?.ghost) add(n.x, groundY(n.z) - 14, 90, [0.55, 0.8, 1], 0.7 + 0.1 * Math.sin(t * 2.3 + n.x), 16);   // душа светится
   for (const n of game.npcs ?? []) if (n.def?.cat && r.dark) add(n.x, groundY(n.z) - 8 - (n.lift ?? 0), 38, [0.72, 0.72, 0.95], 0.4, 12);   // Фуджин виден в темноте (v0.85)
   for (const pr of r.props ?? []) {
-    if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark ? 180 : 130, WARM, (r.dark ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
+    if (pr.light || pr.type === 'campfire' || (pr.lights && game.flags[pr.lights])) add(pr.x, groundY(pr.z) - 8 - (pr.lift ?? 0), r.dark || nightK() > 0.3 ? 180 : 130, WARM, (r.dark || nightK() > 0.3 ? 1.5 : 1) + 0.12 * Math.sin(t * 9 + pr.x), 20);
     // костёр в тёмной комнате (v0.89): тёплое пятно и на стене за ним — иначе светится только пол у огня
     if ((pr.type === 'campfire' || pr.type === 'campfire_pot') && r.dark) add(pr.x, CONFIG.floorTop - 14, 150, WARM, 0.75 + 0.1 * Math.sin(t * 7 + pr.x * 0.7), 40);
     else if (pr.type === 'candles' && !pr.lights) add(pr.x, groundY(pr.z) - 8, 60, WARM, 0.6, 14);
@@ -5139,12 +5140,15 @@ function sceneLights() {
 // тёмные комнаты (камера, привал) — тоже живым светом (v0.67): почти ночь, светят портал, костёр и выход
 const DARK_AMBIENT = [0.16, 0.14, 0.2];
 const DAY_AMBIENT = [1.02, 1, 0.96];
+const NIGHT_AMBIENT = [0.2, 0.24, 0.42];
+const nightK = () => { const v = game.vibeFx; if (v?.spot.fx !== 'night') return 0; const k = Math.max(0, Math.min(1, v.k)); return k * k * (3 - 2 * k); };
 function applyLight() {
   if (!light) return;
   const r = game.mode === 'title' || game.mode === 'map' ? null : room();
   if (!r) { light.off(); return; }
   // тёмная комната с ambient (v0.80, библиотека): полутьма видна и без свечей, каждая зажжённая свеча (lights) светлеет
   let amb = r.day ? DAY_AMBIENT : r.dark ? (r.ambient ?? DARK_AMBIENT) : AMBIENT;   // глава 2 — день
+  const nk = nightK(); if (nk > 0) amb = amb.map((v, i) => v + (NIGHT_AMBIENT[i] - v) * nk);   // «вайбовать» на поляне — ночь
   if (r.ambient) { const lit = (r.props ?? []).filter(pr => pr.lights && game.flags[pr.lights]).length; amb = amb.map(v => Math.min(0.62, v + lit * 0.045)); }
   light.draw(sceneLights(), amb, true);
 }

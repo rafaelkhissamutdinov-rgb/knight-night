@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.98';
+export const VERSION = 'v0.99';
 
 export const CONFIG = {
   width: 320,
@@ -555,6 +555,8 @@ Object.assign(NPC_TYPES, {
   cam_glasses: { name: 'Иэн', hidden: true, still: true,   // сидит с Ксандрой — их общая картинка у неё (cam_couple)
     talks: [{ id: 'glasses_after', if: 'glasses_buzz' }, { id: 'glasses_wait', if: 'glasses_asked' }], talk: 'glasses_meet' },
   cam_redhead: { name: 'Ксандра', img: 'cam_couple', imgAlt: ['glasses_buzz', 'cam_couple_buzz'], imgDx: 10, still: true, faceRight: true, talk: 'redhead_talk' },   // парочка одной картинкой (PixelLab правкой эскиза рядом с рыцарем — тот же масштаб и детальность)
+  cam_tuyaa: { name: 'Туяа', img: 'cam_logpair', imgDx: 10, still: true, faceRight: true, talk: 'tuyaa_talk' },   // Туяа и Полли на одном бревне — одна картинка
+  cam_polly: { name: 'Полли', hidden: true, still: true, talk: 'polly_glade' },
   cam_merc: { name: 'Виктор', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
 });
 
@@ -1180,9 +1182,10 @@ export const ROOMS = {
   town_glade: {
     name: 'Поляна с телескопом', chapter: 2, tiles: 'town_glade', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     edges: { left: { to: 'town_lane', x: 290, name: 'Тропа к городу' } },
-    props: [{ type: 'log_seat', x: 120, z: 10 }, { type: 'telescope', x: 210, z: 8 }],
-    // камео (по фото владельца): один сидит на бревне, другой — у телескопа; пока временные фигуры
-    npcs: [{ type: 't_vils_10', x: 120, z: 10.5, facing: 1 }, { type: 't_vil_3', x: 228, z: 8 }],
+    // Туяа и Полли на бревне, Люция у телескопа (её облик — на выборе у владельца); «вайбовать» у костра — ночь и звёзды
+    props: [{ type: 'telescope', x: 236, z: 8 }, { type: 'campfire', x: 168, z: 26, light: true }],
+    npcs: [{ type: 'cam_tuyaa', x: 104, z: 12, facing: 1 }, { type: 'cam_polly', x: 128, z: 12, facing: -1 }],
+    vibe: [{ id: 'glade_night', x: 150, fx: 'night', fxX: 168, fxZ: 26, sit: { x: 150, z: 30, face: 1 } }],
   },
   // покои принцессы (владелец, v0.95): наверху винтовой лестницы, после победы над боссом — посмотреть, лорный момент.
   // Широкие окна с видом; у большого окна (E) — конец главы: Найт возвращается к порталу.
