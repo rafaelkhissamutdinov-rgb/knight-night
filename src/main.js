@@ -3437,7 +3437,7 @@ const FACES = {
   // камео главы 2 (v0.98, по фото владельца; одежда — под средневековье)
   cam_glasses: { default: 'assets/portraits/cam_glasses.png', buzz: 'assets/portraits/cam_glasses-buzz.png' },
   cam_redhead: { default: 'assets/portraits/cam_redhead.png' }, cam_merc: { default: 'assets/portraits/cam_merc.png' },
-  cam_tuyaa: { default: 'assets/portraits/cam_tuyaa.png' }, cam_polly: { default: 'assets/portraits/cam_polly.png' }, cam_zacharia: { default: 'assets/portraits/cam_zacharia.png' },
+  cam_tuyaa: { default: 'assets/portraits/cam_tuyaa.png' }, cam_polly: { default: 'assets/portraits/cam_polly.png' }, cam_zacharia: { default: 'assets/portraits/cam_zacharia.png' }, cam_lucia: { default: 'assets/portraits/cam_lucia.png' },
   priest: { default: 'assets/portraits/priest.png' }, maid: { default: 'assets/portraits/maid.png' },   // призраки (v0.81)
   trainer: Object.fromEntries(['default', 'happy', 'sly', 'surprised', 'serious', 'worried', 'sad', 'annoyed']   // v0.80: настроения как у Лики
     .map(m => [m, m === 'default' ? 'assets/portraits/alkima.png' : `assets/portraits/alkima-${m}.png`])),
