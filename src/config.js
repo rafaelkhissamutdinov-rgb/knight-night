@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v0.97';
+export const VERSION = 'v0.98';
 
 export const CONFIG = {
   width: 320,
@@ -551,7 +551,7 @@ export const TOWNSFOLK = [
 for (const [img, name, sit] of TOWNSFOLK) NPC_TYPES['t_' + img] = { name, img, talk: 't_' + img, still: !!sit };
 // камео (v0.98): спрайт в позе по месту + портрет в разговоре (по фото владельца; одежда — под средневековье)
 Object.assign(NPC_TYPES, {
-  bartender: { name: 'Бармен', img: 'npc_bartender', talk: 'bartender_talk', cut: 12 },   // за стойкой — видно до пояса
+  bartender: { name: 'Бармен', img: 'npc_bartender', talk: 'bartender_talk', cut: 16 },   // за стойкой — видно до пояса
   cam_glasses: { name: 'Иэн', img: 'cam_glasses', imgAlt: ['glasses_buzz', 'cam_glasses_buzz'], still: true, faceRight: true,   // сидит за столом (стол — на картинке)
     talks: [{ id: 'glasses_after', if: 'glasses_buzz' }, { id: 'glasses_wait', if: 'glasses_asked' }], talk: 'glasses_meet' },
   cam_redhead: { name: 'Ксандра', img: 'cam_redhead', still: true, faceRight: true, talk: 'redhead_talk' },
@@ -1123,11 +1123,11 @@ export const ROOMS = {
     name: 'Площадь', chapter: 2, tiles: 'town_square', tileCount: 2, tileSeq: [0, 1], length: 640, day: true, ceiling: false, torches: [],
     doors: [
       { id: 'down', x: 22, kind: 'none', stairs: true, to: 'town_cross', toDoor: 'up', name: 'Лестница вниз, к развилке' },
-      { id: 'bar', x: 245, kind: 'none', stairs: true, to: 'town_bar', toDoor: 'out', name: 'Бар «Härtezeichen»' },
+      { id: 'bar', x: 245, kind: 'none', stairs: true, to: 'town_bar', toDoor: 'out', name: 'Бар Härtezeichen' },
       { id: 'armory', x: 355, kind: 'none', stairs: true, to: 'town_armory', toDoor: 'out', name: 'Оружейная' },
       { id: 'lane', x: 580, kind: 'none', stairs: true, to: 'town_lane', toDoor: 'down', name: 'Арка — тропа к лесу' },
     ],
-    decor: [{ type: 'signtext', x: 245, y: 70, w: 64, text: '„Härtezeichen“' }],
+    decor: [{ type: 'objimg', img: 'sign_bar', x: 247, y: 91 }],   // вывеска бара: табличка PixelLab + надпись шрифтом Pirata One (OFL)
     props: [
       { type: 'bar_table', x: 292, z: 5 },   // второй столик бара снаружи (у парочки стол — на их картинках)
       { type: 'fountain', x: 322, z: 16 },
@@ -1146,15 +1146,15 @@ export const ROOMS = {
   town_bar: {
     // картина бара целиком (PixelLab по эскизу-планировке в рост рыцаря: стойка лицом к нам на ~70% стены, полки с подсветкой, сплошной пол);
     // столы вырезаны из неё в отдельные предметы (z-порядок, block — сквозь не пройти); бармен — за стойкой (видно до пояса)
-    name: 'Бар «Härtezeichen»', chapter: 2, tiles: 'town_bar', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
+    name: 'Бар Härtezeichen', chapter: 2, tiles: 'town_bar', tileCount: 1, length: 320, day: true, ceiling: false, torches: [],
     floorTop: 87, depth: 83, tileLine: 174,
     doors: [{ id: 'out', x: 52, kind: 'none', stairs: true, to: 'town_square', toDoor: 'bar', name: 'На площадь' }],
     props: [
-      { type: 'bar2_table0', x: 67, z: 37, block: [11, 8] }, { type: 'bar2_table1', x: 253, z: 35, block: [11, 8] },
-      { type: 'bar2_table2', x: 117, z: 64, block: [11, 8] }, { type: 'bar2_table3', x: 207, z: 65, block: [11, 8] },
+      { type: 'bar2_table0', x: 67, z: 37, block: [16, 10] }, { type: 'bar2_table1', x: 253, z: 35, block: [16, 10] },
+      { type: 'bar2_table2', x: 117, z: 64, block: [16, 10] }, { type: 'bar2_table3', x: 207, z: 65, block: [16, 10] },
     ],
     npcs: [
-      { type: 'bartender', x: 165, z: 0, lift: 31 },   // за стойкой
+      { type: 'bartender', x: 165, z: 0, lift: 25 },   // за стойкой
       { type: 'cam_merc', x: 86, z: 1, facing: 1 },   // Виктор — у стойки слева
       { type: 't_vils_12', x: 244, z: 35.5, facing: 1 }, { type: 't_vils_2', x: 263, z: 35.5 },
       { type: 't_vils_14', x: 108, z: 64.5, facing: 1 }, { type: 't_vils_4', x: 198, z: 65.5, facing: 1 }, { type: 't_vils_8', x: 217, z: 65.5 },

@@ -17,18 +17,22 @@ def shrink(src, h):
     rgb.putalpha(a)
     return rgb.crop(rgb.getbbox())
 
-# имя в игре: (исходник, высота в пикселях экрана)
-ADULT, SIT, TABLE = 50, 37, 40
+# имя в игре: (исходник, высота). Владелец (22.10): рыцарь — средний рост (≈175 см, в игре ≈ 60 px с плюмажем); взрослые — того же
+# роста: стоящие — исходник PixelLab без уменьшения (уменьшение портит пиксель); сидящие и дети — сгенерированы сразу на холсте 48.
+RAW = 999   # не уменьшать
 JOBS = {}
 for i in range(16):
-    JOBS[f'vil_{i}'] = (f'ch2/villager_{i:02d}.png', {9: 37, 12: 46, 5: 44, 0: 47, 11: 47}.get(i, ADULT))
-    if i != 11: JOBS[f'vils_{i}'] = (f'ch2/sitting_{i:02d}.png', SIT)
+    JOBS[f'vil_{i}'] = (f'ch2/villager_{i:02d}.png', RAW) if i != 9 else ('ch2/kids48_01.png', RAW)
+    if i != 11: JOBS[f'vils_{i}'] = (f'ch2/sitting48_{i:02d}.png', RAW)
 JOBS.update({
-    'npc_bartender': ('ch2/bartender_00.png', 51),
-    'cam_glasses': ('cameo/glasses_sit_05.png', TABLE), 'cam_glasses_buzz': ('cameo/glasses_buzz_sit_05.png', TABLE),
-    'cam_redhead': ('cameo/redhead_sit_02.png', TABLE), 'cam_merc': ('cameo/merc_sit_00.png', 47),   # на высоком табурете
-    'prop_fountain': ('obj/fountain_01.png', 64), 'prop_town_bench': ('obj/bench_00.png', 26), 'prop_bar_table': ('obj/cafetable_02.png', 27),
-    'prop_telescope': ('obj/telescope_01.png', 44), 'prop_log_seat': ('obj/log_00.png', 14),
+    'npc_bartender': ('ch2/bartender_00.png', RAW),
+    'cam_glasses': ('cameo/glasses_sit48_05.png', RAW), 'cam_glasses_buzz': ('cameo/glasses_buzz_sit48_02.png', RAW),
+    'cam_redhead': ('cameo/redhead_sit48_01.png', RAW), 'cam_merc': ('cameo/merc_sit48_01.png', RAW),
+    'cam_polly_sit': ('cameo/polly_sit48_00.png', RAW), 'cam_tuyaa_sit': ('cameo/tuyaa_sit48_01.png', RAW),
+    'prop_fountain': ('obj/fountain_01.png', RAW), 'prop_town_bench': ('obj/bench_00.png', RAW), 'prop_bar_table': ('obj/cafetable_02.png', RAW),
+    'prop_telescope': ('obj/telescope_01.png', RAW), 'prop_log_seat': ('obj/log_00.png', RAW),
+    'prop_bar2_table0': ('bar2/table0_full.png', RAW), 'prop_bar2_table1': ('bar2/table1_full.png', RAW),
+    'prop_bar2_table2': ('bar2/table2_full.png', RAW), 'prop_bar2_table3': ('bar2/table3_full.png', RAW),
 })
 if __name__ == '__main__':
     for name, (src, h) in JOBS.items():

@@ -1489,6 +1489,7 @@ const ADMIN_POINTS = [
   { name: 'Перед балконом', room: 'balcony', x: 60, steps: ['wake', 'tutorial', 'ilia'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Второй этаж', room: 'landing2', x: 200, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
   { name: 'Третий этаж', room: 'landing3', x: 180, steps: ['wake', 'tutorial', 'ilia', 'commander'], bag: ['sword_old', 'rapier', 'map'] },
+  { name: 'Глава 2: город (площадь)', room: 'town_square', x: 160, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard', 'boss'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { chapter1_done: true, chapter: 2, ending: 'execution', done_boss: true } },
   { name: 'Глава 2: скала', room: 'cliff', x: 60, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard', 'boss'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { chapter1_done: true, chapter: 2, ending: 'execution', done_boss: true } },
   { name: 'Финал: покои принцессы', room: 'princess', x: 200, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'broken_mask'], flags: { done_boss: true, ending: 'execution' } },   // к окну, E — портал
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
@@ -3746,14 +3747,23 @@ function closeStory() {
 const shopCtx = ui.shopScene.getContext('2d');
 shopCtx.imageSmoothingEnabled = false;
 const SHOP_MOODS = ['default', 'happy', 'sly', 'surprised', 'sulky', 'serious', 'worried', 'angry', 'blink'];
-const shopArt = { scene: Object.assign(new Image(), { src: 'assets/shop/scene.png' }) };
-for (const m of SHOP_MOODS) shopArt[m] = Object.assign(new Image(), { src: `assets/shop/lika_${m}.png` });
+// картинки лавки: у SHOPS[id].art — свой фон и продавец по пояс (оружейная главы 2, v0.98); без art — лавка Лики
+const shopArts = {};
+function artFor(id) {
+  const a = SHOPS[id]?.art;
+  if (shopArts[id]) return shopArts[id];
+  const img = src => Object.assign(new Image(), { src });
+  const out = shopArts[id] = { scene: img(a?.scene ?? 'assets/shop/scene.png') };
+  for (const m of a?.moods ?? SHOP_MOODS) out[m] = img(`${a?.bust ?? 'assets/shop/lika'}_${m}.png`);
+  return out;
+}
 const SHOP_FLAMES = [[186, 50, 1.2], [32, 106, 0.8], [94, 164, 0.8], [252, 186, 0.7]];   // фонарь и свечи на картине: x, y, сила
 const shopMotes = Array.from({ length: 24 }, () => ({ x: Math.random() * 256, y: Math.random() * 220, v: 2 + Math.random() * 5, p: Math.random() * 6.3 }));
 function drawShopScene(t) {
   const c = shopCtx, sh = game.shop;
   const ok = im => im?.complete && im.naturalWidth;
   c.clearRect(0, 0, 256, 288);
+  const shopArt = artFor(sh.npc.def.shop), flames = sh.data.art ? sh.data.art.flames ?? [] : SHOP_FLAMES;
   if (ok(shopArt.scene)) c.drawImage(shopArt.scene, 0, 0);
   // Лика: дышит (на пиксель вверх-вниз), моргает раз в несколько секунд
   const blink = (!sh.mood || sh.mood === 'default') && (t % 4.3) < 0.13;
@@ -3763,7 +3773,7 @@ function drawShopScene(t) {
   // огонь свечей и фонаря дрожит, вокруг — тёплый свет
   c.save();
   c.globalCompositeOperation = 'lighter';
-  for (const [x, y, k] of SHOP_FLAMES) {
+  for (const [x, y, k] of flames) {
     const f = 0.75 + 0.25 * Math.sin(t * 9 + x) * Math.sin(t * 5.3 + y);
     const gr = c.createRadialGradient(x, y, 0, x, y, 26 * k);
     gr.addColorStop(0, `rgba(255,170,80,${0.32 * f * k})`);
@@ -3786,7 +3796,7 @@ function drawShopScene(t) {
 function openShop(npc) {
   const data = SHOPS[npc.def.shop];
   if (!data) return;
-  game.shop = { npc, data, view: 'main', text: data.hello, shown: 0, mood: data.moods?.hello };
+  game.shop = { npc, data, view: 'main', text: data.hello, shown: 0, mood: data.moods?.hello, back: game.mode === 'vn' ? 'vn' : 'play' };
   game.mode = 'shop';
   ui.shopName.textContent = npc.def.name;
   ui.shop.hidden = false;
@@ -3798,8 +3808,9 @@ function closeShop() {
   game.shop.text = game.shop.data.bye;
   ui.shop.hidden = true;
   callout(game.shop.data.bye.replace('[черновик] ', ''), 'muted');
+  const back = game.shop.back;
   game.shop = null;
-  game.mode = 'play';
+  game.mode = back ?? 'play';   // из картины лавки (оружейная) — обратно в картину
 }
 
 // следующая реплика темы: Найт (knight: true) или Лика с выражением лица
