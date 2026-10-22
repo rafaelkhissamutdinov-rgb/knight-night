@@ -4163,7 +4163,7 @@ function callout(text, kind) {
 }
 
 function hint(text, vibe) {
-  if (vibe) text = text ? `${text} · V — вайбовать` : 'V — вайбовать';   // место для «вайбовать»
+  if (vibe) text = text ? `${text} · V\u00a0—\u00a0вайбовать` : 'V\u00a0—\u00a0вайбовать';   // место для «вайбовать»
   if (!text) { ui.hint.hidden = true; ui.hint.textContent = ''; return; }
   if (ui.hint.textContent === text && !ui.hint.hidden) return;
   ui.hint.textContent = text;
@@ -4677,6 +4677,7 @@ function animSet(type) {
   }
   return s.meta && Object.values(s.imgs).every(im => im.complete) ? s : null;
 }
+for (const t in ANIM_ENEMIES) animSet(t);   // заранее, чтобы враг не появлялся с запозданием
 function animFrame(e, s) {
   const A = s.meta.anims, cfg = ANIM_ENEMIES[e.type], at = cfg.strikeAt ?? Math.floor(A.attack.n * 0.7);
   const pick = (k, i) => [k, Math.max(0, Math.min(A[k].n - 1, Math.floor(i)))];
@@ -4708,6 +4709,7 @@ function renderEnemy(e, cam) {
   const ex = e.x - cam;
   if (ex < -50 || ex > W + 50) return;
   const as = animSet(e.type);
+  if (ANIM_ENEMIES[e.type] && !as) return;   // кадры ещё грузятся — не показывать старую фигурку-заглушку
   if (e.state === 'dead' && as) { if (e.t < 2) drawAnimEnemy(e, as, ex, groundY(e.z), Math.max(0, Math.min(1, 1 - (e.t - 1.2) / 0.8))); return; }
   if (e.state === 'dead' && e.kind !== 'slime') { renderDeath(e, ex); return; }
   // спящий скелет лежит грудой костей; проснулся — встаёт (фигура вытягивается вверх)
@@ -5182,7 +5184,8 @@ function renderPlayer(cam) {
 
   if (game.wardFlash > 0) renderAceWard(px + (game.wardSide ?? p.facing) * 15, GROUND - 22, 0.8 - game.wardFlash);
   // выбранная высота рядом с рыцарем; голубая — когда держишь защиту
-  if (!game.cutscene && !tr) heightIcon(game.aim, px - p.facing * 13, GROUND - 26, held('guard') ? '#8fd3ff' : '#9f97b0');
+  const foes = game.tutorial || held('guard') || game.enemies.some(e => e.state !== 'dead' && e.state !== 'gone');   // в мирных местах значок не нужен и закрывает лица горожан
+  if (!game.cutscene && !tr && foes) heightIcon(game.aim, px - p.facing * 13, GROUND - 26, held('guard') ? '#8fd3ff' : '#9f97b0');
   if (p.state === 'backdash' && p.wardActive) {
     // мерцающий заслон перед рыцарем
     g.globalAlpha = 0.5 + 0.3 * Math.sin(p.t * 40);
