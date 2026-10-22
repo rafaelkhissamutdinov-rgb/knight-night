@@ -464,7 +464,7 @@ function drawStairs(g, x0, floorTop, tiled = false, blocked = false) {
     // дверь на стене над площадкой — до ступеней (балюстрада впереди)
     const door = objImg('door_wood');
     // правый край двери — по краю площадки; низ — на заднем крае площадки, а не под ней (v0.74)
-    if (door && !blocked) drawObj(g, door, x0 + w - door.width / 4, top + 9);
+    if (door && !blocked) drawObj(g, door, x0 + w - door.width / 4, top + 13);   // +13: площадка на картинке начинается с 12-й строки — дверь стоит на ней (владелец: «не стыкуется с полом»)
     // цвет кладки — к цвету стен комнаты: средний цвет стены рядом подмешивается к картинке (v0.74, владелец:
     // «вставленная картинка не вписывается»)
     const tinted = tintToWall(g, im, x0, floorTop);
