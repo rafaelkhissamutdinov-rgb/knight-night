@@ -2,7 +2,7 @@
 // маска — шаг призрака (F) за спину врага. Снимки — KN_OUT/ending.
 const { chromium } = require('playwright');
 const SH = (process.env.KN_OUT || __dirname + '/out') + '/ending'; require('fs').mkdirSync(SH, { recursive: true });
-const PEACE = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_flower', 'heart_half'];
+const PEACE = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_flower', 'heart_half', 'princess_letter'];
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await b.newPage({ viewport: { width: 1280, height: 800 } });

@@ -879,7 +879,7 @@ function playerAlpha() {
 // Всё собрано (вся история капитана) — разговор boss_peace, призрак склоняется, встаёт, смотрит на нас и растворяется.
 // Иначе — казнь: рыцарь заносит меч над коленопреклонённым призраком, удар — маска раскалывается, призрак рассыпается.
 // Дальше у всех одинаково: портал в Камере — цветок в янтаре, волны, второй круг рун, свет; телепорт к замку днём.
-const PEACE_ITEMS = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_flower', 'heart_half'];
+const PEACE_ITEMS = ['diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_flower', 'heart_half', 'princess_letter'];   // письмо принцессы — от служанки (владелец 23.10)
 const peaceReady = () => PEACE_ITEMS.every(id => owns(id));
 const STILL = { fwd: false, back: false, dz: 0, guard: null, engaged: false, stroll: true, anyInput: false };
 function letterbox(on) {
@@ -1532,7 +1532,7 @@ const ADMIN_POINTS = [
   { name: 'Перед боссом (башня)', room: 'tower', x: 120, steps: ['wake', 'tutorial', 'ilia', 'ataman', 'commander', 'keyguard'], bag: ['sword_old', 'rapier', 'map', 'key_tower'] },
 ];
 const ADMIN_LOOT = ['sword_old', 'rapier', 'dagger', 'map', 'journal', 'key_tower', 'diamond_ace', 'broken_mask', 'rosary', 'mar_scarf', 'mar_jacket', 'mar_boots', 'spell_bolt', 'skill_triple', 'skill_cleave', 'golden_skull', 'silver_cup',
-  'diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_flower', 'heart_half'];   // всё для мирного исхода — проверить сцену
+  'diary_1', 'diary_2', 'diary_3', 'diary_4', 'diary_full', 'resin_flower', 'heart_half', 'princess_letter'];   // всё для мирного исхода — проверить сцену
 
 // текущая игра → данные сохранения (как save(), но комнату и место можно подменить)
 function adminSnapshot(room = game.room, x = game.player.x) {
