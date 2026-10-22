@@ -14,9 +14,9 @@ export const SPEAKERS = {
   priest: { name: 'Призрак священника', portrait: 'priest' },
   maid: { name: 'Служанка', portrait: 'maid' },
   bartender: { name: 'Бармен' },
-  cam_glasses: { name: 'Парень в очках', portrait: 'cam_glasses' },   // имена — у владельца
-  cam_redhead: { name: 'Рыжая девушка', portrait: 'cam_redhead' },
-  cam_merc: { name: 'Наёмник', portrait: 'cam_merc' },
+  cam_glasses: { name: 'Иэн', portrait: 'cam_glasses' },   // имена — владелец (22.10)
+  cam_redhead: { name: 'Ксандра', portrait: 'cam_redhead' },
+  cam_merc: { name: 'Виктор', portrait: 'cam_merc' },   // наёмник, сюжетный (побочные задания, главы 5–6)
 };
 for (const [img, name] of TOWNSFOLK) SPEAKERS['town_' + img] = { name };   // горожане главы 2 говорят под своими именами
 
@@ -74,7 +74,7 @@ export const DIALOGUES = {
   ],
   redhead_talk: [{ who: 'cam_redhead', text: '[черновик] Привет, рыцарь! Садись к нам — третий стул как раз свободен.' }],
   merc_talk: [
-    { who: 'cam_merc', text: '[черновик] Наёмник. Работаю за деньги, вопросов не задаю.' },
+    { who: 'cam_merc', text: '[черновик] Виктор. Наёмник. Работаю за деньги, вопросов не задаю.' },
     { who: 'cam_merc', text: '[черновик] Работы пока нет. Заходи позже — будет.' },
   ],
 
