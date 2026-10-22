@@ -25,10 +25,11 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/chapter2'; require('fs
     if (side && !seen.has(side[0]) && Math.abs(s.x - side[1]) < 10) { await W(); continue; }
     if (['forest_brook', 'forest_camp'].includes(s.room)) {
       const back = s.room === 'forest_camp' ? 50 : 60;
-      if (s.x > back + 8) { await p.keyboard.down('KeyA'); await p.waitForTimeout(200); await p.keyboard.up('KeyA'); continue; }
+      if (s.x > back + 12) { await p.keyboard.down('KeyA'); await p.waitForTimeout(150); await p.keyboard.up('KeyA'); continue; }
+      if (s.x < back - 12) { await p.keyboard.down('KeyD'); await p.waitForTimeout(150); await p.keyboard.up('KeyD'); continue; }
       await W(); continue;
     }
-    if ((s.room === 'village_gate' && s.x > 246) || (s.room === 'town_gate' && s.x > 222) || (s.room === 'forest_e3' && s.x > 600)) { await W(); continue; }
+    if ((s.room === 'village_gate' && s.x > 242 && s.x < 264) || (s.room === 'town_gate' && s.x > 216 && s.x < 240) || (s.room === 'forest_e3' && s.x > 600)) { await W(); continue; }
     const key = (s.room === 'village_gate' && s.x > 262) || (s.room === 'town_gate' && s.x > 236) ? 'KeyA' : 'KeyD';
     await p.keyboard.down(key); await p.waitForTimeout(160); await p.keyboard.up(key);
   }
