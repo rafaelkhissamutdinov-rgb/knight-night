@@ -552,9 +552,9 @@ for (const [img, name, sit] of TOWNSFOLK) NPC_TYPES['t_' + img] = { name, img, t
 // камео (v0.98): спрайт в позе по месту + портрет в разговоре (по фото владельца; одежда — под средневековье)
 Object.assign(NPC_TYPES, {
   bartender: { name: 'Бармен', img: 'npc_bartender', talk: 'bartender_talk', cut: 16 },   // за стойкой — видно до пояса
-  cam_glasses: { name: 'Иэн', img: 'cam_glasses', imgAlt: ['glasses_buzz', 'cam_glasses_buzz'], still: true, faceRight: true,   // сидит за столом (стол — на картинке)
+  cam_glasses: { name: 'Иэн', hidden: true, still: true,   // сидит с Ксандрой — их общая картинка у неё (cam_couple)
     talks: [{ id: 'glasses_after', if: 'glasses_buzz' }, { id: 'glasses_wait', if: 'glasses_asked' }], talk: 'glasses_meet' },
-  cam_redhead: { name: 'Ксандра', img: 'cam_redhead', still: true, faceRight: true, talk: 'redhead_talk' },
+  cam_redhead: { name: 'Ксандра', img: 'cam_couple', imgAlt: ['glasses_buzz', 'cam_couple_buzz'], imgDx: 10, still: true, faceRight: true, talk: 'redhead_talk' },   // парочка одной картинкой (PixelLab правкой эскиза рядом с рыцарем — тот же масштаб и детальность)
   cam_merc: { name: 'Виктор', img: 'cam_merc', still: true, faceRight: true, talk: 'merc_talk' },   // сюжетный: побочные задания позже
 });
 
@@ -1134,7 +1134,7 @@ export const ROOMS = {
       { type: 'town_bench', x: 430, z: 4 }, { type: 'town_bench', x: 510, z: 4 },
     ],
     npcs: [
-      { type: 'cam_redhead', x: 196, z: 5.5, facing: 1 }, { type: 'cam_glasses', x: 212, z: 5.5, facing: -1 },   // парочка за одним столом у бара (камео)
+      { type: 'cam_redhead', x: 194, z: 5.5, facing: 1 }, { type: 'cam_glasses', x: 222, z: 5.5, facing: -1 },   // парочка за одним столом у бара (камео)
       { type: 't_vils_8', x: 280, z: 5.5, facing: 1 }, { type: 't_vils_5', x: 300, z: 5.5 },
       { type: 't_vils_1', x: 424, z: 4.5 }, { type: 't_vils_6', x: 438, z: 4.5 }, { type: 't_vils_13', x: 510, z: 4.5 },
       { type: 't_vil_2', x: 280, z: 26 }, { type: 't_vil_7', x: 360, z: 28 }, { type: 't_vil_9', x: 345, z: 32 },
