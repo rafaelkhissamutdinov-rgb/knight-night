@@ -724,7 +724,9 @@ export const SHOPS = {
   // кофейня «Vertrauen» (владелец): окно как у Лики — виды кофе, бусты, пара чаёв, матча. Бариста Шахбану — облик временный
   cafe: {
     // окно: Шахбану с чашкой за стойкой (кофейники стойки — поверх)
-    art: { scene: 'assets/shop/cafe_scene.png', fg: 'assets/shop/cafe_fg.png', at: [62, 101], bust: 'assets/shop/shahbanu', moods: ['default', 'happy', 'worried', 'blink'], flames: [[200, 60, 0.8]] },
+    // (владелец 23.10: «просто вырезал — не сочетается») — Шахбану нарисована прямо в картину кофейни (inpaint), эмоции —
+    // заплатки лица поверх (still: без покачивания, иначе заплатка съедет)
+    art: { scene: 'assets/shop/cafe_scene_shahbanu.png', at: [72, 70], still: true, bust: 'assets/shop/shahbanu', moods: ['default', 'happy', 'worried', 'blink'], flames: [[200, 60, 0.8]] },
     moods: { hello: 'happy', bought: 'happy', poor: 'worried' },
     hello: '[черновик] Добро пожаловать в «Vertrauen»! Сегодня кофе крепкий, а люди — добрые. Ну, почти все.',
     menu: '[черновик] Что тебе налить?',

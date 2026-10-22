@@ -3996,7 +3996,7 @@ function drawShopScene(t) {
   const bust = shopArt[blink ? 'blink' : sh.mood] ?? shopArt.default;
   const im = ok(bust) ? bust : shopArt.default;
   const [bx, by] = sh.data.art?.at ?? [48, 109];   // где стоит продавец; стойка (fg) рисуется поверх — он за ней, а не перед
-  if (ok(im)) c.drawImage(im, bx, by + (Math.sin(t * 1.8) > 0.6 ? -1 : 0));
+  if (ok(im)) c.drawImage(im, bx, by + (!sh.data.art?.still && Math.sin(t * 1.8) > 0.6 ? -1 : 0));
   if (ok(shopArt.fg)) c.drawImage(shopArt.fg, 0, 0);
   // огонь свечей и фонаря дрожит, вокруг — тёплый свет
   c.save();
