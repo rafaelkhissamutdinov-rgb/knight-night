@@ -281,7 +281,7 @@ export class Player {
         // на бегу оружие (любое) за спиной, руки свободны; sheatheAt — когда убрал (для анимации)
         this.strollT = stroll && moving ? (this.strollT ?? 0) + dt : 0;   // шагом меч убирается через секунду
         if ((run > 0.5 || this.strollT > 1) && !g && !this.sheathed) { this.sheathed = true; this.sheatheAt = this.clock; this.sheatheRun = true; }
-        if (c.dz) this.z = Math.max(0, Math.min(CONFIG.depth, this.z + c.dz * (c.engaged ? CONFIG.depthSpeed : stroll ? CONFIG.strollDepthSpeed : CONFIG.exploreDepthSpeed) * slow * dt));
+        if (c.dz) this.z = Math.max(Math.min(CONFIG.zMin ?? 0, this.z), Math.min(CONFIG.depth, this.z + c.dz * (c.engaged ? CONFIG.depthSpeed : stroll ? CONFIG.strollDepthSpeed : CONFIG.exploreDepthSpeed) * slow * dt));
         this.walking = !!(v || c.dz);
         if (!c.engaged && !g && !this.sheathed && this.idleT > CONFIG.autoSheathe) { this.sheathed = true; this.sheatheAt = this.clock; this.sheatheRun = false; }
         const rest = this.weapon === 'rapier' ? POSES.fence : POSES.idle;

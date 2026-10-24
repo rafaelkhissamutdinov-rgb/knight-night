@@ -22,7 +22,9 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/chapter2'; require('fs
     // v1.0: тропы по картинке — W в зоне тропы; боковые комнаты леса за городом: зайти, зачистить, вернуться
     const W = async () => { await p.keyboard.down('KeyW'); await p.waitForTimeout(700); await p.keyboard.up('KeyW'); await p.waitForTimeout(1800); };
     const side = { forest_e1: ['forest_brook', 230], forest_e3: ['forest_camp', 120] }[s.room];
-    if (side && !seen.has(side[0]) && Math.abs(s.x - side[1]) < 10) { await W(); continue; }
+    if (side && !seen.has(side[0]) && Math.abs(s.x - side[1]) < 14) { await W(); continue; }
+    // у боковой тропы — мелкими шагами: длинный шаг проскакивает её окно (±16)
+    if (side && !seen.has(side[0]) && Math.abs(s.x - side[1]) < 50) { const k = s.x < side[1] ? 'KeyD' : 'KeyA'; await p.keyboard.down(k); await p.waitForTimeout(50); await p.keyboard.up(k); await p.waitForTimeout(80); continue; }
     if (['forest_brook', 'forest_camp'].includes(s.room)) {
       const back = s.room === 'forest_camp' ? 50 : 60;
       if (s.x > back + 12) { await p.keyboard.down('KeyA'); await p.waitForTimeout(150); await p.keyboard.up('KeyA'); continue; }
