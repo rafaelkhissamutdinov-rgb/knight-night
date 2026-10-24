@@ -166,6 +166,7 @@ function loadRoom(id, at) {
   game.coinFx = [];
   CONFIG.floorTop = ROOMS[id].floorTop ?? BASE_FLOOR;
   CONFIG.depth = ROOMS[id].depth ?? BASE_DEPTH;
+  CONFIG.zMin = ROOMS[id].zMin ?? 0;   // ближе к стене не подойти: на площади дома выступают, их основание — на z≈8
   game.flags['map_' + id] = true;  // для карты: где побывал
   for (const [f, at] of Object.entries(game.flags.later ?? {})) if ((game.flags.playTime ?? 0) >= at) { game.flags[f] = true; delete game.flags.later[f]; }
   const floor = ROOMS[id].floor ?? 1;
@@ -1423,6 +1424,12 @@ function setBodyFont(id) {
   try { localStorage.setItem('knightNight.font', bodyFont); } catch { /* ничего */ }
 }
 setBodyFont(bodyFont);
+// новый свет (v1.06): тени от огня, блики, свечение, лучи; «прежний» — простой свет, если видеокарта слабая
+function setLightPlus(on) {
+  lightPlus = on;
+  if (light) light.plus = on;
+  try { localStorage.setItem('knightNight.lightPlus', on ? '1' : '0'); } catch { /* ничего */ }
+}
 
 // шагом или бегом (v0.87, владелец: «нужно и ходить медленно, и бегать»): выбор в паузе, Caps Lock — переключает (и запоминает)
 let strollOn = false;
@@ -1451,6 +1458,7 @@ function showPause() {
     ['Управление', () => showControls(showPause)],
     ['Звук и музыка', () => showSound(showPause)],
     [`Шрифт текста: ${BODY_FONTS.find(f => f[0] === bodyFont)[1]}`, () => { const i = BODY_FONTS.findIndex(f => f[0] === bodyFont); setBodyFont(BODY_FONTS[(i + 1) % BODY_FONTS.length][0]); showPause(); }],
+    ...(light ? [[`Свет: ${lightPlus ? 'новый (тени, блики, свечение)' : 'прежний'}`, () => { setLightPlus(!lightPlus); showPause(); }]] : []),
     [`Передвижение: ${strollOn ? 'шагом' : 'бегом'} (Caps Lock — сменить)`, () => { setStroll(!strollOn); showPause(); }],
     [`Лёгкий режим: ${easyOn ? 'вкл' : 'выкл'}`, () => { setEasy(!easyOn); showPause(); }],
     ['Новая игра', askNewFromPause],
@@ -4416,8 +4424,10 @@ function render() {
   // сначала тени, потом бойцы, персонажи и вещи от дальних к ближним
   const hidePlayer = game.mode === 'title' || (game.cutscene && game.cutscene.t < WAKE.flash);
   const actors = [...game.enemies.filter(e => e.state !== 'gone'), ...game.npcs, ...(hidePlayer ? [] : [game.player])];
+  const castFrom = light && lightPlus ? castLights(cam) : null;
   for (const a of actors) {
     if (a === game.player && (a.state === 'swallowed' || tr?.kind === 'path')) continue;
+    if (castFrom && a.state !== 'dead' && !(a.def?.ghost) && a.kind !== 'ghost' && a.kind !== 'boss') castShadow(a, cam, castFrom);
     g.globalAlpha = a.state === 'dead' ? 0.3 : 0.55;
     const gy = groundY(Math.max(0, a.z));
     rect(g, a.x - cam - 7, gy - 1, 14, 2, '#0d0b14');
@@ -5537,6 +5547,39 @@ function sceneLights() {
   // ближние к центру экрана — вперёд
   return L.sort((a, b) => Math.abs(a.x - W) - Math.abs(b.x - W));
 }
+// тени от света (v1.06, владелец: «более крутые шейдеры света»): каждый огонь отбрасывает от персонажа тень по полу —
+// в сторону от себя, тем длиннее, чем дальше огонь; от двух факелов — две тени. Днём — короткая тень от солнца
+let lightPlus = (() => { try { return localStorage.getItem('knightNight.lightPlus') !== '0'; } catch { return true; } })();   // новый свет; в паузе можно вернуть прежний
+function castLights(cam) {
+  const r = room();
+  const out = sceneLights().filter(l => l.power > 0.3 && l.r > 60 * S).map(l => ({ x: l.x / S + cam, y: l.y / S, r: l.r / S, p: l.power }));
+  if (r.day && !r.dark) out.push({ sun: true });
+  return out;
+}
+function castShadow(a, cam, ls) {
+  const fx = a.x, fy = groundY(Math.max(0, a.z)), h = a.def?.sit || a.def?.still ? 20 : 30;
+  for (const l of ls) {
+    let dir, len, k;
+    if (l.sun) { dir = 1; len = 9; k = 0.3; }
+    else {
+      const dx = fx - l.x, d = Math.hypot(dx, fy - l.y);
+      if (d > l.r) continue;
+      k = Math.min(0.6, l.p * (1 - d / l.r) * 1.2);
+      if (k < 0.04) continue;
+      dir = dx >= 0 ? 1 : -1;
+      const lh = Math.max(8, fy - l.y);                     // высота огня над полом под персонажем
+      len = Math.min(46, Math.max(5, Math.abs(dx) * h / Math.max(10, lh + 6) * 0.55));
+    }
+    // тень по полу — трапеция от ступней в сторону от огня, к концу шире и прозрачнее (ступенями — пиксельно)
+    const x0 = Math.round(fx - cam);
+    for (let i = 0; i < len; i++) {
+      const u = i / len, w = 2 + Math.round(u * 2.5);
+      g.globalAlpha = k * (1 - u * 0.75);
+      rect(g, x0 + dir * (i + 2), fy - Math.round(w / 2), 1, w, '#0a0812');
+    }
+  }
+  g.globalAlpha = 1;
+}
 // тёмные комнаты (камера, привал) — тоже живым светом (v0.67): почти ночь, светят портал, костёр и выход
 const DARK_AMBIENT = [0.16, 0.14, 0.2];
 const DAY_AMBIENT = [1.02, 1, 0.96];
@@ -5557,7 +5600,11 @@ function applyLight() {
   let amb = r.day ? DAY_AMBIENT : r.dark ? (r.ambient ?? DARK_AMBIENT) : AMBIENT;   // глава 2 — день
   const nk = nightK(); if (nk > 0) amb = nightAmbient(amb, nk, !!game.vibeFx?.dawn);   // «вайбовать» на поляне — закат, ночь, рассвет
   if (r.ambient) { const lit = (r.props ?? []).filter(pr => pr.lights && game.flags[pr.lights]).length; amb = amb.map(v => Math.min(0.62, v + lit * 0.045)); }
-  light.draw(sceneLights(), amb, true);
+  light.plus = lightPlus;
+  let ls = sceneLights();
+  // новый свет в замке: общий свет приглушён, огни сильнее — пятна света и полумрак (днём и в тёмных комнатах — как было)
+  if (lightPlus && !r.day && !r.dark) { amb = amb.map(v => v * 0.72); ls = ls.map(l => ({ ...l, power: l.power * 1.25, r: l.r * 1.1 })); }
+  light.draw(ls, amb, true, r.day ? 0.5 : 0.9);   // днём свечение мягче
 }
 // пыль в воздухе: пылинки видны у огня (сами светлее там, где свет сильнее)
 const dustMotes = Array.from({ length: 60 }, () => ({ x: Math.random() * W, y: 20 + Math.random() * 100, v: 1 + Math.random() * 3, p: Math.random() * 6.28 }));
