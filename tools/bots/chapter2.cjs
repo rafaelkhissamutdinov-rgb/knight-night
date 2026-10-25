@@ -31,8 +31,8 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/chapter2'; require('fs
       if (s.x < back - 12) { await p.keyboard.down('KeyD'); await p.waitForTimeout(150); await p.keyboard.up('KeyD'); continue; }
       await W(); continue;
     }
-    if ((s.room === 'village_gate' && s.x > 242 && s.x < 264) || (s.room === 'town_gate' && s.x > 216 && s.x < 240) || (s.room === 'forest_e3' && s.x > 600)) { await W(); continue; }
-    const key = (s.room === 'village_gate' && s.x > 262) || (s.room === 'town_gate' && s.x > 236) ? 'KeyA' : 'KeyD';
+    if ((s.room === 'village_gate' && s.x > 242 && s.x < 264) || (s.room === 'town_gate' && s.x > 216 && s.x < 240) || (s.room === 'forest_e3' && Math.abs(s.x - 610) < 10)) { await W(); continue; }   // дверь «Дальше по дороге» — x 610
+    const key = (s.room === 'village_gate' && s.x > 262) || (s.room === 'town_gate' && s.x > 236) || (s.room === 'forest_e3' && s.x > 620) ? 'KeyA' : 'KeyD';
     await p.keyboard.down(key); await p.waitForTimeout(160); await p.keyboard.up(key);
   }
   const s = await st();
