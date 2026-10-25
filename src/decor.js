@@ -654,27 +654,20 @@ export function drawCracks(g, sx, floorTop, state, time) {
     }
     return;
   }
-  // кладка свежее (v0.74 — картинка PixelLab с трещинами), иначе — кодом
-  const cim = decorImages.cracked;
-  if (cim) g.drawImage(cim, Math.round(sx * 2 - cim.width / 2) / 2, floorTop - cim.height / 2, cim.width / 2, cim.height / 2);
-  else for (let row = 0; row * 7 < h; row++) {
-    const off = row % 2 ? 4 : 0;
-    for (let x = -off; x < w; x += 9) {
-      const bw = Math.min(8, w - Math.max(0, x)), bx = Math.max(0, x);
-      rect(g, x0 + bx, top + row * 7, bw, 6, '#4a4462');
-      rect(g, x0 + bx, top + row * 7, bw, 1, '#5e5878');
-    }
-  }
-  // трещины: базовые и новые после каждого удара
+  // замурованный проход (владелец 24.10): своей кладки нет — это та же стена, по ней трещины цветом швов
+  // со светлым сколом по нижнему краю (как у настоящей трещины); с каждым ударом трещин больше
   const lines = [
-    [[13, 4], [11, 12], [14, 20], [12, 30]],
-    [[5, 10], [9, 16], [7, 24]],
-    [[20, 8], [17, 17], [21, 26], [18, 35]],
-    [[3, 28], [10, 31], [16, 26], [24, 30]],
+    [[13, 3], [12, 7], [13.5, 11], [12.5, 15], [14, 19], [13, 24], [14.5, 28]],
+    [[12.5, 15], [9, 17], [7, 20.5], [4.5, 22]],
+    [[13.5, 11], [17, 12.5], [19, 16.5], [22, 18]],
+    [[13, 24], [10, 26], [8.5, 30.5], [6, 33]],
+    [[14, 19], [17.5, 22], [18.5, 26.5], [21.5, 30]],
   ];
-  const n = 1 + Math.min(3, state.hits ?? 0);
-  for (const pts of lines.slice(0, n)) {
-    for (let i = 1; i < pts.length; i++) thick(g, x0 + pts[i - 1][0], top + pts[i - 1][1], x0 + pts[i][0], top + pts[i][1], 1, '#1c1828');
+  const hits = state.hits ?? 0, n = 2 + Math.min(3, hits);
+  for (const pts of lines.slice(0, n)) for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
+    thick(g, x0 + ax + 0.5, top + ay + 0.5, x0 + bx + 0.5, top + by + 0.5, 0.5, '#4a3d52');   // скол
+    thick(g, x0 + ax, top + ay, x0 + bx, top + by, 1, '#0d0a12');
   }
-  if ((state.hits ?? 0) > 0 && Math.floor(time * 4) % 6 === 0) rect(g, x0 + 12, top + 16, 1, 1, '#8a82a8');  // сыплется крошка
+  if (hits > 0 && Math.floor(time * 4) % 6 === 0) rect(g, x0 + 13, top + 16 + (Math.floor(time * 8) % 5), 1, 1, '#4a3d52');   // сыплется крошка  // сыплется крошка
 }

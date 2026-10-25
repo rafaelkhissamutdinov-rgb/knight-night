@@ -1,7 +1,7 @@
 // Все числа, которые влияют на ощущение боя, собраны здесь.
 // Время — в секундах, расстояния — в пикселях игрового экрана (320×180).
 
-export const VERSION = 'v1.07';
+export const VERSION = 'v1.08';
 
 export const CONFIG = {
   width: 320,
@@ -402,7 +402,6 @@ export const NPC_TYPES = {
   // кот Фуджин (v0.78, владелец): живой чёрный кот с жёлтыми глазами, сидит на столе в Старой библиотеке; «говорит» ремарками
   fujin: {
     talks: [
-      { id: 'fujin_after', if: 'fujin_fed' },
       { id: 'fujin_feed', if: 'fujin_met', has: ['dried_fish'] },
       { id: 'fujin_hungry', if: 'fujin_met' },
     ],
@@ -585,6 +584,7 @@ export const TOWNSFOLK = [
   ['lib_student', 'Студент', 1],    // студент в библиотеке: сидит за столом, держится за голову (владелец 23.10; перерисован 24.10 сидящим, в рост горожан)
 ];
 for (const [img, name, sit] of TOWNSFOLK) NPC_TYPES['t_' + img] = { name, img, talk: 't_' + img, still: !!sit };
+for (const t of ['t_vils_1', 't_vils_9', 't_lib_student']) NPC_TYPES[t].hidden = true;   // нарисованы в картинке стола библиотеки (prop_lib_table_a/b)
 // камео (v0.98): спрайт в позе по месту + портрет в разговоре (по фото владельца; одежда — под средневековье)
 Object.assign(NPC_TYPES, {
   bartender: { name: 'Бармен', img: 'npc_bartender', talk: 'bartender_talk', cut: 16 },   // за стойкой — видно до пояса
@@ -625,14 +625,13 @@ export const ROOMS = {
       { id: 'cellA', x: 470, kind: 'bars', locked: 'Пустая камера' },
       { id: 'cellB', x: 870, kind: 'bars', locked: 'Пустая камера', bones: true },
       { id: 'cellC', x: 1560, kind: 'bars', to: 'priestcell', toDoor: 'out', name: 'Келья' },   // v0.79: здесь заперся священник
-      { id: 'secret', x: 1460, kind: 'none', needs: 'secret_hall', to: 'secret', toDoor: 'out', name: 'Тайник' },
+      { id: 'secret', x: 1460, kind: 'none', breach: true, needs: 'secret_hall', to: 'secret', toDoor: 'out', name: 'Тайник' },
       // по лестнице в конце Темницы — к двери наверху, за ней Старая библиотека с котом Фуджином (владелец, v0.78)
       { id: 'lib', x: 2306, kind: 'none', stairs: true, climb: true, to: 'catlib', toDoor: 'out', name: 'Старая библиотека' },
     ],
     trainer: { x: 300, z: 22 },
     props: [{ type: 'barrel', x: 540, z: 2 }, { type: 'crate', x: 1210, z: 3 }, { type: 'bones', x: 1900, z: 30 }],
     decor: [
-      { type: 'note', x: 1500, y: 70, look: 'look_prisoner', name: 'надпись на стене' },
       { type: 'chains', x: 700, y: 46 }, { type: 'chains', x: 1150, y: 46 }, { type: 'chains', x: 1680, y: 46 },
       { type: 'tally', x: 1265, y: 50, n: 37, look: 'look_tally', name: 'зарубки на стене' },
       { type: 'chains', x: 2180, y: 46 },
@@ -669,7 +668,7 @@ export const ROOMS = {
     props: [
       { type: 'desk', x: 252, z: 12 }, { type: 'chair', x: 276, z: 14, flip: true },
       { type: 'table', x: 150, z: 26 }, { type: 'bookpile', x: 128, z: 28 }, { type: 'bookpile', x: 302, z: 20 },
-      { type: 'candles', x: 244, z: 12.6, lift: 15, lights: 'lib_candle', look: 'look_candle', lookLit: 'look_candle_lit', name: 'свеча (зажечь)' },
+      { type: 'candles', x: 244, z: 12.6, lift: 15, lights: 'lib_candle', look: 'look_candle', quiet: true, name: 'свеча (зажечь)' },   // без надписей (владелец 24.10)
       // ещё свечи по библиотеке — каждую можно зажечь (владелец, 15.10)
       { type: 'candles', x: 132, z: 26.6, lift: 16, lights: 'lib_candle2', look: 'look_candle', quiet: true, name: 'свеча (зажечь)' },
       { type: 'candles', x: 92, z: 4, lights: 'lib_candle3', look: 'look_candle', quiet: true, name: 'свечи у стеллажа (зажечь)' },
@@ -704,10 +703,10 @@ export const ROOMS = {
     props: [
       { type: 'chest', id: 's', x: 262, z: 3, coins: 15, item: 'potion' },
       { type: 'bones', x: 150, z: 8 }, { type: 'barrel', x: 290, z: 2 }, { type: 'sack', x: 120, z: 3 },
+      { type: 'logbook', x: 172, z: 9, look: 'look_walled_diary', name: 'дневник' },   // у костей замурованного (текст владельца 24.10)
     ],
     decor: [
       { type: 'tally', x: 140, y: 40, n: 37 },
-      { type: 'note', x: 170, y: 56, look: 'look_note', name: 'записка' },
       { type: 'chains', x: 230, y: 44 },
     ],
   },
@@ -865,11 +864,11 @@ export const ROOMS = {
     name: 'Обрушенный балкон', tiles: 'castle', far: 'assets/backgrounds/balcony/far.png', length: 400, balcony: true, torches: [], limitRight: 318,  // дальше — обрыв; far — даль за перилами (v0.67)
     edges: { left: { to: 'dining', x: 450, name: 'Столовая' } },
     encounters: [
-      { x: 240, story: 'commander', before: 'commander_meet', after: 'balcony_after', enemies: [{ type: 'commander', dx: 40, z: 22 }] },
+      { x: 240, story: 'commander', after: 'balcony_after', enemies: [{ type: 'commander', dx: 40, z: 22 }] },
     ],
     // обрывок дневника №1 (лор владельца): после победы над королевским стражем — там, где он стоял
     props: [{ type: 'letter', id: 'diary1', x: 282, z: 20, pick: 'diary_1', needs: 'done_commander' }],
-    vibe: [{ id: 'balcony_view', x: 300, needs: 'done_commander', fx: 'birds', sun: { x: 311, y: 54 } }],   // sun — где закат на картине дали   // «вайбовать» (v0.81): постоять и посмотреть — место оживает (fx)
+    vibe: [{ id: 'balcony_view', x: 300, needs: 'done_commander', label: 'посмотреть на вид', talk: 'balcony_view', fx: 'birds', sun: { x: 311, y: 54 } }],   // sun — где закат на картине дали   // «вайбовать» (v0.81): постоять и посмотреть — место оживает (fx)
   },
   // ---------- второй этаж (черновик Claude: лор и комнаты владелец поправит) ----------
   // площадка у лестницы из Столовой; дальше — Жилое крыло
@@ -1262,14 +1261,16 @@ export const ROOMS = {
     props: [
       { type: 'lib_shelf', x: 78, z: 26, block: [23, 7] }, { type: 'lib_shelf', x: 134, z: 26, block: [23, 7] },
       { type: 'lib_shelf', x: 78, z: 84, block: [23, 7] }, { type: 'lib_shelf', x: 134, z: 84, block: [23, 7] },
-      { type: 'lib_table', x: 206, z: 34, block: [16, 15] }, { type: 'lib_table', x: 206, z: 86, block: [16, 15] },   // стол низкий — блок на всю глубину столешницы, иначе рыцарь «стоит на столе»
+      // столы с читателями — одной картинкой (владелец 24.10: «летает мужик, сидящий ни на чём»): люди сидят на задних стульях лицом к нам;
+      // сами читатели — невидимые собеседники у своих стульев (hidden). Блок — на всю глубину столешницы
+      { type: 'lib_table_a', x: 206, z: 34, block: [16, 15] }, { type: 'lib_table_b', x: 206, z: 86, block: [16, 15] },
     ],
     blocks: [{ x: 290, z: 22, block: [34, 22] }],   // стол библиотекаря нарисован на картине справа у стены — на него не залезть (владелец)
     npcs: [
       { type: 'janet', x: 248, z: 6 },
-      { type: 't_vils_1', x: 197, z: 34.5, facing: 1 },       // читательница: «Тише, я на самом интересном месте»
-      { type: 't_vils_9', x: 215, z: 86.5 },
-      { type: 't_lib_student', x: 197, z: 86.5, facing: 1 },   // студент за столом напротив травника, держится за голову (сидит, как читательница)
+      { type: 't_vils_1', x: 198, z: 34.5 },        // читательница (за столом A слева): «Тише, я на самом интересном месте»
+      { type: 't_lib_student', x: 214, z: 34.5 },   // студент (за столом A справа), держится за голову
+      { type: 't_vils_9', x: 198, z: 86.5 },        // травник (за столом B), справа — пустой стул
     ],
   },
   // оружейная — картина, как покои принцессы (владелец): два продавца на выбор — Полли (оружие и доспехи), Захария (артефакты)

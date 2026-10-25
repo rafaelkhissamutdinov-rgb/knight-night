@@ -42,10 +42,15 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/full'; require('fs').m
   log.push('floor2 ' + (await st()).room);
   // второй этаж до лестницы на третий
   await p.keyboard.down('KeyD');
+  let lastRoomX = null, stuck = 0;
   for (let i = 0; i < 2000; i++) {
     const s = await tick();
     if (s.room !== lastRoom) { log.push(`${s.room} hp${s.hp} coins${s.coins}`); lastRoom = s.room; await p.screenshot({ path: `${SH}/${s.room}.png`, clip: box }); }
     if (s.room === 'stairs3' && s.x > 200) break;
+    // упёрся (ящики и стулья непроходимы, v1.08) — шаг от стены и дальше
+    if (s.room === lastRoomX?.room && Math.abs(s.x - lastRoomX.x) < 0.5 && !s.arena && s.mode === 'play' && ++stuck > 8) { await p.keyboard.down('KeyS'); await p.waitForTimeout(350); await p.keyboard.up('KeyS'); stuck = 0; }
+    else if (Math.abs(s.x - (lastRoomX?.x ?? -1)) >= 0.5) stuck = 0;
+    lastRoomX = { room: s.room, x: s.x };
     await p.waitForTimeout(40);
   }
   await p.keyboard.up('KeyD');
@@ -54,7 +59,7 @@ const SH = (process.env.KN_OUT || __dirname + '/out') + '/full'; require('fs').m
   const st3 = () => p.evaluate(() => { const g = window.knightNight; return { mode: g.mode, room: g.room, x: Math.round(g.player.x), arena: !!g.arena, tr: g.transition?.kind, bag: g.bag.join(','), hint: document.getElementById('hint').textContent }; });
   const kill = () => p.evaluate(() => { const g = window.knightNight; g.player.hp = 10; for (const e of g.enemies) if (e.alive && e.awake) e.damage?.(99); });
   const talk = async () => { for (let i = 0; i < 8; i++) { if ((await st3()).mode !== 'talk') return; await p.keyboard.press((await p.locator('#talk-choices button').count()) ? 'Digit1' : 'Enter'); await p.waitForTimeout(150); } };   // выбор — первый вариант
-  const walkTo = async (x) => { for (let i = 0; i < 600; i++) { const s = await st3(); if (s.mode === 'talk') { await talk(); continue; } if (s.arena) { await kill(); } if (Math.abs(s.x - x) < 6 && !s.arena) break; const k = s.x < x ? 'KeyD' : 'KeyA'; await p.keyboard.down(k); await p.waitForTimeout(60); await p.keyboard.up(k); } };
+  const walkTo = async (x) => { let px = null, stuck = 0; for (let i = 0; i < 600; i++) { const s = await st3(); if (s.mode === 'talk') { await talk(); continue; } if (s.arena) { await kill(); } if (Math.abs(s.x - x) < 6 && !s.arena) break; stuck = s.x === px ? stuck + 1 : 0; px = s.x; if (stuck > 4) { await p.keyboard.down('KeyS'); await p.waitForTimeout(300); await p.keyboard.up('KeyS'); stuck = 0; } const k = s.x < x ? 'KeyD' : 'KeyA'; await p.keyboard.down(k); await p.waitForTimeout(60); await p.keyboard.up(k); } };   // упёрся в ящик (v1.08) — шаг от стены
   const door = async () => { await p.evaluate(() => { window.knightNight.player.z = 0; }); await p.keyboard.down('KeyW'); await p.waitForTimeout(2300); await p.keyboard.up('KeyW'); await p.waitForTimeout(300); };
   await door(); console.log('1', (await st3()).room); await shot('1-landing3');
   await p.keyboard.down('KeyD'); for (let i = 0; i < 400; i++) { const s = await st3(); if (s.mode === 'talk') { await p.keyboard.up('KeyD'); await talk(); await p.keyboard.down('KeyD'); } if (s.arena) await kill(); if (s.room === 'hall3') break; await p.waitForTimeout(40); } await p.keyboard.up('KeyD');

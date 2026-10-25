@@ -1808,7 +1808,7 @@ function handlePress(code) {
       // у тайника выбор в разговоре ставит флаг — тогда проход открывается
       if (look.lights && !game.flags[look.lights] && look.quiet) {   // ещё одна свеча: просто зажечь, без разговора
         game.flags[look.lights] = true;
-        callout('Свеча зажжена', 'perfect'); sfx.perfect(); save();
+        sfx.perfect(); save();   // без надписи (владелец 24.10)
         return;
       }
       if (look.ending) { startTalk(look.look, () => { if (game.flags.ending) startPortalEnding(); }); return; }   // окно покоев принцессы — к порталу (v0.95)
@@ -2140,6 +2140,7 @@ function nearLook() {
 // предмет, который толкают (push: { flag, dx, needs, found }) — кухонный стол, под ножкой письмо (владелец 23.10):
 // после разговора со служанкой подойти вплотную и идти в него — рыцарь упирается двумя руками и двигает стол
 const shoveDx = pr => (pr.push ? (game.flags[pr.push.flag] ? pr.push.dx : game.pushed?.[pr.push.flag] ?? 0) : 0);
+const PROP_BLOCK = { crate: [10, 7], chair: [7, 5], stool: [6, 4] };   // [полуширина с запасом на плечи, глубина]
 const PUSH_V = 9;   // px/с — стол тяжёлый
 // удар у замурованного прохода: три удара — стена рушится
 function hitWall(atk) {
@@ -2274,6 +2275,7 @@ function nearVibe() {
 }
 function startVibe(spot) {
   const p = game.player;
+  if (spot.talk && !game.flags['vibe_talk_' + spot.id]) { game.flags['vibe_talk_' + spot.id] = true; startTalk(spot.talk, () => startVibe(spot)); return; }   // сначала — реплика Найта
   game.vibe = { spot, t: 0, from: { x: p.x, z: p.z } };
   if (game.vibeFx?.spot !== spot) resetVibeFx();
   game.vibeFx = game.vibeFx?.spot === spot ? game.vibeFx : { spot, k: 0, t0: game.time };
@@ -2899,7 +2901,8 @@ function update(dt) {
   p.update(dt, controls());
   // мебель, сквозь которую не пройти (block: [полуширина, глубина] у предмета; бар — вид сверху, v0.98): шаг назад по оси, что упёрлась
   // blocks у комнаты — то же для нарисованного на картине (клумбы, кадки у ратуши): { x, z, block }
-  for (const pr of [...(room().props ?? []), ...(room().blocks ?? [])]) {
+  for (const pr0 of [...(room().props ?? []), ...(room().blocks ?? [])]) {
+    const pr = pr0.block || !PROP_BLOCK[pr0.type] ? pr0 : { ...pr0, block: PROP_BLOCK[pr0.type] };   // ящики, стулья, табуреты — обходить (владелец 24.10)
     if (!pr.block) continue;
     const inside = (x, z) => Math.abs(x - pr.x - shoveDx(pr)) < pr.block[0] && z > pr.z - pr.block[1] && z < pr.z + 2;
     if (!inside(p.x, p.z)) continue;
@@ -4257,7 +4260,8 @@ function callout(text, kind) {
 }
 
 function hint(text, vibe) {
-  if (vibe) text = text ? `${text} · V\u00a0—\u00a0вайбовать` : 'V\u00a0—\u00a0вайбовать';   // место для «вайбовать»
+  const vl = `V\u00a0—\u00a0${(vibe?.label ?? 'вайбовать').replace(/ /g, '\u00a0')}`;   // label у места: «посмотреть на вид» (балкон)
+  if (vibe) text = text ? `${text} · ${vl}` : vl;   // место для «вайбовать»
   if (!text) { ui.hint.hidden = true; ui.hint.textContent = ''; return; }
   if (ui.hint.textContent === text && !ui.hint.hidden) return;
   ui.hint.textContent = text;
@@ -4388,6 +4392,7 @@ function render() {
     // проём открывается, пока рыцарь входит и выходит
     const k = { turn: Math.min(1, tr.t / DOOR_PHASES.turn), walkIn: 1, fadeOut: 1, fadeIn: 1, walkOut: 1, turnOut: 1 - Math.min(1, tr.t / DOOR_PHASES.turnOut) }[tr.phase];
     if (tr.door.leaf) drawPaintedDoor(g, bgFor(game.room), tr.door, cam, k);
+    else if (tr.door.breach || tr.door.kind === 'hole') { /* пролом уже открыт — без створки и чёрного проёма (владелец) */ }
     else drawDoorOpen(g, tr.door, CONFIG.floorTop, cam, k);
   }
   for (const d of r.doors ?? []) if (d.mat && (!d.needs || game.flags[d.needs])) drawDoormat(g, d, cam);
