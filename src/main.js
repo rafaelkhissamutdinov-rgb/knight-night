@@ -5584,20 +5584,51 @@ function renderDust(cam) {
 
 // Ошибка в одном кадре не должна вешать игру: цикл продолжается, ошибка — в консоль (раз в секунду)
 let lastErrAt = 0;
+// Плавность (v1.11). Игра считает ровно 60 шагов в секунду, а экран бывает 75–165 Гц: раньше на таких экранах
+// до двух третей кадров показывали ту же картинку, что и предыдущий, — бег и камера шли рывками. Теперь:
+// — экран ≈ 60 Гц: ровно один шаг на кадр (таймер браузера дрожит — без этого шагов выходило то 0, то 2), задержки нет;
+// — другая частота: картинка рисуется между двумя последними шагами (positions — prev → cur по доле кадра).
+const SMOOTH_KEYS = ['x', 'z', 'y', 'airY'], SMOOTH_MAX = 14;   // скачок больше 14 px за шаг — телепорт (дверь, шаг призрака): не сглаживать
+const smoothList = () => [game.player, ...game.enemies, ...game.npcs, ...game.arrows];
+function smoothMark() {   // перед шагом: запомнить, где всё стояло
+  for (const o of smoothList()) { const m = (o._sm ??= {}); for (const k of SMOOTH_KEYS) m[k] = o[k]; }
+  game._camPrev = game.camX;
+}
+function smoothApply(a) {   // перед рисованием: сдвинуть на долю шага; вернуть — как было (логика видит только целые шаги)
+  const undo = [];
+  const mix = (o, k, prev) => {
+    const cur = o[k];
+    if (typeof cur !== 'number' || typeof prev !== 'number' || cur === prev || Math.abs(cur - prev) > SMOOTH_MAX) return;
+    undo.push(o, k, cur);
+    o[k] = prev + (cur - prev) * a;
+  };
+  for (const o of smoothList()) if (o._sm) for (const k of SMOOTH_KEYS) mix(o, k, o._sm[k]);
+  if (game._camPrev != null) mix(game, 'camX', game._camPrev);
+  return undo;
+}
+const drawn = { cam: 0, x: 0 };
+let hz60 = 0;   // сколько кадров подряд пришли с шагом ≈ 1/60 с
 function frame(now) {
   requestAnimationFrame(frame);
-  acc += Math.min(0.1, (now - last) / 1000) * (window.knightNightDebug?.timeScale ?? 1);   // timeScale — замедление для раскадровок ботов
+  const scale = window.knightNightDebug?.timeScale ?? 1;   // timeScale — замедление для раскадровок ботов
+  const raw = (now - last) / 1000;
   last = now;
+  hz60 = Math.abs(raw - STEP) < STEP * 0.03 && scale === 1 ? Math.min(60, hz60 + 1) : 0;
+  const locked = hz60 >= 20;   // экран 60 Гц: шаг на кадр
+  acc += locked ? STEP : Math.min(0.1, raw) * scale;
   // логика и рисование — порознь: ошибка в одном не замораживает другое (картинка идёт, Esc и меню работают)
   try {
     while (acc >= STEP) {
       acc -= STEP;
+      smoothMark();
       step(STEP);
     }
   } catch (err) {
     acc = 0;
     frameError(now, err);
   }
+  let undo = null;
+  try { if (!locked && game.mode === 'play' && !game.transition) undo = smoothApply(acc / STEP); } catch (err) { frameError(now, err); }
   try {
     light?.clearNormals();
     render();
@@ -5613,6 +5644,8 @@ function frame(now) {
     frameError(now, err);
   }
   try { renderOverlayFx(); } catch (err) { game.vibeFx = null; frameError(now, err); }
+  drawn.cam = game.camX; drawn.x = game.player.x;   // что реально нарисовано в этом кадре — для бота плавности
+  if (undo) for (let i = 0; i < undo.length; i += 3) undo[i][undo[i + 1]] = undo[i + 2];
 }
 function resetCtx(c) {
   for (let i = 0; i < 64; i++) c.restore();
@@ -5662,4 +5695,4 @@ requestAnimationFrame(frame);
 
 // для автотестов в браузере
 window.knightNight = game;
-window.knightNightDebug = { groundY, input, ROOMS, bgFor, musicInfo, startTalk, readPage, openShop: (shop, name) => openShop({ def: { shop, name } }) };   // для ботов-тестеров
+window.knightNightDebug = { drawn, groundY, input, ROOMS, bgFor, musicInfo, startTalk, readPage, openShop: (shop, name) => openShop({ def: { shop, name } }) };   // для ботов-тестеров
