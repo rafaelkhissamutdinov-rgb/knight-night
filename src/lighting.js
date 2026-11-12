@@ -16,7 +16,8 @@ uniform float steps;
 void main() {
   vec2 t = vec2(uv.x, 1.0 - uv.y);
   vec4 a = texture2D(color, t);
-  vec3 n = normalize(texture2D(normals, t).rgb * 2.0 - 1.0);
+  vec3 nraw = texture2D(normals, t).rgb;
+  vec3 n = normalize(nraw * 2.0 - 1.0);
   vec2 px = t * res;
   vec3 light = ambient;
   vec3 glow = vec3(0.0);
@@ -39,6 +40,7 @@ void main() {
   // пламя и раскалённое светится само
   float e = step(0.9, a.r) * step(0.5, a.g) * step(a.g, a.r * 0.72) * step(a.b, a.r * 0.3);   // только оранжевое пламя (золото — нет)
   vec3 col = mix(a.rgb * light + glow, a.rgb * 1.25 + glow, e);
+  col = mix(col, a.rgb, 1.0 - step(0.2, nraw.b));   // чёрная нормаль — «светится само» (небо за окном не темнеет от света комнаты)
   gl_FragColor = vec4(col, 1.0);
 }`;
 

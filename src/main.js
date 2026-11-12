@@ -19,6 +19,8 @@ import { fxImpact, fxSwing, drawCombatFx, combatFxBusy } from './combatfx.js';
 import { splitDamage } from './combat.js';
 import { loadKnightSprites, knightReady, drawKnight, setNormalTarget, loadSpriteSet, spriteReady, drawSprite, ENEMY_SPRITES, loadWeapons, drawLyingWeapon, spriteAnim, setKnightSkin, drawWeaponWorld, drawFloorWeapon } from './sprites.js';
 import { createLighting } from './lighting.js';
+import { STYLE2, applyStyleRooms, drawVistaFar, vistaLights, drawShafts, drawForeground, drawVignette } from './style2.js';
+applyStyleRooms(ROOMS);   // проба стиля (?style в адресе): поправки комнат — до того, как построен хоть один фон
 loadKnightSprites();
 loadWeapons();
 // враги в пиксель-арте (v0.64): набор по типу врага; набора нет — рисуется старая фигурка
@@ -2358,12 +2360,15 @@ function drawTimeFrames(cam) {
   g.restore();
 }
 function renderOverlayFx() {
-  const busy = !!game.vibeFx || combatFxBusy() || !!game.catGlow?.length;
+  const shafts = game.mode !== 'title' && game.mode !== 'map' && room().vista ? room() : null;
+  const busy = !!game.vibeFx || combatFxBusy() || !!game.catGlow?.length || !!shafts;
   if (busy || fxCanvas.dataset.dirty) { fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); delete fxCanvas.dataset.dirty; }
   if (!busy || game.mode === 'title') return;
   fxCanvas.dataset.dirty = '1';
   fx.setTransform(S, 0, 0, S, 0, 0);
   const cam = Math.round(game.camX);
+  if (shafts) drawShafts(fx, shafts, cam, CONFIG.floorTop, game.time, game.camX);
+  if (shafts) drawVignette(fx, W, H);
   if (game.vibeFx) renderVibeFx(cam);
   drawCatGlow(cam);
   drawCombatFx(fx, cam);
@@ -4369,6 +4374,7 @@ function render() {
   if (farImg?.complete && farImg.naturalWidth && (bgFor(game.room).k ?? 1) === 2) {
     g.drawImage(farImg, 0, 0, farImg.width / 2, farImg.height / 2);
   }
+  if (r.vista) drawVistaFar(g, r, cam);
   const bg = bgFor(game.room), bk = bg.k ?? 1;
   g.drawImage(bg, cam * bk, 0, W * bk, H * bk, 0, 0, W, H);
   drawTimeFrames(cam);   // «вайбовать» на поляне: закат → сумерки → ночь — настоящими кадрами картины (PixelLab)
@@ -4513,6 +4519,7 @@ function render() {
     }
     g.globalAlpha = 1;
   }
+  if (r.fg) drawForeground(g, r, game.camX, H, game.time);   // проба стиля: силуэты переднего плана
   if (r.cobwebs) {
     drawCobweb(g, -cam, 0, 1, 1, 34);
     drawCobweb(g, r.length - cam, 0, -1, 1, 26);
@@ -5497,6 +5504,7 @@ function sceneLights() {
   const blueFire = bossFire();
   const flare = fireFlare();
   for (const x of r.torches ?? []) if (!torchUnderStairs(r, x)) add(x, 69, 150 * (1 + flare * 0.35), blueFire ? [0.45, 0.7, 1] : WARM, ((blueFire ? 1.05 : 0.85) + 0.1 * Math.sin(t * 9 + x) + 0.05 * Math.sin(t * 23 + x * 0.3)) * (1 + flare * 0.9));
+  if (r.vista) vistaLights(r, add, CONFIG.floorTop, t);
   for (const n of game.npcs ?? []) if (n.def?.ghost) add(n.x, groundY(n.z) - 14, 90, [0.55, 0.8, 1], 0.7 + 0.1 * Math.sin(t * 2.3 + n.x), 16);   // душа светится
   for (const n of game.npcs ?? []) if (n.def?.cat && r.dark) add(n.x, groundY(n.z) - 8 - (n.lift ?? 0), 38, [0.72, 0.72, 0.95], 0.4, 12);   // Фуджин виден в темноте (v0.85)
   for (const pr of r.props ?? []) {
@@ -5563,6 +5571,7 @@ function applyLight() {
   let amb = r.day ? DAY_AMBIENT : r.dark ? (r.ambient ?? DARK_AMBIENT) : AMBIENT;   // глава 2 — день
   const nk = nightK(); if (nk > 0) amb = nightAmbient(amb, nk, !!game.vibeFx?.dawn);   // «вайбовать» на поляне — закат, ночь, рассвет
   if (r.ambient) { const lit = (r.props ?? []).filter(pr => pr.lights && game.flags[pr.lights]).length; amb = amb.map(v => Math.min(0.62, v + lit * 0.045)); }
+  if (r.tint) amb = amb.map((v, i) => v * r.tint[i]);   // проба стиля: свой оттенок комнаты
   light.draw(sceneLights(), amb, true);
 }
 // пыль в воздухе: пылинки видны у огня (сами светлее там, где свет сильнее)
