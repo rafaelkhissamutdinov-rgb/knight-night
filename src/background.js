@@ -2,6 +2,7 @@ import { PAL } from './palette.js';
 import { rect, thick } from './draw.js';
 import { drawDecor, decorImages } from './decor.js';
 import { getFire, drawFire } from './fire.js';
+import { cutVista } from './style2.js';
 
 // Декорации комнат: стена с колоннами и дверями, пол с глубиной, факелы, портал на полу,
 // бочки и ящики, решётка камеры, паутина и темнота. Фон комнаты рисуется один раз во всю её длину.
@@ -228,6 +229,7 @@ export function buildRoom(room, height, floorTop, tiles = null) {
         if (dy < 0) ng.drawImage(n, 0, th + dy - 20, TILE_W, 20 - dy, x, height * 2 - 20 + dy, TILE_W, 20 - dy);
       }
     }
+    if (room.vista) cutVista(g, ng, room, floorTop);   // проба стиля: высокие окна с далью за ними
     if (room.far) { g.clearRect(0, 0, length * 2, floorTop * 2); ng?.clearRect(0, 0, length * 2, floorTop * 2); }   // под открытым небом: стены нет, за полом — дальний план (рисуется отдельно)
     g.scale(2, 2);
     const ceiling = !room.far && room.tiles !== 'shop' && room.ceiling !== false && !!CEIL?.naturalWidth;
